@@ -40,8 +40,12 @@ import { useToast } from '@/hooks/use-toast';
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   author: z.string().min(1, 'Author is required'),
-  price: z.coerce.number().min(0, 'Price must be positive'),
+  productionPrice: z.coerce.number().min(0, 'Production price must be positive'),
+  sellingPrice: z.coerce.number().min(0, 'Selling price must be positive'),
   stock: z.coerce.number().int().min(0, 'Stock must be a non-negative integer'),
+}).refine(data => data.sellingPrice >= data.productionPrice, {
+  message: "Selling price cannot be less than production price.",
+  path: ["sellingPrice"],
 });
 
 type BookFormValues = z.infer<typeof bookSchema>;
@@ -61,7 +65,8 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
     defaultValues: {
       title: '',
       author: '',
-      price: 0,
+      productionPrice: 0,
+      sellingPrice: 0,
       stock: 0,
     },
   });
@@ -74,7 +79,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
 
   const handleAddNew = () => {
     setEditingBook(null);
-    form.reset({ title: '', author: '', price: 0, stock: 0 });
+    form.reset({ title: '', author: '', productionPrice: 0, sellingPrice: 0, stock: 0 });
     setIsDialogOpen(true);
   };
   
@@ -104,7 +109,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
         <div className="flex justify-between items-center">
           <div>
             <CardTitle className="font-headline text-2xl">Book Inventory</CardTitle>
-            <CardDescription>Manage your book catalog and stock levels.</CardDescription>
+            <CardDescription>Manage your book catalog, prices, and stock levels.</CardDescription>
           </div>
           <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Book
@@ -118,7 +123,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Author</TableHead>
-                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Selling Price</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead className="text-right w-[120px]">Actions</TableHead>
               </TableRow>
@@ -128,7 +133,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
                 <TableRow key={book.id}>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
-                  <TableCell className="text-right">${book.price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">${book.sellingPrice.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{book.stock}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>
@@ -181,19 +186,34 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="10.99" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                 <FormField
+                  control={form.control}
+                  name="productionPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Production Price</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" placeholder="5.50" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sellingPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Selling Price</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" placeholder="10.99" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="stock"

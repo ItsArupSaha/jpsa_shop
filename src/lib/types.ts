@@ -2,7 +2,8 @@ export type Book = {
   id: string;
   title: string;
   author: string;
-  price: number;
+  productionPrice: number;
+  sellingPrice: number;
   stock: number;
 };
 
@@ -12,7 +13,7 @@ export type Sale = {
   items: {
     bookId: string;
     quantity: number;
-    price: number;
+    price: number; // This is the selling price at the time of sale
   }[];
   total: number;
 };

@@ -1,11 +1,11 @@
 import type { Book, Sale, Expense, Transaction } from './types';
 
 export const books: Book[] = [
-  { id: '1', title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', price: 10.99, stock: 15 },
-  { id: '2', title: 'To Kill a Mockingbird', author: 'Harper Lee', price: 12.50, stock: 8 },
-  { id: '3', title: '1984', author: 'George Orwell', price: 9.99, stock: 22 },
-  { id: '4', title: 'Pride and Prejudice', author: 'Jane Austen', price: 8.00, stock: 30 },
-  { id: '5', title: 'The Catcher in the Rye', author: 'J.D. Salinger', price: 11.25, stock: 12 },
+  { id: '1', title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', productionPrice: 5.50, sellingPrice: 10.99, stock: 15 },
+  { id: '2', title: 'To Kill a Mockingbird', author: 'Harper Lee', productionPrice: 7.00, sellingPrice: 12.50, stock: 8 },
+  { id: '3', title: '1984', author: 'George Orwell', productionPrice: 4.99, sellingPrice: 9.99, stock: 22 },
+  { id: '4', title: 'Pride and Prejudice', author: 'Jane Austen', productionPrice: 3.50, sellingPrice: 8.00, stock: 30 },
+  { id: '5', title: 'The Catcher in the Rye', author: 'J.D. Salinger', productionPrice: 6.00, sellingPrice: 11.25, stock: 12 },
 ];
 
 export const sales: Sale[] = [
@@ -26,12 +26,29 @@ export const sales: Sale[] = [
     ], 
     total: 12.50 
   },
+    { 
+    id: 's3', 
+    date: new Date(), 
+    items: [
+      { bookId: '4', quantity: 5, price: 8.00 }
+    ], 
+    total: 40.00
+  },
+  { 
+    id: 's4', 
+    date: new Date(), 
+    items: [
+      { bookId: '5', quantity: 2, price: 11.25 }
+    ], 
+    total: 22.50
+  }
 ];
 
 export const expenses: Expense[] = [
   { id: 'e1', date: new Date('2024-05-01'), description: 'Rent', amount: 1500 },
   { id: 'e2', date: new Date('2024-05-10'), description: 'Utilities', amount: 250 },
   { id: 'e3', date: new Date('2024-05-25'), description: 'New Book Shipment', amount: 800 },
+  { id: 'e4', date: new Date(), description: 'Marketing', amount: 300 },
 ];
 
 export const receivables: Transaction[] = [

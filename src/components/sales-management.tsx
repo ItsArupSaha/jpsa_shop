@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator';
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
-  price: z.number(),
+  price: z.number(), // This is the selling price at the time of the sale
 });
 
 const saleSchema = z.object({
@@ -56,7 +56,6 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   const watchItems = form.watch('items');
   const total = React.useMemo(() => {
     return watchItems.reduce((acc, item) => {
-      // Quantity might be an empty string temporarily from the input
       const quantity = Number(item.quantity) || 0;
       return acc + (item.price * quantity);
     }, 0);
@@ -73,7 +72,6 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
       date: new Date(),
       items: data.items.map(item => ({
         ...item,
-        price: allBooks.find(b => b.id === item.bookId)?.price || 0,
         quantity: Number(item.quantity) || 0,
       })),
       total: total
@@ -154,7 +152,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
                               <Select onValueChange={(value) => {
                                 const book = allBooks.find(b => b.id === value);
                                 field.onChange(value);
-                                form.setValue(`items.${index}.price`, book?.price || 0);
+                                form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
                               }} defaultValue={field.value}>
                                 <FormControl>
                                   <SelectTrigger>

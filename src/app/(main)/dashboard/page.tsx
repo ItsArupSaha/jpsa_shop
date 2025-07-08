@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Book, ShoppingCart, CreditCard, ArrowRightLeft } from 'lucide-react';
+import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
 import { books, sales, expenses, receivables, payables } from '@/lib/data';
 import { RecentSalesChart, UpcomingPayments } from '@/components/dashboard-charts';
 
@@ -7,18 +7,32 @@ export default function DashboardPage() {
   const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
   const salesThisMonth = sales.filter(s => new Date(s.date).getMonth() === new Date().getMonth() && new Date(s.date).getFullYear() === new Date().getFullYear());
   const salesAmountThisMonth = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
+  
   const expensesThisMonth = expenses.filter(e => new Date(e.date).getMonth() === new Date().getMonth() && new Date(e.date).getFullYear() === new Date().getFullYear());
   const expensesAmount = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+  
   const pendingReceivables = receivables.filter(r => r.status === 'Pending');
   const receivablesAmount = pendingReceivables.reduce((sum, r) => sum + r.amount, 0);
 
+  const grossProfitThisMonth = salesThisMonth.reduce((totalProfit, sale) => {
+    const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
+      const book = books.find(b => b.id === item.bookId);
+      if (book) {
+        const itemProfit = (item.price - book.productionPrice) * item.quantity;
+        return currentSaleProfit + itemProfit;
+      }
+      return currentSaleProfit;
+    }, 0);
+    return totalProfit + saleProfit;
+  }, 0);
+
+  const netProfitThisMonth = grossProfitThisMonth - expensesAmount;
 
   const stats = {
     totalBooks: totalBooks,
     monthlySalesValue: salesAmountThisMonth,
-    monthlyExpenses: expensesThisMonth.length,
+    netProfit: netProfitThisMonth,
     pendingReceivables: pendingReceivables.length,
-    expensesAmount: expensesAmount,
     receivablesAmount: receivablesAmount,
   };
 
@@ -48,12 +62,16 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expenses this Month</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Net Profit this Month</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.expensesAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{stats.monthlyExpenses} transactions</p>
+            <div className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              ${stats.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              After ${expensesAmount.toLocaleString()} in expenses
+            </p>
           </CardContent>
         </Card>
         <Card>

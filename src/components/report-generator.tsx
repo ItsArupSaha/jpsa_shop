@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download } from 'lucide-react';
-import type { Sale, Expense } from '@/lib/types';
+import type { Sale, Expense, Book } from '@/lib/types';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -24,6 +24,7 @@ interface ReportGeneratorProps {
   mockData: {
     sales: Sale[];
     expenses: Expense[];
+    books: Book[];
   }
 }
 
@@ -56,6 +57,7 @@ export default function ReportGenerator({ mockData }: ReportGeneratorProps) {
       const input = {
         salesData: JSON.stringify(salesForMonth),
         expensesData: JSON.stringify(expensesForMonth),
+        booksData: JSON.stringify(mockData.books),
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: data.year,
       };

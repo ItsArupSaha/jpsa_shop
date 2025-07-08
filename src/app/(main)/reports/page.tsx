@@ -1,5 +1,5 @@
 import ReportGenerator from '@/components/report-generator';
-import { sales, expenses } from '@/lib/data';
+import { sales, expenses, books } from '@/lib/data';
 
 export default function ReportsPage() {
   // In a real app, the component might fetch this data itself based on user input,
@@ -7,6 +7,7 @@ export default function ReportsPage() {
   const mockData = {
     sales,
     expenses,
+    books,
   };
   return <ReportGenerator mockData={mockData} />;
 }
