@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { addTransaction, updateTransactionStatus, deleteTransaction } from '@/lib/actions';
 
 import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -38,9 +38,9 @@ interface TransactionsManagementProps {
 }
 
 export default function TransactionsManagement({ title, description, initialTransactions, type }: TransactionsManagementProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
+  const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -56,24 +56,25 @@ export default function TransactionsManagement({ title, description, initialTran
   };
 
   const handleDelete = (id: string) => {
-    setTransactions(transactions.filter(t => t.id !== id));
-    toast({ title: `${type} Deleted`, description: `The transaction has been removed.` });
+    startTransition(async () => {
+        await deleteTransaction(id, type);
+        toast({ title: `${type} Deleted`, description: `The transaction has been removed.` });
+    });
   };
   
   const handleMarkAsPaid = (id: string) => {
-    setTransactions(transactions.map(t => t.id === id ? { ...t, status: 'Paid' } : t));
-    toast({ title: "Status Updated", description: `The ${type.toLowerCase()} has been marked as paid.` });
+    startTransition(async () => {
+        await updateTransactionStatus(id, 'Paid', type);
+        toast({ title: "Status Updated", description: `The ${type.toLowerCase()} has been marked as paid.` });
+    });
   };
 
   const onSubmit = (data: TransactionFormValues) => {
-    const newTransaction: Transaction = {
-      id: crypto.randomUUID(),
-      ...data,
-      status: 'Pending',
-    };
-    setTransactions([newTransaction, ...transactions]);
-    toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
-    setIsDialogOpen(false);
+    startTransition(async () => {
+        await addTransaction({ ...data, type });
+        toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
+        setIsDialogOpen(false);
+    });
   };
 
   return (
@@ -103,10 +104,10 @@ export default function TransactionsManagement({ title, description, initialTran
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? transactions.map((transaction) => (
+                {initialTransactions.length > 0 ? initialTransactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>{format(transaction.dueDate, 'PPP')}</TableCell>
+                    <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>
                     <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant={transaction.status === 'Paid' ? 'secondary' : 'default'}>
@@ -115,11 +116,11 @@ export default function TransactionsManagement({ title, description, initialTran
                     </TableCell>
                     <TableCell className="text-right">
                        {transaction.status === 'Pending' && (
-                         <Button variant="ghost" size="icon" onClick={() => handleMarkAsPaid(transaction.id)} title="Mark as Paid">
+                         <Button variant="ghost" size="icon" onClick={() => handleMarkAsPaid(transaction.id)} title="Mark as Paid" disabled={isPending}>
                            <CheckCircle2 className="h-4 w-4 text-primary" />
                          </Button>
                        )}
-                       <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)} title="Delete">
+                       <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)} title="Delete" disabled={isPending}>
                          <Trash2 className="h-4 w-4 text-destructive" />
                        </Button>
                     </TableCell>
@@ -211,7 +212,7 @@ export default function TransactionsManagement({ title, description, initialTran
                 )}
               />
               <DialogFooter>
-                <Button type="submit">Save {type}</Button>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : `Save ${type}`}</Button>
               </DialogFooter>
             </form>
           </Form>

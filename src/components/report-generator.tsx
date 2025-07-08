@@ -21,14 +21,14 @@ const reportSchema = z.object({
 type ReportFormValues = z.infer<typeof reportSchema>;
 
 interface ReportGeneratorProps {
-  mockData: {
+  data: {
     sales: Sale[];
     expenses: Expense[];
     books: Book[];
   }
 }
 
-export default function ReportGenerator({ mockData }: ReportGeneratorProps) {
+export default function ReportGenerator({ data }: ReportGeneratorProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [reportUri, setReportUri] = React.useState<string | null>(null);
   const { toast } = useToast();
@@ -37,19 +37,19 @@ export default function ReportGenerator({ mockData }: ReportGeneratorProps) {
     resolver: zodResolver(reportSchema),
   });
 
-  const onSubmit = async (data: ReportFormValues) => {
+  const onSubmit = async (formData: ReportFormValues) => {
     setIsLoading(true);
     setReportUri(null);
     try {
-      const selectedMonth = parseInt(data.month, 10);
-      const selectedYear = parseInt(data.year, 10);
+      const selectedMonth = parseInt(formData.month, 10);
+      const selectedYear = parseInt(formData.year, 10);
       
-      const salesForMonth = mockData.sales.filter(s => {
+      const salesForMonth = data.sales.filter(s => {
         const saleDate = new Date(s.date);
         return saleDate.getMonth() === selectedMonth && saleDate.getFullYear() === selectedYear;
       });
 
-      const expensesForMonth = mockData.expenses.filter(e => {
+      const expensesForMonth = data.expenses.filter(e => {
         const expenseDate = new Date(e.date);
         return expenseDate.getMonth() === selectedMonth && expenseDate.getFullYear() === selectedYear;
       });
@@ -57,17 +57,22 @@ export default function ReportGenerator({ mockData }: ReportGeneratorProps) {
       const input = {
         salesData: JSON.stringify(salesForMonth),
         expensesData: JSON.stringify(expensesForMonth),
-        booksData: JSON.stringify(mockData.books),
+        booksData: JSON.stringify(data.books),
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
-        year: data.year,
+        year: formData.year,
       };
 
       const result = await generateMonthlyReport(input);
-      setReportUri(result.reportDataUri);
-      toast({
-        title: "Report Generated",
-        description: "Your monthly report is ready for download.",
-      });
+      
+      if (result.reportDataUri) {
+        setReportUri(result.reportDataUri);
+        toast({
+          title: "Report Generated",
+          description: "Your monthly report is ready for download.",
+        });
+      } else {
+        throw new Error("Failed to generate report URI.");
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -149,7 +154,7 @@ export default function ReportGenerator({ mockData }: ReportGeneratorProps) {
             </Button>
             {reportUri && (
               <Button asChild variant="outline">
-                <a href={reportUri} download={`report-${months[parseInt(form.getValues('month'))].label}-${form.getValues('year')}.pdf`}>
+                <a href={reportUri} download={`report-${form.getValues('month') ? months[parseInt(form.getValues('month'))].label : 'monthly'}-${form.getValues('year')}.pdf`}>
                   <Download className="mr-2 h-4 w-4" />
                   Download PDF
                 </a>

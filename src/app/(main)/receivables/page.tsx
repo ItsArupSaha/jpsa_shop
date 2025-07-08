@@ -1,12 +1,13 @@
 import TransactionsManagement from '@/components/transactions-management';
-import { receivables } from '@/lib/data';
+import { getTransactions } from '@/lib/actions';
 
-export default function ReceivablesPage() {
+export default async function ReceivablesPage() {
+  const transactions = await getTransactions('Receivable');
   return (
     <TransactionsManagement
       title="Track Receivables"
       description="Manage amounts owed to the bookstore."
-      initialTransactions={receivables}
+      initialTransactions={transactions}
       type="Receivable"
     />
   );

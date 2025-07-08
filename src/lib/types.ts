@@ -16,15 +16,17 @@ export type Book = {
   stock: number;
 };
 
-export type Sale = {
-  id: string;
-  date: Date;
-  customerId: string;
-  items: {
+export type SaleItem = {
     bookId: string;
     quantity: number;
     price: number; // This is the selling price at the time of sale
-  }[];
+};
+
+export type Sale = {
+  id: string;
+  date: string; // Changed to string for serialization
+  customerId: string;
+  items: SaleItem[];
   subtotal: number;
   discountType: 'none' | 'percentage' | 'amount';
   discountValue: number;
@@ -34,7 +36,7 @@ export type Sale = {
 
 export type Expense = {
   id: string;
-  date: Date;
+  date: string; // Changed to string for serialization
   description: string;
   amount: number;
 };
@@ -43,6 +45,7 @@ export type Transaction = {
   id: string;
   description: string;
   amount: number;
-  dueDate: Date;
+  dueDate: string; // Changed to string for serialization
   status: 'Pending' | 'Paid';
+  type: 'Receivable' | 'Payable';
 };

@@ -1,9 +1,8 @@
 import BookManagement from '@/components/book-management';
-import { books } from '@/lib/data';
+import { getBooks } from '@/lib/actions';
 
 export default async function BooksPage() {
-  // In a real app, you would fetch books from your database here.
-  const bookData = books;
+  const books = await getBooks();
 
-  return <BookManagement initialBooks={bookData} />;
+  return <BookManagement initialBooks={books} />;
 }

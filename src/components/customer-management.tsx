@@ -1,11 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 
 import type { Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -53,10 +53,10 @@ interface CustomerManagementProps {
 }
 
 export default function CustomerManagement({ initialCustomers }: CustomerManagementProps) {
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
   const { toast } = useToast();
+  const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -82,23 +82,24 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
   };
   
   const handleDelete = (id: string) => {
-    // In a real app, call a server action to delete from the database.
-    setCustomers(customers.filter(c => c.id !== id));
-    toast({ title: "Customer Deleted", description: "The customer has been removed." });
+    startTransition(async () => {
+        await deleteCustomer(id);
+        toast({ title: "Customer Deleted", description: "The customer has been removed." });
+    });
   }
 
   const onSubmit = (data: CustomerFormValues) => {
-    // In a real app, you would call a server action here to add/update in the database.
-    if (editingCustomer) {
-      setCustomers(customers.map((c) => (c.id === editingCustomer.id ? { ...c, ...data } : c)));
-      toast({ title: "Customer Updated", description: "The customer details have been saved." });
-    } else {
-      const newCustomer = { id: crypto.randomUUID(), ...data };
-      setCustomers([...customers, newCustomer]);
-      toast({ title: "Customer Added", description: "The new customer has been added." });
-    }
-    setIsDialogOpen(false);
-    setEditingCustomer(null);
+    startTransition(async () => {
+        if (editingCustomer) {
+            await updateCustomer(editingCustomer.id, data);
+            toast({ title: "Customer Updated", description: "The customer details have been saved." });
+        } else {
+            await addCustomer(data);
+            toast({ title: "Customer Added", description: "The new customer has been added." });
+        }
+        setIsDialogOpen(false);
+        setEditingCustomer(null);
+    });
   };
 
   return (
@@ -127,7 +128,7 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
+              {initialCustomers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell>{customer.phone}</TableCell>
@@ -137,7 +138,7 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                     <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)}>
+                     <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} disabled={isPending}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>
@@ -226,7 +227,7 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
                 )}
               />
               <DialogFooter>
-                <Button type="submit">Save Customer</Button>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Customer"}</Button>
               </DialogFooter>
             </form>
           </Form>

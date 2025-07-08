@@ -1,11 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { addBook, updateBook, deleteBook } from '@/lib/actions';
 
 import type { Book } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -55,10 +55,10 @@ interface BookManagementProps {
 }
 
 export default function BookManagement({ initialBooks }: BookManagementProps) {
-  const [books, setBooks] = useState<Book[]>(initialBooks);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [editingBook, setEditingBook] = React.useState<Book | null>(null);
   const { toast } = useToast();
+  const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema),
@@ -84,23 +84,24 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
   };
   
   const handleDelete = (id: string) => {
-    // In a real app, call a server action to delete from the database.
-    setBooks(books.filter(b => b.id !== id));
-    toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
+    startTransition(async () => {
+      await deleteBook(id);
+      toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
+    });
   }
 
   const onSubmit = (data: BookFormValues) => {
-    // In a real app, you would call a server action here to add/update in the database.
-    if (editingBook) {
-      setBooks(books.map((b) => (b.id === editingBook.id ? { ...b, ...data } : b)));
-      toast({ title: "Book Updated", description: "The book details have been saved." });
-    } else {
-      const newBook = { id: crypto.randomUUID(), ...data };
-      setBooks([...books, newBook]);
-      toast({ title: "Book Added", description: "The new book is now in your inventory." });
-    }
-    setIsDialogOpen(false);
-    setEditingBook(null);
+    startTransition(async () => {
+      if (editingBook) {
+        await updateBook(editingBook.id, data);
+        toast({ title: "Book Updated", description: "The book details have been saved." });
+      } else {
+        await addBook(data);
+        toast({ title: "Book Added", description: "The new book is now in your inventory." });
+      }
+      setIsDialogOpen(false);
+      setEditingBook(null);
+    });
   };
 
   return (
@@ -129,7 +130,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {books.map((book) => (
+              {initialBooks.map((book) => (
                 <TableRow key={book.id}>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
@@ -139,7 +140,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                     <Button variant="ghost" size="icon" onClick={() => handleDelete(book.id)}>
+                     <Button variant="ghost" size="icon" onClick={() => handleDelete(book.id)} disabled={isPending}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>
@@ -228,7 +229,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
                 )}
               />
               <DialogFooter>
-                <Button type="submit">Save changes</Button>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save changes"}</Button>
               </DialogFooter>
             </form>
           </Form>

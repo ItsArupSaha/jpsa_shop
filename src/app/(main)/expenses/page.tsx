@@ -1,6 +1,7 @@
 import ExpensesManagement from '@/components/expenses-management';
-import { expenses } from '@/lib/data';
+import { getExpenses } from '@/lib/actions';
 
-export default function ExpensesPage() {
+export default async function ExpensesPage() {
+  const expenses = await getExpenses();
   return <ExpensesManagement initialExpenses={expenses} />;
 }

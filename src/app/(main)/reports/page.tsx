@@ -1,13 +1,14 @@
 import ReportGenerator from '@/components/report-generator';
-import { sales, expenses, books } from '@/lib/data';
+import { getSales, getExpenses, getBooks } from '@/lib/actions';
 
-export default function ReportsPage() {
-  // In a real app, the component might fetch this data itself based on user input,
-  // or the data fetching could happen inside the server action called by the component.
-  const mockData = {
-    sales,
-    expenses,
-    books,
-  };
-  return <ReportGenerator mockData={mockData} />;
+export default async function ReportsPage() {
+  const [sales, expenses, books] = await Promise.all([
+    getSales(),
+    getExpenses(),
+    getBooks(),
+  ]);
+  
+  const data = { sales, expenses, books };
+
+  return <ReportGenerator data={data} />;
 }

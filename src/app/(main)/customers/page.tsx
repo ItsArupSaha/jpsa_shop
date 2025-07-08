@@ -1,9 +1,7 @@
 import CustomerManagement from '@/components/customer-management';
-import { customers } from '@/lib/data';
+import { getCustomers } from '@/lib/actions';
 
 export default async function CustomersPage() {
-  // In a real app, you would fetch customers from your database here.
-  const customerData = customers;
-
-  return <CustomerManagement initialCustomers={customerData} />;
+  const customers = await getCustomers();
+  return <CustomerManagement initialCustomers={customers} />;
 }

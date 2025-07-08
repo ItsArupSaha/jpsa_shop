@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { addSale } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -52,9 +52,9 @@ interface SalesManagementProps {
 }
 
 export default function SalesManagement({ initialSales, books: allBooks, customers: allCustomers }: SalesManagementProps) {
-  const [sales, setSales] = useState<Sale[]>(initialSales);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
+  const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -107,30 +107,17 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
   };
   
   const onSubmit = (data: SaleFormValues) => {
-    const customer = allCustomers.find(c => c.id === data.customerId);
-    const newSale: Sale = {
-      id: crypto.randomUUID(),
-      date: new Date(),
-      customerId: data.customerId,
-      items: data.items.map(item => ({
-        ...item,
-        quantity: Number(item.quantity) || 0,
-      })),
-      subtotal,
-      discountType: data.discountType,
-      discountValue: data.discountValue,
-      total,
-      paymentMethod: data.paymentMethod,
-    };
-    
-    // In a real app, you would also update book stock and receivables in the database here via a server action.
-    setSales([newSale, ...sales]);
-    if (data.paymentMethod === 'Due') {
-        toast({ title: 'Sale Recorded as Due', description: `A receivable for ${customer?.name} of $${total.toFixed(2)} should be created.` });
-    } else {
+    startTransition(async () => {
+      const saleData = { ...data, subtotal, total };
+      const result = await addSale(saleData);
+
+      if (result?.success) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-    }
-    setIsDialogOpen(false);
+        setIsDialogOpen(false);
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
+      }
+    });
   };
   
   const getBookTitle = (bookId: string) => allBooks.find(b => b.id === bookId)?.title || 'Unknown Book';
@@ -163,9 +150,9 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length > 0 ? sales.map((sale) => (
+                {initialSales.length > 0 ? initialSales.map((sale) => (
                   <TableRow key={sale.id}>
-                    <TableCell>{format(sale.date, 'PPP')}</TableCell>
+                    <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
                     <TableCell className="max-w-[300px] truncate">{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
                     <TableCell>{sale.paymentMethod}</TableCell>
@@ -385,7 +372,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                  </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={total < 0 || !form.formState.isValid}>Confirm Sale</Button>
+                <Button type="submit" disabled={isPending || total < 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
               </DialogFooter>
             </form>
           </Form>

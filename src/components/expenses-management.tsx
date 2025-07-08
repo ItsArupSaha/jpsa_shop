@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { addExpense, deleteExpense } from '@/lib/actions';
 
 import type { Expense } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -34,9 +34,9 @@ interface ExpensesManagementProps {
 }
 
 export default function ExpensesManagement({ initialExpenses }: ExpensesManagementProps) {
-  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
+  const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -52,18 +52,18 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
   };
 
   const handleDelete = (id: string) => {
-    setExpenses(expenses.filter(e => e.id !== id));
-    toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
+    startTransition(async () => {
+        await deleteExpense(id);
+        toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
+    });
   };
 
   const onSubmit = (data: ExpenseFormValues) => {
-    const newExpense: Expense = {
-      id: crypto.randomUUID(),
-      ...data,
-    };
-    setExpenses([newExpense, ...expenses]);
-    toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
-    setIsDialogOpen(false);
+    startTransition(async () => {
+        await addExpense(data);
+        toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
+        setIsDialogOpen(false);
+    });
   };
 
   return (
@@ -92,13 +92,13 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.length > 0 ? expenses.map((expense) => (
+                {initialExpenses.length > 0 ? initialExpenses.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="font-medium">{expense.description}</TableCell>
-                    <TableCell>{format(expense.date, 'PPP')}</TableCell>
+                    <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
                     <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)}>
+                       <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
                          <Trash2 className="h-4 w-4 text-destructive" />
                        </Button>
                     </TableCell>
@@ -190,7 +190,7 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
                 )}
               />
               <DialogFooter>
-                <Button type="submit">Save Expense</Button>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Expense"}</Button>
               </DialogFooter>
             </form>
           </Form>

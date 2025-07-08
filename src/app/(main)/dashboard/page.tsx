@@ -1,14 +1,29 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
-import { books, sales, expenses, receivables, payables } from '@/lib/data';
+import { getBooks, getSales, getExpenses, getTransactions } from '@/lib/actions';
 import { RecentSalesChart, UpcomingPayments } from '@/components/dashboard-charts';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const [books, sales, expenses, receivables, payables] = await Promise.all([
+    getBooks(),
+    getSales(),
+    getExpenses(),
+    getTransactions('Receivable'),
+    getTransactions('Payable'),
+  ]);
+
   const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
-  const salesThisMonth = sales.filter(s => new Date(s.date).getMonth() === new Date().getMonth() && new Date(s.date).getFullYear() === new Date().getFullYear());
+
+  const salesThisMonth = sales.filter(s => {
+      const saleDate = new Date(s.date);
+      return saleDate.getMonth() === new Date().getMonth() && saleDate.getFullYear() === new Date().getFullYear();
+  });
   const salesAmountThisMonth = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
   
-  const expensesThisMonth = expenses.filter(e => new Date(e.date).getMonth() === new Date().getMonth() && new Date(e.date).getFullYear() === new Date().getFullYear());
+  const expensesThisMonth = expenses.filter(e => {
+      const expenseDate = new Date(e.date);
+      return expenseDate.getMonth() === new Date().getMonth() && expenseDate.getFullYear() === new Date().getFullYear()
+  });
   const expensesAmount = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
   
   const pendingReceivables = receivables.filter(r => r.status === 'Pending');

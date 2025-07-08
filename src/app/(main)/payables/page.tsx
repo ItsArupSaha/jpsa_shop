@@ -1,12 +1,13 @@
 import TransactionsManagement from '@/components/transactions-management';
-import { payables } from '@/lib/data';
+import { getTransactions } from '@/lib/actions';
 
-export default function PayablesPage() {
+export default async function PayablesPage() {
+  const transactions = await getTransactions('Payable');
   return (
     <TransactionsManagement
       title="Track Payables"
       description="Manage amounts the bookstore owes."
-      initialTransactions={payables}
+      initialTransactions={transactions}
       type="Payable"
     />
   );

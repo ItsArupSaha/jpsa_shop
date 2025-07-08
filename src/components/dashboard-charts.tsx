@@ -25,10 +25,10 @@ interface RecentSalesChartProps {
 
 export function RecentSalesChart({ sales }: RecentSalesChartProps) {
   const recentSalesData = sales
-    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 7) // Last 7 sales
     .map((sale) => ({
-      name: format(sale.date, 'MMM d'),
+      name: format(new Date(sale.date), 'MMM d'),
       total: sale.total,
     }))
     .reverse();
@@ -100,7 +100,7 @@ export function UpcomingPayments({
       .filter((t) => t.status === 'Pending')
       .map((t) => ({ ...t, type: 'Payable' })),
   ]
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     .slice(0, 5);
 
   return (
@@ -121,7 +121,7 @@ export function UpcomingPayments({
                     {item.description}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Due: {format(item.dueDate, 'PPP')}
+                    Due: {format(new Date(item.dueDate), 'PPP')}
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
