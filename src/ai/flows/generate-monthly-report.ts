@@ -29,7 +29,7 @@ export async function generateMonthlyReport(input: GenerateMonthlyReportInput): 
 const reportPrompt = ai.definePrompt({
   name: 'generateMonthlyReportPrompt',
   input: {schema: GenerateMonthlyReportInputSchema},
-  output: {schema: z.string()},
+  output: {schema: z.string().nullable()},
   prompt: `You are an expert financial analyst specializing in creating concise and informative monthly reports for bookstores.
 
   Given the following sales and expense data for the month of {{month}} {{year}}, generate a report that includes:
@@ -41,6 +41,8 @@ const reportPrompt = ai.definePrompt({
   - A brief summary of the month's performance.
 
   Format the report in a way that is easy to read and understand.  The report should not be more than 200 words.
+  
+  If the provided sales and expense data is empty or contains no relevant information, respond with a clear message stating "No data available for the selected period to generate a report.". Do not try to make up any data.
 
   Sales Data: {{{salesData}}}
   Expense Data: {{{expensesData}}}
@@ -57,7 +59,10 @@ const generateMonthlyReportFlow = ai.defineFlow(
     const {output} = await reportPrompt(input);
 
     if (!output) {
-      throw new Error('No report generated.');
+      const pdf = new jsPDF();
+      pdf.text("No report could be generated. There might be no data for the selected period.", 10, 10);
+      const reportDataUri = pdf.output('datauristring');
+      return { reportDataUri };
     }
 
     // Generate PDF from report summary
