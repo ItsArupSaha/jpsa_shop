@@ -255,7 +255,14 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                           name={`items.${index}.quantity`}
                           render={({ field }) => (
                             <FormItem className="col-span-2">
-                              <FormLabel className="text-xs">Quantity</FormLabel>
+                              <div className="flex justify-between items-center">
+                                <FormLabel className="text-xs">Quantity</FormLabel>
+                                {selectedBook && (
+                                  <span className="text-xs text-muted-foreground">
+                                    In stock: {selectedBook.stock}
+                                  </span>
+                                )}
+                              </div>
                               <FormControl>
                                 <Input type="number" min="1" max={selectedBook?.stock} placeholder="1" {...field} />
                               </FormControl>
