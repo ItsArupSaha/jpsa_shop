@@ -18,18 +18,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
-  price: z.number(), // This is the selling price at the time of the sale
+  price: z.number(),
 });
 
-const saleSchema = z.object({
-  items: z.array(saleItemSchema).min(1, 'At least one item is required for a sale.'),
+const saleFormSchema = z.object({
+  customerName: z.string().min(1, 'Customer name is required'),
+  items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
+  discountType: z.enum(['none', 'percentage', 'amount']),
+  discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
+  paymentMethod: z.enum(['Cash', 'Bank', 'Due'], { required_error: 'Payment method is required.'}),
+}).refine(data => {
+    if (data.discountType === 'percentage') {
+        return data.discountValue >= 0 && data.discountValue <= 100;
+    }
+    return true;
+}, {
+    message: "Percentage discount must be between 0 and 100.",
+    path: ['discountValue'],
 });
 
-type SaleFormValues = z.infer<typeof saleSchema>;
+type SaleFormValues = z.infer<typeof saleFormSchema>;
 
 interface SalesManagementProps {
   initialSales: Sale[];
@@ -42,9 +56,12 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   const { toast } = useToast();
 
   const form = useForm<SaleFormValues>({
-    resolver: zodResolver(saleSchema),
+    resolver: zodResolver(saleFormSchema),
     defaultValues: {
+      customerName: 'Walk-in Customer',
       items: [{ bookId: '', quantity: 1, price: 0 }],
+      discountType: 'none',
+      discountValue: 0,
     },
   });
 
@@ -54,15 +71,37 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   });
   
   const watchItems = form.watch('items');
-  const total = React.useMemo(() => {
-    return watchItems.reduce((acc, item) => {
+  const watchDiscountType = form.watch('discountType');
+  const watchDiscountValue = form.watch('discountValue');
+
+  const { subtotal, discountAmount, total } = React.useMemo(() => {
+    const subtotal = watchItems.reduce((acc, item) => {
       const quantity = Number(item.quantity) || 0;
       return acc + (item.price * quantity);
     }, 0);
-  }, [watchItems]);
+
+    let discountAmount = 0;
+    if (watchDiscountType === 'percentage') {
+      discountAmount = subtotal * (watchDiscountValue / 100);
+    } else if (watchDiscountType === 'amount') {
+      discountAmount = watchDiscountValue;
+    }
+    
+    // Ensure discount doesn't exceed subtotal
+    discountAmount = Math.min(subtotal, discountAmount);
+
+    const total = subtotal - discountAmount;
+    return { subtotal, discountAmount, total };
+  }, [watchItems, watchDiscountType, watchDiscountValue]);
 
   const handleAddNew = () => {
-    form.reset({ items: [{ bookId: '', quantity: 1, price: 0 }] });
+    form.reset({
+      customerName: 'Walk-in Customer',
+      items: [{ bookId: '', quantity: 1, price: 0 }],
+      discountType: 'none',
+      discountValue: 0,
+      paymentMethod: 'Cash',
+    });
     setIsDialogOpen(true);
   };
   
@@ -70,16 +109,25 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
     const newSale: Sale = {
       id: crypto.randomUUID(),
       date: new Date(),
+      customerName: data.customerName,
       items: data.items.map(item => ({
         ...item,
         quantity: Number(item.quantity) || 0,
       })),
-      total: total
+      subtotal,
+      discountType: data.discountType,
+      discountValue: data.discountValue,
+      total,
+      paymentMethod: data.paymentMethod,
     };
     
-    // In a real app, you would also update book stock in the database here.
+    // In a real app, you would also update book stock and receivables in the database here via a server action.
     setSales([newSale, ...sales]);
-    toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
+    if (data.paymentMethod === 'Due') {
+        toast({ title: 'Sale Recorded as Due', description: `A receivable for ${data.customerName} of $${total.toFixed(2)} should be created.` });
+    } else {
+        toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
+    }
     setIsDialogOpen(false);
   };
   
@@ -104,23 +152,25 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sale ID</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead>Customer</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sales.length > 0 ? sales.map((sale) => (
                   <TableRow key={sale.id}>
-                    <TableCell className="font-mono text-xs">{sale.id.substring(0, 8)}</TableCell>
                     <TableCell>{format(sale.date, 'PPP')}</TableCell>
+                    <TableCell className="font-medium">{sale.customerName}</TableCell>
                     <TableCell className="max-w-[300px] truncate">{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
+                    <TableCell>{sale.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -130,14 +180,29 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
             <DialogDescription>Select books and quantities to create a new sale.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
+                <FormField
+                  control={form.control}
+                  name="customerName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Jane Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Separator />
+                <FormLabel>Items</FormLabel>
                 {fields.map((field, index) => {
                   const selectedBook = allBooks.find(b => b.id === watchItems[index]?.bookId);
                   return (
@@ -148,7 +213,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
                           name={`items.${index}.bookId`}
                           render={({ field }) => (
                             <FormItem className="col-span-3">
-                              <FormLabel>Book</FormLabel>
+                              <FormLabel className="text-xs">Book</FormLabel>
                               <Select onValueChange={(value) => {
                                 const book = allBooks.find(b => b.id === value);
                                 field.onChange(value);
@@ -176,7 +241,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
                           name={`items.${index}.quantity`}
                           render={({ field }) => (
                             <FormItem className="col-span-2">
-                              <FormLabel>Quantity</FormLabel>
+                              <FormLabel className="text-xs">Quantity</FormLabel>
                               <FormControl>
                                 <Input type="number" min="1" max={selectedBook?.stock} placeholder="1" {...field} />
                               </FormControl>
@@ -198,21 +263,108 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
                     </div>
                   )
                 })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => append({ bookId: '', quantity: 1, price: 0 })}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                </Button>
+                <Separator />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                     <FormLabel>Discount</FormLabel>
+                     <div className="flex gap-2">
+                       <FormField
+                          control={form.control}
+                          name="discountType"
+                          render={({ field }) => (
+                            <FormItem className="w-1/2">
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="percentage">%</SelectItem>
+                                  <SelectItem value="amount">$</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="discountValue"
+                            render={({ field }) => (
+                                <FormItem className={cn("w-1/2", watchDiscountType === 'none' && 'hidden')}>
+                                    <FormControl>
+                                        <Input type="number" placeholder="0" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                     </div>
+                  </div>
+                  <FormField
+                      control={form.control}
+                      name="paymentMethod"
+                      render={({ field }) => (
+                        <FormItem className="space-y-2">
+                           <FormLabel>Payment Method</FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              className="flex gap-4 pt-2"
+                            >
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="Cash" id="cash" />
+                                </FormControl>
+                                <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="Bank" id="bank" />
+                                </FormControl>
+                                <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <RadioGroupItem value="Due" id="due" />
+                                </FormControl>
+                                <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                 <Separator />
+                 <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>${subtotal.toFixed(2)}</span>
+                    </div>
+                     <div className="flex justify-between text-muted-foreground">
+                        <span>Discount</span>
+                        <span>-${discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-base">
+                        <span>Total</span>
+                        <span>${total.toFixed(2)}</span>
+                    </div>
+                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => append({ bookId: '', quantity: 1, price: 0 })}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-              </Button>
-              <Separator />
-               <div className="flex justify-between items-center font-bold text-lg">
-                  <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
-               </div>
               <DialogFooter>
-                <Button type="submit" disabled={total <= 0 || !form.formState.isValid}>Confirm Sale</Button>
+                <Button type="submit" disabled={total < 0 || !form.formState.isValid}>Confirm Sale</Button>
               </DialogFooter>
             </form>
           </Form>

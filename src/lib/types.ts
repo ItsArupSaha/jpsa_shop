@@ -10,12 +10,17 @@ export type Book = {
 export type Sale = {
   id: string;
   date: Date;
+  customerName: string;
   items: {
     bookId: string;
     quantity: number;
     price: number; // This is the selling price at the time of sale
   }[];
+  subtotal: number;
+  discountType: 'none' | 'percentage' | 'amount';
+  discountValue: number;
   total: number;
+  paymentMethod: 'Cash' | 'Bank' | 'Due';
 };
 
 export type Expense = {

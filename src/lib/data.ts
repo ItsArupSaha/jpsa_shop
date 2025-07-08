@@ -12,35 +12,55 @@ export const sales: Sale[] = [
   { 
     id: 's1', 
     date: new Date('2024-05-15'), 
+    customerName: 'Alice Johnson',
     items: [
       { bookId: '1', quantity: 2, price: 10.99 },
       { bookId: '3', quantity: 1, price: 9.99 }
-    ], 
-    total: 31.97 
+    ],
+    subtotal: 31.97,
+    discountType: 'amount',
+    discountValue: 1.97,
+    total: 30.00,
+    paymentMethod: 'Cash',
   },
   { 
     id: 's2', 
     date: new Date('2024-05-20'), 
+    customerName: 'Corporate Client',
     items: [
       { bookId: '2', quantity: 1, price: 12.50 }
-    ], 
-    total: 12.50 
+    ],
+    subtotal: 12.50,
+    discountType: 'none',
+    discountValue: 0,
+    total: 12.50,
+    paymentMethod: 'Due',
   },
-    { 
+  { 
     id: 's3', 
     date: new Date(), 
+    customerName: 'Bob Williams',
     items: [
       { bookId: '4', quantity: 5, price: 8.00 }
-    ], 
-    total: 40.00
+    ],
+    subtotal: 40.00,
+    discountType: 'percentage',
+    discountValue: 10, // 10%
+    total: 36.00,
+    paymentMethod: 'Bank'
   },
   { 
     id: 's4', 
     date: new Date(), 
+    customerName: 'Walk-in Customer',
     items: [
       { bookId: '5', quantity: 2, price: 11.25 }
-    ], 
-    total: 22.50
+    ],
+    subtotal: 22.50,
+    discountType: 'none',
+    discountValue: 0,
+    total: 22.50,
+    paymentMethod: 'Cash'
   }
 ];
 
@@ -54,6 +74,7 @@ export const expenses: Expense[] = [
 export const receivables: Transaction[] = [
   { id: 'r1', description: 'School Bulk Order', amount: 350.00, dueDate: new Date('2024-06-15'), status: 'Pending' },
   { id: 'r2', description: 'Customer Special Order', amount: 45.50, dueDate: new Date('2024-05-30'), status: 'Paid' },
+  { id: 'r3', description: 'Sale #s2 - Corporate Client', amount: 12.50, dueDate: new Date('2024-06-20'), status: 'Pending' },
 ];
 
 export const payables: Transaction[] = [
