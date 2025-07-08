@@ -1,3 +1,12 @@
+export type Customer = {
+  id: string;
+  name: string;
+  phone: string;
+  whatsapp?: string;
+  address: string;
+  openingBalance: number;
+};
+
 export type Book = {
   id: string;
   title: string;
@@ -10,7 +19,7 @@ export type Book = {
 export type Sale = {
   id: string;
   date: Date;
-  customerName: string;
+  customerId: string;
   items: {
     bookId: string;
     quantity: number;

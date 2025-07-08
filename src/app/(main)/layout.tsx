@@ -9,7 +9,8 @@ import {
   CreditCard,
   ArrowRightLeft,
   FileText,
-  ShoppingCart
+  ShoppingCart,
+  Users
 } from 'lucide-react';
 
 import {
@@ -29,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/books', icon: Book, label: 'Books' },
+  { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
   { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },

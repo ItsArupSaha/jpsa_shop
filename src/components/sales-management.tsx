@@ -8,7 +8,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
-import type { Sale, Book } from '@/lib/types';
+import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,7 +28,7 @@ const saleItemSchema = z.object({
 });
 
 const saleFormSchema = z.object({
-  customerName: z.string().min(1, 'Customer name is required'),
+  customerId: z.string().min(1, 'Customer is required'),
   items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
   discountType: z.enum(['none', 'percentage', 'amount']),
   discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
@@ -48,9 +48,10 @@ type SaleFormValues = z.infer<typeof saleFormSchema>;
 interface SalesManagementProps {
   initialSales: Sale[];
   books: Book[];
+  customers: Customer[];
 }
 
-export default function SalesManagement({ initialSales, books: allBooks }: SalesManagementProps) {
+export default function SalesManagement({ initialSales, books: allBooks, customers: allCustomers }: SalesManagementProps) {
   const [sales, setSales] = useState<Sale[]>(initialSales);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -58,7 +59,6 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
-      customerName: 'Walk-in Customer',
       items: [{ bookId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
@@ -95,8 +95,9 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   }, [watchItems, watchDiscountType, watchDiscountValue]);
 
   const handleAddNew = () => {
+    const walkInCustomer = allCustomers.find(c => c.name === 'Walk-in Customer');
     form.reset({
-      customerName: 'Walk-in Customer',
+      customerId: walkInCustomer?.id || '',
       items: [{ bookId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
@@ -106,10 +107,11 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   };
   
   const onSubmit = (data: SaleFormValues) => {
+    const customer = allCustomers.find(c => c.id === data.customerId);
     const newSale: Sale = {
       id: crypto.randomUUID(),
       date: new Date(),
-      customerName: data.customerName,
+      customerId: data.customerId,
       items: data.items.map(item => ({
         ...item,
         quantity: Number(item.quantity) || 0,
@@ -124,7 +126,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
     // In a real app, you would also update book stock and receivables in the database here via a server action.
     setSales([newSale, ...sales]);
     if (data.paymentMethod === 'Due') {
-        toast({ title: 'Sale Recorded as Due', description: `A receivable for ${data.customerName} of $${total.toFixed(2)} should be created.` });
+        toast({ title: 'Sale Recorded as Due', description: `A receivable for ${customer?.name} of $${total.toFixed(2)} should be created.` });
     } else {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
     }
@@ -132,6 +134,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
   };
   
   const getBookTitle = (bookId: string) => allBooks.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getCustomerName = (customerId: string) => allCustomers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   return (
     <>
@@ -163,7 +166,7 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
                 {sales.length > 0 ? sales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell>{format(sale.date, 'PPP')}</TableCell>
-                    <TableCell className="font-medium">{sale.customerName}</TableCell>
+                    <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
                     <TableCell className="max-w-[300px] truncate">{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
                     <TableCell>{sale.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
@@ -183,20 +186,31 @@ export default function SalesManagement({ initialSales, books: allBooks }: Sales
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
-            <DialogDescription>Select books and quantities to create a new sale.</DialogDescription>
+            <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
                 <FormField
                   control={form.control}
-                  name="customerName"
+                  name="customerId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Customer Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Jane Doe" {...field} />
-                      </FormControl>
+                      <FormLabel>Customer</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a customer" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {allCustomers.map(customer => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

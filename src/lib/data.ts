@@ -1,4 +1,11 @@
-import type { Book, Sale, Expense, Transaction } from './types';
+import type { Book, Sale, Expense, Transaction, Customer } from './types';
+
+export const customers: Customer[] = [
+  { id: 'cust1', name: 'Alice Johnson', phone: '123-456-7890', address: '123 Maple St, Springfield', openingBalance: 0 },
+  { id: 'cust2', name: 'Bob Williams', phone: '234-567-8901', address: '456 Oak Ave, Springfield', openingBalance: 50 },
+  { id: 'cust3', name: 'Corporate Client', phone: '345-678-9012', address: '789 Pine Ln, Springfield', openingBalance: 0 },
+  { id: 'cust4', name: 'Walk-in Customer', phone: 'N/A', address: 'N/A', openingBalance: 0 },
+];
 
 export const books: Book[] = [
   { id: '1', title: 'The Great Gatsby', author: 'F. Scott Fitzgerald', productionPrice: 5.50, sellingPrice: 10.99, stock: 15 },
@@ -12,7 +19,7 @@ export const sales: Sale[] = [
   { 
     id: 's1', 
     date: new Date('2024-05-15'), 
-    customerName: 'Alice Johnson',
+    customerId: 'cust1',
     items: [
       { bookId: '1', quantity: 2, price: 10.99 },
       { bookId: '3', quantity: 1, price: 9.99 }
@@ -26,7 +33,7 @@ export const sales: Sale[] = [
   { 
     id: 's2', 
     date: new Date('2024-05-20'), 
-    customerName: 'Corporate Client',
+    customerId: 'cust3',
     items: [
       { bookId: '2', quantity: 1, price: 12.50 }
     ],
@@ -39,7 +46,7 @@ export const sales: Sale[] = [
   { 
     id: 's3', 
     date: new Date(), 
-    customerName: 'Bob Williams',
+    customerId: 'cust2',
     items: [
       { bookId: '4', quantity: 5, price: 8.00 }
     ],
@@ -52,7 +59,7 @@ export const sales: Sale[] = [
   { 
     id: 's4', 
     date: new Date(), 
-    customerName: 'Walk-in Customer',
+    customerId: 'cust4',
     items: [
       { bookId: '5', quantity: 2, price: 11.25 }
     ],
