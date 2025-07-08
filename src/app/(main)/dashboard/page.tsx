@@ -1,15 +1,25 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, CreditCard, ArrowRightLeft } from 'lucide-react';
+import { books, sales, expenses, receivables, payables } from '@/lib/data';
+import { RecentSalesChart, UpcomingPayments } from '@/components/dashboard-charts';
 
 export default function DashboardPage() {
-  // In a real app, these values would be fetched from the backend.
+  const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
+  const salesThisMonth = sales.filter(s => new Date(s.date).getMonth() === new Date().getMonth() && new Date(s.date).getFullYear() === new Date().getFullYear());
+  const salesAmountThisMonth = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
+  const expensesThisMonth = expenses.filter(e => new Date(e.date).getMonth() === new Date().getMonth() && new Date(e.date).getFullYear() === new Date().getFullYear());
+  const expensesAmount = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+  const pendingReceivables = receivables.filter(r => r.status === 'Pending');
+  const receivablesAmount = pendingReceivables.reduce((sum, r) => sum + r.amount, 0);
+
+
   const stats = {
-    totalBooks: 15 + 8 + 22 + 30 + 12,
-    monthlySales: 2,
-    monthlyExpenses: 3,
-    pendingReceivables: 1,
-    expensesAmount: 1500 + 250 + 800,
-    receivablesAmount: 350.00,
+    totalBooks: totalBooks,
+    monthlySalesValue: salesAmountThisMonth,
+    monthlyExpenses: expensesThisMonth.length,
+    pendingReceivables: pendingReceivables.length,
+    expensesAmount: expensesAmount,
+    receivablesAmount: receivablesAmount,
   };
 
   return (
@@ -18,12 +28,12 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Books</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Books in Stock</CardTitle>
             <Book className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalBooks}</div>
-            <p className="text-xs text-muted-foreground">titles in inventory</p>
+            <p className="text-xs text-muted-foreground">across {books.length} titles</p>
           </CardContent>
         </Card>
         <Card>
@@ -32,8 +42,8 @@ export default function DashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.monthlySales}</div>
-            <p className="text-xs text-muted-foreground">transactions recorded</p>
+            <div className="text-2xl font-bold">${stats.monthlySalesValue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">{salesThisMonth.length} transactions recorded</p>
           </CardContent>
         </Card>
         <Card>
@@ -53,29 +63,17 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.receivablesAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{stats.pendingReceivables} pending transaction</p>
+            <p className="text-xs text-muted-foreground">{stats.pendingReceivables} pending transaction(s)</p>
           </CardContent>
         </Card>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">Recent Sales</CardTitle>
-            <CardDescription>A quick look at the most recent sales.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Recent sales chart or list will go here.</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">Upcoming Payments</CardTitle>
-            <CardDescription>A summary of due receivables and payables.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Upcoming receivables/payables list will go here.</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
+        <div className="lg:col-span-4">
+          <RecentSalesChart sales={sales} />
+        </div>
+        <div className="lg:col-span-3">
+          <UpcomingPayments receivables={receivables} payables={payables} />
+        </div>
       </div>
     </div>
   );
