@@ -4,8 +4,11 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet } from 'lucide-react';
 import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
 
 import type { Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -111,17 +114,68 @@ export default function CustomerManagement() {
     });
   };
 
+  const handleDownloadPdf = () => {
+    if (!customers.length) return;
+    
+    const doc = new jsPDF();
+    doc.text(`Customer List`, 14, 15);
+    
+    autoTable(doc, {
+      startY: 20,
+      head: [['Name', 'Phone', 'Address']],
+      body: customers.map(c => [c.name, c.phone, c.address]),
+    });
+    
+    doc.save(`customer-list.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    if (!customers.length) return;
+    
+    const csvData = customers.map(c => ({
+      Name: c.name,
+      Phone: c.phone,
+      WhatsApp: c.whatsapp || '',
+      Address: c.address,
+      'Opening Balance': c.openingBalance,
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `customer-list.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+
   return (
     <Card className="animate-in fade-in-50">
       <CardHeader>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
             <CardTitle className="font-headline text-2xl">Customer List</CardTitle>
             <CardDescription>Manage your customer information and balances.</CardDescription>
           </div>
-          <Button onClick={handleAddNew}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
-          </Button>
+          <div className="flex flex-col sm:flex-row items-end gap-2">
+            <Button onClick={handleAddNew}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={customers.length === 0}>
+                <FileText className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadCsv} disabled={customers.length === 0}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
+              </Button>
+            </div>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -245,3 +299,5 @@ export default function CustomerManagement() {
     </Card>
   );
 }
+
+    
