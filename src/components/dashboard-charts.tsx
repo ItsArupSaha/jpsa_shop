@@ -14,50 +14,50 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
+  Cell
 } from 'recharts';
-import type { Sale, Transaction } from '@/lib/types';
-import { format } from 'date-fns';
-import { Badge } from './ui/badge';
 
-interface RecentSalesChartProps {
-  sales: Sale[];
+interface MonthlySummaryChartProps {
+  income: number;
+  expenses: number;
+  profit: number;
 }
 
-export function RecentSalesChart({ sales }: RecentSalesChartProps) {
-  const recentSalesData = sales
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 7) // Last 7 sales
-    .map((sale) => ({
-      name: format(new Date(sale.date), 'MMM d'),
-      total: sale.total,
-    }))
-    .reverse();
+export function MonthlySummaryChart({ income, expenses, profit }: MonthlySummaryChartProps) {
+  const data = [
+    { name: 'Income', value: income, fill: 'hsl(var(--chart-1))' },
+    { name: 'Expenses', value: expenses, fill: 'hsl(var(--chart-2))' },
+    { name: 'Profit', value: profit, fill: profit >= 0 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))'},
+  ];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Recent Sales</CardTitle>
+        <CardTitle className="font-headline">This Month's Summary</CardTitle>
         <CardDescription>
-          A chart of your last 7 sales transactions.
+          A visual summary of your income, expenses, and profit for the current month.
         </CardDescription>
       </CardHeader>
       <CardContent className="pl-2">
-        {recentSalesData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={recentSalesData}>
-              <XAxis
-                dataKey="name"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
+        {data.length > 0 ? (
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={data} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+               <XAxis 
+                type="number"
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(value) => `$${value}`}
+              />
+              <YAxis 
+                type="category" 
+                dataKey="name" 
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
               />
               <Tooltip
                 contentStyle={{
@@ -65,91 +65,18 @@ export function RecentSalesChart({ sales }: RecentSalesChartProps) {
                   border: '1px solid hsl(var(--border))',
                 }}
                 cursor={{ fill: 'hsl(var(--muted))' }}
+                formatter={(value: number) => `$${value.toFixed(2)}`}
               />
-              <Bar
-                dataKey="total"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-              />
+              <Bar dataKey="value" barSize={60}>
+                 {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No sales data to display.
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface UpcomingPaymentsProps {
-  receivables: Transaction[];
-  payables: Transaction[];
-}
-
-export function UpcomingPayments({
-  receivables,
-  payables,
-}: UpcomingPaymentsProps) {
-  const upcoming = [
-    ...receivables
-      .filter((t) => t.status === 'Pending')
-      .map((t) => ({ ...t, type: 'Receivable' })),
-    ...payables
-      .filter((t) => t.status === 'Pending')
-      .map((t) => ({ ...t, type: 'Payable' })),
-  ]
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-    .slice(0, 5);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline">Upcoming Payments</CardTitle>
-        <CardDescription>
-          A summary of due receivables and payables.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {upcoming.length > 0 ? (
-          <div className="space-y-4">
-            {upcoming.map((item) => (
-              <div key={item.id} className="flex items-center">
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {item.description}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Due: {format(new Date(item.dueDate), 'PPP')}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <div
-                    className={`font-medium ${
-                      item.type === 'Receivable'
-                        ? 'text-primary'
-                        : 'text-destructive'
-                    }`}
-                  >
-                    {item.type === 'Receivable' ? '+' : '-'}$
-                    {item.amount.toFixed(2)}
-                  </div>
-                  <Badge
-                    variant={
-                      item.type === 'Receivable' ? 'default' : 'destructive'
-                    }
-                    className="text-xs"
-                  >
-                    {item.type}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No upcoming payments.
+            No data available for this month yet.
           </p>
         )}
       </CardContent>

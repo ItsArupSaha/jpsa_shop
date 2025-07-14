@@ -1,15 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
 import { getBooks, getSales, getExpenses, getTransactions } from '@/lib/actions';
-import { RecentSalesChart, UpcomingPayments } from '@/components/dashboard-charts';
+import { MonthlySummaryChart } from '@/components/dashboard-charts';
 
 export default async function DashboardPage() {
-  const [books, sales, expenses, receivables, payables] = await Promise.all([
+  const [books, sales, expenses, receivables] = await Promise.all([
     getBooks(),
     getSales(),
     getExpenses(),
     getTransactions('Receivable'),
-    getTransactions('Payable'),
   ]);
 
   const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
@@ -100,13 +99,12 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-        <div className="lg:col-span-4">
-          <RecentSalesChart sales={sales} />
-        </div>
-        <div className="lg:col-span-3">
-          <UpcomingPayments receivables={receivables} payables={payables} />
-        </div>
+      <div>
+        <MonthlySummaryChart
+            income={salesAmountThisMonth}
+            expenses={expensesAmount}
+            profit={netProfitThisMonth}
+          />
       </div>
     </div>
   );
