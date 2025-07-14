@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, Calendar as CalendarIcon, History } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Calendar as CalendarIcon, History, Download } from 'lucide-react';
 import { getBooks, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -156,16 +156,19 @@ export default function BookManagement() {
   return (
     <Card className="animate-in fade-in-50">
       <CardHeader>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
             <CardTitle className="font-headline text-2xl">Book Inventory</CardTitle>
             <CardDescription>Manage your book catalog, prices, and stock levels.</CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 items-end">
+             <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Book
+            </Button>
             <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline">
-                        <History className="mr-2 h-4 w-4" /> Calculate Closing Stock
+                        <Download className="mr-2 h-4 w-4" /> Download Stock
                     </Button>
                 </DialogTrigger>
                 <DialogContent>
@@ -203,9 +206,6 @@ export default function BookManagement() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Book
-            </Button>
           </div>
         </div>
       </CardHeader>
