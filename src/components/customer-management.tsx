@@ -163,7 +163,7 @@ export default function CustomerManagement() {
             <CardTitle className="font-headline text-2xl">Customer List</CardTitle>
             <CardDescription>Manage your customer information and balances.</CardDescription>
           </div>
-          <div className="flex flex-col sm:flex-row items-end gap-2">
+          <div className="flex flex-col items-end gap-2">
             <Button onClick={handleAddNew}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
             </Button>
@@ -299,5 +299,3 @@ export default function CustomerManagement() {
     </Card>
   );
 }
-
-    
