@@ -89,6 +89,18 @@ export async function getCustomers(): Promise<Customer[]> {
   return snapshot.docs.map(docToCustomer);
 }
 
+export async function getCustomerById(id: string): Promise<Customer | null> {
+    if (!db) return null;
+    const docRef = doc(db, 'customers', id);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+        return docToCustomer(docSnap);
+    } else {
+        return null;
+    }
+}
+
 export async function addCustomer(data: Omit<Customer, 'id'>) {
   if (!db) return;
   await addDoc(collection(db, 'customers'), data);

@@ -9,6 +9,7 @@ import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '@/lib
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
+import Link from 'next/link';
 
 import type { Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -193,7 +194,11 @@ export default function CustomerManagement() {
             <TableBody>
               {customers.map((customer) => (
                 <TableRow key={customer.id}>
-                  <TableCell className="font-medium">{customer.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                      {customer.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{customer.phone}</TableCell>
                   <TableCell>{customer.address}</TableCell>
                   <TableCell className="text-right">${customer.openingBalance.toFixed(2)}</TableCell>
