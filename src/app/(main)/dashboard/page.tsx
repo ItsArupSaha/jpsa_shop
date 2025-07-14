@@ -1,14 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
-import { getBooks, getSales, getExpenses, getTransactions } from '@/lib/actions';
+import { Book, ShoppingCart, DollarSign, ArrowRightLeft, Database } from 'lucide-react';
+import { getBooks, getSales, getExpenses, getTransactions, seedDatabase, getCustomers } from '@/lib/actions';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
+import { Button } from '@/components/ui/button';
+import { revalidatePath } from 'next/cache';
+
+async function handleSeedDatabase() {
+  'use server';
+  await seedDatabase();
+  revalidatePath('/dashboard');
+}
+
 
 export default async function DashboardPage() {
-  const [books, sales, expenses, receivables] = await Promise.all([
+  const [books, sales, expenses, receivables, customers] = await Promise.all([
     getBooks(),
     getSales(),
     getExpenses(),
     getTransactions('Receivable'),
+    getCustomers(),
   ]);
 
   const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
@@ -50,9 +60,20 @@ export default async function DashboardPage() {
     receivablesAmount: receivablesAmount,
   };
 
+  const isDataEmpty = books.length === 0 && customers.length === 0;
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in-50">
-      <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
+      <div className="flex justify-between items-start">
+        <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
+        {isDataEmpty && (
+          <form action={handleSeedDatabase}>
+            <Button variant="outline">
+              <Database className="mr-2" /> Seed Database
+            </Button>
+          </form>
+        )}
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

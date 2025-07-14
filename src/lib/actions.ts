@@ -20,6 +20,8 @@ import { z } from 'zod';
 
 import { db } from './firebase';
 import type { Book, Customer, Sale, Expense, Transaction, SaleItem } from './types';
+import { books as mockBooks, customers as mockCustomers, sales as mockSales, expenses as mockExpenses, receivables as mockReceivables, payables as mockPayables } from './data';
+
 
 // Helper to convert Firestore docs to our types
 function docToBook(d: any): Book {
@@ -225,4 +227,62 @@ export async function deleteTransaction(id: string, type: 'Receivable' | 'Payabl
     await deleteDoc(doc(db, 'transactions', id));
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+}
+
+// --- Database Seeding ---
+export async function seedDatabase() {
+    if (!db) return;
+    console.log("Starting database seed...");
+    
+    const batch = writeBatch(db);
+
+    // Seed Books
+    mockBooks.forEach(book => {
+        const docRef = doc(db, 'books', book.id);
+        batch.set(docRef, book);
+    });
+
+    // Seed Customers
+    mockCustomers.forEach(customer => {
+        const docRef = doc(db, 'customers', customer.id);
+        batch.set(docRef, customer);
+    });
+
+    // Seed Sales
+    mockSales.forEach(sale => {
+        const docRef = doc(db, 'sales', sale.id);
+        const saleData = { ...sale, date: Timestamp.fromDate(new Date(sale.date)) };
+        batch.set(docRef, saleData);
+    });
+
+    // Seed Expenses
+    mockExpenses.forEach(expense => {
+        const docRef = doc(db, 'expenses', expense.id);
+        const expenseData = { ...expense, date: Timestamp.fromDate(new Date(expense.date)) };
+        batch.set(docRef, expenseData);
+    });
+
+    // Seed Transactions
+    const allTransactions = [
+        ...mockReceivables.map(t => ({ ...t, type: 'Receivable' as const })),
+        ...mockPayables.map(t => ({ ...t, type: 'Payable' as const }))
+    ];
+
+    allTransactions.forEach(transaction => {
+        const docRef = doc(db, 'transactions', transaction.id);
+        const transactionData = { ...transaction, dueDate: Timestamp.fromDate(new Date(transaction.dueDate)) };
+        batch.set(docRef, transactionData);
+    });
+
+    await batch.commit();
+    console.log("Database seeded successfully!");
+
+    // Revalidate all paths that might have changed
+    revalidatePath('/dashboard');
+    revalidatePath('/books');
+    revalidatePath('/customers');
+    revalidatePath('/sales');
+    revalidatePath('/expenses');
+    revalidatePath('/receivables');
+    revalidatePath('/payables');
 }
