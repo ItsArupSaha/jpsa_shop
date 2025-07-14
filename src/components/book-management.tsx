@@ -4,10 +4,14 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, Calendar as CalendarIcon, History, Download } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Calendar as CalendarIcon, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { getBooks, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+
 
 import type { Book, Sale } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -153,6 +157,46 @@ export default function BookManagement() {
     setIsStockDialogOpen(false);
   }
 
+  const handleDownloadPdf = () => {
+    if (!closingStockData.length || !closingStockDate) return;
+    
+    const doc = new jsPDF();
+    const dateString = format(closingStockDate, 'PPP');
+    
+    doc.text(`Closing Stock Report as of ${dateString}`, 14, 15);
+    
+    autoTable(doc, {
+      startY: 20,
+      head: [['Title', 'Author', 'Stock']],
+      body: closingStockData.map(book => [book.title, book.author, book.closingStock]),
+    });
+    
+    doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    if (!closingStockData.length || !closingStockDate) return;
+    
+    const csvData = closingStockData.map(book => ({
+      Title: book.title,
+      Author: book.author,
+      Stock: book.closingStock,
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <Card className="animate-in fade-in-50">
       <CardHeader>
@@ -233,7 +277,15 @@ export default function BookManagement() {
                 </TableBody>
               </Table>
             </div>
-             <Button variant="outline" size="sm" className="mt-4" onClick={() => setClosingStockData([])}>Clear Results</Button>
+             <div className="flex items-center gap-2 mt-4">
+              <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+                <FileText className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadCsv}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
+              </Button>
+              <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setClosingStockData([])}>Clear Results</Button>
+            </div>
             <hr className="my-6"/>
           </div>
         )}
