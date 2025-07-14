@@ -4,14 +4,18 @@ import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Download, Calendar as CalendarIcon, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
 import { getSales, getBooks, getCustomers, addSale } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Calendar } from './ui/calendar';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -50,8 +56,13 @@ export default function SalesManagement() {
   const [books, setBooks] = React.useState<Book[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   React.useEffect(() => {
     async function loadData() {
@@ -98,7 +109,6 @@ export default function SalesManagement() {
       discountAmount = watchDiscountValue;
     }
     
-    // Ensure discount doesn't exceed subtotal
     discountAmount = Math.min(subtotal, discountAmount);
 
     const total = subtotal - discountAmount;
@@ -133,22 +143,150 @@ export default function SalesManagement() {
       }
     });
   };
+
+  const getFilteredSales = () => {
+    if (!dateRange?.from || !dateRange?.to) {
+        toast({
+            variant: "destructive",
+            title: "Please select a date range.",
+        });
+        return null;
+    }
+    return sales.filter(sale => {
+      const saleDate = new Date(sale.date);
+      return saleDate >= dateRange.from! && saleDate <= dateRange.to!;
+    });
+  }
   
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
-  const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
+  const handleDownloadPdf = () => {
+    const filteredSales = getFilteredSales();
+    if (!filteredSales) return;
+
+    if (filteredSales.length === 0) {
+      toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
+      return;
+    }
+
+    const doc = new jsPDF();
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to!, 'PPP')}`;
+    doc.text(`Sales Report: ${dateString}`, 14, 15);
+    
+    autoTable(doc, {
+      startY: 20,
+      head: [['Date', 'Customer', 'Items', 'Payment', 'Total']],
+      body: filteredSales.map(sale => [
+        format(new Date(sale.date), 'yyyy-MM-dd'),
+        getCustomerName(sale.customerId),
+        sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', '),
+        sale.paymentMethod,
+        `$${sale.total.toFixed(2)}`
+      ]),
+    });
+    
+    doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    const filteredSales = getFilteredSales();
+    if (!filteredSales) return;
+
+    if (filteredSales.length === 0) {
+      toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
+      return;
+    }
+
+    const csvData = filteredSales.map(sale => ({
+      Date: format(new Date(sale.date), 'yyyy-MM-dd'),
+      Customer: getCustomerName(sale.customerId),
+      Items: sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('; '),
+      'Payment Method': sale.paymentMethod,
+      Total: sale.total.toFixed(2),
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
 
   return (
     <>
       <Card className="animate-in fade-in-50">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl">Record and View Sales</CardTitle>
               <CardDescription>Create new sales transactions and view past sales history.</CardDescription>
             </div>
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Record New Sale
-            </Button>
+            <div className="flex flex-col gap-2 items-end">
+                <Button onClick={handleAddNew}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Record New Sale
+                </Button>
+                <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline">
+                            <Download className="mr-2 h-4 w-4" /> Download Reports
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Download Sales Report</DialogTitle>
+                            <DialogDescription>Select a date range to download your sales data.</DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                           <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !dateRange && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange?.from ? (
+                                  dateRange.to ? (
+                                    <>
+                                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                                      {format(dateRange.to, "LLL dd, y")}
+                                    </>
+                                  ) : (
+                                    format(dateRange.from, "LLL dd, y")
+                                  )
+                                ) : (
+                                  <span>Pick a date range</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={2}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <DialogFooter className="gap-2">
+                          <Button variant="outline" onClick={handleDownloadPdf}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadCsv}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
