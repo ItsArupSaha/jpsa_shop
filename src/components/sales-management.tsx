@@ -243,7 +243,7 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-xl">
+                    <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
@@ -274,7 +274,7 @@ export default function SalesManagement() {
                                 )}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                            <PopoverContent className="w-auto p-0" align="start">
                               <Calendar
                                 initialFocus
                                 mode="range"
