@@ -306,7 +306,7 @@ export default function SalesManagement() {
                   <TableRow key={sale.id}>
                     <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
-                    <TableCell className="max-w-[300px] truncate">{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
+                    <TableCell>{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
                     <TableCell>{sale.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
                   </TableRow>
