@@ -26,6 +26,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
+import { SaleDetailsDialog } from './sale-details-dialog';
+import { Badge } from './ui/badge';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -306,7 +308,22 @@ export default function SalesManagement() {
                   <TableRow key={sale.id}>
                     <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
-                    <TableCell>{sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}</TableCell>
+                    <TableCell>
+                      {sale.items.length > 0 && (
+                          <div className="flex items-center gap-2">
+                              <span>
+                                  {sale.items[0].quantity}x {getBookTitle(sale.items[0].bookId)}
+                              </span>
+                              {sale.items.length > 1 && (
+                                  <SaleDetailsDialog sale={sale} books={books}>
+                                      <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
+                                          +{sale.items.length - 1} more
+                                      </Badge>
+                                  </SaleDetailsDialog>
+                              )}
+                          </div>
+                      )}
+                    </TableCell>
                     <TableCell>{sale.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
                   </TableRow>
