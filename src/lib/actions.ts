@@ -56,21 +56,25 @@ function docToTransaction(d: any): Transaction {
 
 // --- Books Actions ---
 export async function getBooks(): Promise<Book[]> {
+  if (!db) return [];
   const snapshot = await getDocs(query(collection(db, 'books'), orderBy('title')));
   return snapshot.docs.map(docToBook);
 }
 
 export async function addBook(data: Omit<Book, 'id'>) {
+  if (!db) return;
   await addDoc(collection(db, 'books'), data);
   revalidatePath('/books');
 }
 
 export async function updateBook(id: string, data: Omit<Book, 'id'>) {
+  if (!db) return;
   await updateDoc(doc(db, 'books', id), data);
   revalidatePath('/books');
 }
 
 export async function deleteBook(id: string) {
+  if (!db) return;
   await deleteDoc(doc(db, 'books', id));
   revalidatePath('/books');
 }
@@ -78,32 +82,38 @@ export async function deleteBook(id: string) {
 
 // --- Customers Actions ---
 export async function getCustomers(): Promise<Customer[]> {
+  if (!db) return [];
   const snapshot = await getDocs(query(collection(db, 'customers'), orderBy('name')));
   return snapshot.docs.map(docToCustomer);
 }
 
 export async function addCustomer(data: Omit<Customer, 'id'>) {
+  if (!db) return;
   await addDoc(collection(db, 'customers'), data);
   revalidatePath('/customers');
 }
 
 export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
+  if (!db) return;
   await updateDoc(doc(db, 'customers', id), data);
   revalidatePath('/customers');
 }
 
 export async function deleteCustomer(id: string) {
+  if (!db) return;
   await deleteDoc(doc(db, 'customers', id));
   revalidatePath('/customers');
 }
 
 // --- Sales Actions ---
 export async function getSales(): Promise<Sale[]> {
+    if (!db) return [];
     const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
 
 export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
+    if (!db) return { success: false, error: "Database not configured." };
     try {
         await runTransaction(db, async (transaction) => {
             const saleData = {
@@ -156,11 +166,13 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
 
 // --- Expenses Actions ---
 export async function getExpenses(): Promise<Expense[]> {
+    if (!db) return [];
     const snapshot = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToExpense);
 }
 
 export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Date }) {
+    if (!db) return;
     const expenseData = {
         ...data,
         date: Timestamp.fromDate(data.date),
@@ -171,6 +183,7 @@ export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Da
 }
 
 export async function deleteExpense(id: string) {
+    if (!db) return;
     await deleteDoc(doc(db, 'expenses', id));
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
@@ -179,12 +192,14 @@ export async function deleteExpense(id: string) {
 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
+    if (!db) return [];
     const q = query(collection(db, 'transactions'), where('type', '==', type), orderBy('dueDate', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToTransaction);
 }
 
 export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }) {
+    if (!db) return;
     const transactionData = {
         ...data,
         status: 'Pending',
@@ -196,12 +211,14 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
 }
 
 export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
+    if (!db) return;
     await updateDoc(doc(db, 'transactions', id), { status });
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
 }
 
 export async function deleteTransaction(id: string, type: 'Receivable' | 'Payable') {
+    if (!db) return;
     await deleteDoc(doc(db, 'transactions', id));
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');

@@ -10,17 +10,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+let app;
+let db;
+
 // Check if the config values are present and not placeholders
-if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your_project_id')) {
-  // This error will be caught by Next.js and displayed in the browser during development,
-  // making it clear what the problem is.
-  throw new Error(
-    'Firebase configuration is missing or incomplete. Please add your Firebase project credentials to the .env file. You can find these details in your Firebase project settings under "Project Overview" > "Project settings" > "General" > "Your apps" > "SDK setup and configuration".'
-  );
+if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your-project-id')) {
+  console.warn(`
+    **********************************************************************************
+    * FIREBASE CONFIGURATION IS MISSING OR INCOMPLETE!                               *
+    *                                                                                *
+    * Please add your Firebase project credentials to the .env file.                 *
+    * You can find these details in your Firebase project settings:                  *
+    * Project Overview > Project settings > General > Your apps > SDK setup          *
+    *                                                                                *
+    * The application will not be able to connect to Firestore until this is done.   *
+    **********************************************************************************
+  `);
+} else {
+    // Initialize Firebase
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    db = getFirestore(app);
 }
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
 
 export { app, db };
