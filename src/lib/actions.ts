@@ -193,9 +193,12 @@ export async function deleteExpense(id: string) {
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
     if (!db) return [];
-    const q = query(collection(db, 'transactions'), where('type', '==', type), orderBy('dueDate', 'desc'));
+    const q = query(collection(db, 'transactions'), where('type', '==', type));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToTransaction);
+    const transactions = snapshot.docs.map(docToTransaction);
+    // Sort manually to avoid needing a composite index
+    transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+    return transactions;
 }
 
 export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }) {
