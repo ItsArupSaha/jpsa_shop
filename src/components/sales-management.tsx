@@ -154,9 +154,13 @@ export default function SalesManagement() {
         });
         return null;
     }
+    // Ensure the 'to' date includes the entire day
+    const toDate = new Date(dateRange.to);
+    toDate.setHours(23, 59, 59, 999);
+
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
-      return saleDate >= dateRange.from! && saleDate <= dateRange.to!;
+      return saleDate >= dateRange.from! && saleDate <= toDate;
     });
   }
   
@@ -239,7 +243,7 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-xl">
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
@@ -282,7 +286,7 @@ export default function SalesManagement() {
                             </PopoverContent>
                           </Popover>
                         </div>
-                        <DialogFooter className="gap-2">
+                        <DialogFooter className="gap-2 sm:justify-start">
                           <Button variant="outline" onClick={handleDownloadPdf}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
                         </DialogFooter>
