@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-import { addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
+import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 
 import type { Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -48,15 +48,20 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-interface CustomerManagementProps {
-  initialCustomers: Customer[];
-}
-
-export default function CustomerManagement({ initialCustomers }: CustomerManagementProps) {
+export default function CustomerManagement() {
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    async function loadCustomers() {
+      const initialCustomers = await getCustomers();
+      setCustomers(initialCustomers);
+    }
+    loadCustomers();
+  }, []);
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -84,6 +89,8 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
   const handleDelete = (id: string) => {
     startTransition(async () => {
         await deleteCustomer(id);
+        const updatedCustomers = await getCustomers();
+        setCustomers(updatedCustomers);
         toast({ title: "Customer Deleted", description: "The customer has been removed." });
     });
   }
@@ -97,6 +104,8 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
             await addCustomer(data);
             toast({ title: "Customer Added", description: "The new customer has been added." });
         }
+        const updatedCustomers = await getCustomers();
+        setCustomers(updatedCustomers);
         setIsDialogOpen(false);
         setEditingCustomer(null);
     });
@@ -128,7 +137,7 @@ export default function CustomerManagement({ initialCustomers }: CustomerManagem
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialCustomers.map((customer) => (
+              {customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-medium">{customer.name}</TableCell>
                   <TableCell>{customer.phone}</TableCell>

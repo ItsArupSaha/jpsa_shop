@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addSale } from '@/lib/actions';
+import { getSales, getBooks, getCustomers, addSale } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -45,16 +45,27 @@ const saleFormSchema = z.object({
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
-interface SalesManagementProps {
-  initialSales: Sale[];
-  books: Book[];
-  customers: Customer[];
-}
-
-export default function SalesManagement({ initialSales, books: allBooks, customers: allCustomers }: SalesManagementProps) {
+export default function SalesManagement() {
+  const [sales, setSales] = React.useState<Sale[]>([]);
+  const [books, setBooks] = React.useState<Book[]>([]);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    async function loadData() {
+      const [initialSales, initialBooks, initialCustomers] = await Promise.all([
+        getSales(),
+        getBooks(),
+        getCustomers(),
+      ]);
+      setSales(initialSales);
+      setBooks(initialBooks);
+      setCustomers(initialCustomers);
+    }
+    loadData();
+  }, []);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -95,7 +106,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
   }, [watchItems, watchDiscountType, watchDiscountValue]);
 
   const handleAddNew = () => {
-    const walkInCustomer = allCustomers.find(c => c.name === 'Walk-in Customer');
+    const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
     form.reset({
       customerId: walkInCustomer?.id || '',
       items: [{ bookId: '', quantity: 1, price: 0 }],
@@ -113,6 +124,9 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
 
       if (result?.success) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
+        const [updatedSales, updatedBooks] = await Promise.all([getSales(), getBooks()]);
+        setSales(updatedSales);
+        setBooks(updatedBooks);
         setIsDialogOpen(false);
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
@@ -120,8 +134,8 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
     });
   };
   
-  const getBookTitle = (bookId: string) => allBooks.find(b => b.id === bookId)?.title || 'Unknown Book';
-  const getCustomerName = (customerId: string) => allCustomers.find(c => c.id === customerId)?.name || 'Unknown Customer';
+  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   return (
     <>
@@ -150,7 +164,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {initialSales.length > 0 ? initialSales.map((sale) => (
+                {sales.length > 0 ? sales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
@@ -191,7 +205,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {allCustomers.map(customer => (
+                          {customers.map(customer => (
                             <SelectItem key={customer.id} value={customer.id}>
                               {customer.name}
                             </SelectItem>
@@ -205,7 +219,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                 <Separator />
                 <FormLabel>Items</FormLabel>
                 {fields.map((field, index) => {
-                  const selectedBook = allBooks.find(b => b.id === watchItems[index]?.bookId);
+                  const selectedBook = books.find(b => b.id === watchItems[index]?.bookId);
                   return (
                     <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
                       <div className="flex-1 grid grid-cols-5 gap-3">
@@ -216,7 +230,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                             <FormItem className="col-span-3">
                               <FormLabel className="text-xs">Book</FormLabel>
                               <Select onValueChange={(value) => {
-                                const book = allBooks.find(b => b.id === value);
+                                const book = books.find(b => b.id === value);
                                 field.onChange(value);
                                 form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
                               }} defaultValue={field.value}>
@@ -226,7 +240,7 @@ export default function SalesManagement({ initialSales, books: allBooks, custome
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {allBooks.map(book => (
+                                  {books.map(book => (
                                     <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
                                       {book.title}
                                     </SelectItem>

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download } from 'lucide-react';
 import type { Sale, Expense, Book } from '@/lib/types';
+import { getSales, getExpenses, getBooks } from '@/lib/actions';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -20,24 +21,37 @@ const reportSchema = z.object({
 
 type ReportFormValues = z.infer<typeof reportSchema>;
 
-interface ReportGeneratorProps {
-  data: {
-    sales: Sale[];
-    expenses: Expense[];
-    books: Book[];
-  }
+interface ReportData {
+  sales: Sale[];
+  expenses: Expense[];
+  books: Book[];
 }
 
-export default function ReportGenerator({ data }: ReportGeneratorProps) {
+export default function ReportGenerator() {
+  const [data, setData] = React.useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [reportUri, setReportUri] = React.useState<string | null>(null);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    async function loadData() {
+      const [sales, expenses, books] = await Promise.all([
+        getSales(),
+        getExpenses(),
+        getBooks(),
+      ]);
+      setData({ sales, expenses, books });
+    }
+    loadData();
+  }, []);
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
   });
 
   const onSubmit = async (formData: ReportFormValues) => {
+    if (!data) return;
+    
     setIsLoading(true);
     setReportUri(null);
     try {
@@ -148,7 +162,7 @@ export default function ReportGenerator({ data }: ReportGeneratorProps) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-between items-center">
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || !data}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Generate Report
             </Button>

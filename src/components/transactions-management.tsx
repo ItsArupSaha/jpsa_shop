@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addTransaction, updateTransactionStatus, deleteTransaction } from '@/lib/actions';
+import { getTransactions, addTransaction, updateTransactionStatus, deleteTransaction } from '@/lib/actions';
 
 import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -33,14 +33,23 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 interface TransactionsManagementProps {
   title: string;
   description: string;
-  initialTransactions: Transaction[];
   type: 'Receivable' | 'Payable';
 }
 
-export default function TransactionsManagement({ title, description, initialTransactions, type }: TransactionsManagementProps) {
+export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  const fetchData = React.useCallback(async () => {
+    const initialTransactions = await getTransactions(type);
+    setTransactions(initialTransactions);
+  }, [type]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -58,6 +67,7 @@ export default function TransactionsManagement({ title, description, initialTran
   const handleDelete = (id: string) => {
     startTransition(async () => {
         await deleteTransaction(id, type);
+        await fetchData();
         toast({ title: `${type} Deleted`, description: `The transaction has been removed.` });
     });
   };
@@ -65,6 +75,7 @@ export default function TransactionsManagement({ title, description, initialTran
   const handleMarkAsPaid = (id: string) => {
     startTransition(async () => {
         await updateTransactionStatus(id, 'Paid', type);
+        await fetchData();
         toast({ title: "Status Updated", description: `The ${type.toLowerCase()} has been marked as paid.` });
     });
   };
@@ -72,6 +83,7 @@ export default function TransactionsManagement({ title, description, initialTran
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
         await addTransaction({ ...data, type });
+        await fetchData();
         toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
         setIsDialogOpen(false);
     });
@@ -104,7 +116,7 @@ export default function TransactionsManagement({ title, description, initialTran
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {initialTransactions.length > 0 ? initialTransactions.map((transaction) => (
+                {transactions.length > 0 ? transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>

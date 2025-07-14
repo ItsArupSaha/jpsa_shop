@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addExpense, deleteExpense } from '@/lib/actions';
+import { getExpenses, addExpense, deleteExpense } from '@/lib/actions';
 
 import type { Expense } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -29,14 +29,19 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-interface ExpensesManagementProps {
-  initialExpenses: Expense[];
-}
-
-export default function ExpensesManagement({ initialExpenses }: ExpensesManagementProps) {
+export default function ExpensesManagement() {
+  const [expenses, setExpenses] = React.useState<Expense[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    async function loadExpenses() {
+      const initialExpenses = await getExpenses();
+      setExpenses(initialExpenses);
+    }
+    loadExpenses();
+  }, []);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -54,6 +59,8 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
   const handleDelete = (id: string) => {
     startTransition(async () => {
         await deleteExpense(id);
+        const updatedExpenses = await getExpenses();
+        setExpenses(updatedExpenses);
         toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
   };
@@ -61,6 +68,8 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
         await addExpense(data);
+        const updatedExpenses = await getExpenses();
+        setExpenses(updatedExpenses);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
         setIsDialogOpen(false);
     });
@@ -92,7 +101,7 @@ export default function ExpensesManagement({ initialExpenses }: ExpensesManageme
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {initialExpenses.length > 0 ? initialExpenses.map((expense) => (
+                {expenses.length > 0 ? expenses.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="font-medium">{expense.description}</TableCell>
                     <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>

@@ -13,6 +13,7 @@ import {
   Timestamp,
   runTransaction,
   getDoc,
+  orderBy,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -55,7 +56,7 @@ function docToTransaction(d: any): Transaction {
 
 // --- Books Actions ---
 export async function getBooks(): Promise<Book[]> {
-  const snapshot = await getDocs(collection(db, 'books'));
+  const snapshot = await getDocs(query(collection(db, 'books'), orderBy('title')));
   return snapshot.docs.map(docToBook);
 }
 
@@ -77,7 +78,7 @@ export async function deleteBook(id: string) {
 
 // --- Customers Actions ---
 export async function getCustomers(): Promise<Customer[]> {
-  const snapshot = await getDocs(collection(db, 'customers'));
+  const snapshot = await getDocs(query(collection(db, 'customers'), orderBy('name')));
   return snapshot.docs.map(docToCustomer);
 }
 
@@ -98,7 +99,7 @@ export async function deleteCustomer(id: string) {
 
 // --- Sales Actions ---
 export async function getSales(): Promise<Sale[]> {
-    const snapshot = await getDocs(collection(db, 'sales'));
+    const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
 
@@ -129,7 +130,8 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
 
             // 3. Create receivable if payment is due
             if (data.paymentMethod === 'Due') {
-                const customer = (await getDoc(doc(db, 'customers', data.customerId))).data();
+                const customerDoc = await getDoc(doc(db, 'customers', data.customerId));
+                const customer = customerDoc.data();
                 const receivableData = {
                     description: `Sale to ${customer?.name}`,
                     amount: data.total,
@@ -154,7 +156,7 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
 
 // --- Expenses Actions ---
 export async function getExpenses(): Promise<Expense[]> {
-    const snapshot = await getDocs(collection(db, 'expenses'));
+    const snapshot = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToExpense);
 }
 
@@ -177,7 +179,7 @@ export async function deleteExpense(id: string) {
 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
-    const q = query(collection(db, 'transactions'), where('type', '==', type));
+    const q = query(collection(db, 'transactions'), where('type', '==', type), orderBy('dueDate', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToTransaction);
 }

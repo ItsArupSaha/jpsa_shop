@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2 } from 'lucide-react';
-import { addBook, updateBook, deleteBook } from '@/lib/actions';
+import { getBooks, addBook, updateBook, deleteBook } from '@/lib/actions';
 
 import type { Book } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -50,15 +50,20 @@ const bookSchema = z.object({
 
 type BookFormValues = z.infer<typeof bookSchema>;
 
-interface BookManagementProps {
-  initialBooks: Book[];
-}
-
-export default function BookManagement({ initialBooks }: BookManagementProps) {
+export default function BookManagement() {
+  const [books, setBooks] = React.useState<Book[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingBook, setEditingBook] = React.useState<Book | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    async function loadBooks() {
+      const initialBooks = await getBooks();
+      setBooks(initialBooks);
+    }
+    loadBooks();
+  }, []);
 
   const form = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema),
@@ -86,6 +91,8 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
   const handleDelete = (id: string) => {
     startTransition(async () => {
       await deleteBook(id);
+      const updatedBooks = await getBooks();
+      setBooks(updatedBooks);
       toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
     });
   }
@@ -99,6 +106,8 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
         await addBook(data);
         toast({ title: "Book Added", description: "The new book is now in your inventory." });
       }
+      const updatedBooks = await getBooks();
+      setBooks(updatedBooks);
       setIsDialogOpen(false);
       setEditingBook(null);
     });
@@ -130,7 +139,7 @@ export default function BookManagement({ initialBooks }: BookManagementProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialBooks.map((book) => (
+              {books.map((book) => (
                 <TableRow key={book.id}>
                   <TableCell className="font-medium">{book.title}</TableCell>
                   <TableCell>{book.author}</TableCell>
