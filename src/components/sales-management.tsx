@@ -270,7 +270,7 @@ export default function SalesManagement() {
                                 )}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start" collisionPadding={8}>
+                            <PopoverContent className="w-auto p-0" align="start">
                               <Calendar
                                 initialFocus
                                 mode="range"
