@@ -103,8 +103,8 @@ export default function SalesManagement() {
 
   const { subtotal, discountAmount, total } = React.useMemo(() => {
     const subtotal = watchItems.reduce((acc, item) => {
-      const book = books.find(b => b.id === item.bookId);
-      const price = book?.sellingPrice || 0;
+      // The price is now set directly on the item, so we use that.
+      const price = item.price || 0;
       const quantity = Number(item.quantity) || 0;
       return acc + (price * quantity);
     }, 0);
@@ -120,7 +120,8 @@ export default function SalesManagement() {
 
     const total = subtotal - discountAmount;
     return { subtotal, discountAmount, total };
-  }, [watchItems, watchDiscountType, watchDiscountValue, books]);
+  }, [watchItems, watchDiscountType, watchDiscountValue, fields]);
+
 
   const handleAddNew = () => {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
@@ -262,31 +263,31 @@ export default function SalesManagement() {
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
                         <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                        <div className="py-4 flex flex-col items-center gap-4">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={1}
-                            />
-                            <p className="text-sm text-muted-foreground">
-                                {dateRange?.from ? (
-                                dateRange.to ? (
-                                    <>
-                                    Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                                    {format(dateRange.to, "LLL dd, y")}
-                                    </>
-                                ) : (
-                                    <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                                )
-                                ) : (
-                                <span>Please pick a start and end date.</span>
-                                )}
-                            </p>
-                          </div>
-                          </ScrollArea>
+                            <div className="py-4 flex flex-col items-center gap-4">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={dateRange?.from}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    numberOfMonths={1}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    {dateRange?.from ? (
+                                    dateRange.to ? (
+                                        <>
+                                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                                        {format(dateRange.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                                    )
+                                    ) : (
+                                    <span>Please pick a start and end date.</span>
+                                    )}
+                                </p>
+                            </div>
+                        </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
@@ -550,7 +551,7 @@ export default function SalesManagement() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending || total < 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
+                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
                   </DialogFooter>
                 </form>
               </Form>
