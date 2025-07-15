@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, Calendar as CalendarIcon, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { getBooks, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -43,7 +44,6 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
 const bookSchema = z.object({
@@ -68,7 +68,7 @@ export default function BookManagement() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
   const [editingBook, setEditingBook] = React.useState<Book | null>(null);
-  const [closingStockDate, setClosingStockDate] = React.useState<Date | undefined>();
+  const [closingStockDate, setClosingStockDate] = React.useState<Date | undefined>(new Date());
   const [closingStockData, setClosingStockData] = React.useState<ClosingStock[]>([]);
   const [isCalculating, setIsCalculating] = React.useState(false);
   const { toast } = useToast();
@@ -220,33 +220,29 @@ export default function BookManagement() {
                         <DialogTitle>Calculate Closing Stock</DialogTitle>
                         <DialogDescription>Select a date to calculate the closing stock for all books up to that day.</DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                        "w-full justify-start text-left font-normal",
-                                        !closingStockDate && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {closingStockDate ? format(closingStockDate, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                    mode="single"
-                                    selected={closingStockDate}
-                                    onSelect={setClosingStockDate}
-                                    initialFocus
-                                    disabled={(date) => date > new Date()}
-                                />
-                            </PopoverContent>
-                        </Popover>
+                    <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
+                        <div className="flex flex-col items-center gap-4">
+                            <Calendar
+                                mode="single"
+                                selected={closingStockDate}
+                                onSelect={setClosingStockDate}
+                                initialFocus
+                                numberOfMonths={1}
+                                disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                            />
+                            <p className="text-sm text-muted-foreground">
+                                {closingStockDate ? (
+                                    <>Selected: {format(closingStockDate, "LLL dd, y")}</>
+                                ) : (
+                                    <span>Please pick a date.</span>
+                                )}
+                            </p>
+                        </div>
                     </div>
                     <DialogFooter>
-                        <Button onClick={handleCalculateClosingStock} disabled={isCalculating}>{isCalculating ? "Calculating..." : "Calculate"}</Button>
+                        <Button onClick={handleCalculateClosingStock} disabled={isCalculating || !closingStockDate}>
+                            {isCalculating ? "Calculating..." : "Calculate"}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
