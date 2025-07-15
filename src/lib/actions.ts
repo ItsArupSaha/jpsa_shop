@@ -135,26 +135,49 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
                 date: Timestamp.fromDate(new Date()),
             };
 
-            // 1. Add the sale
-            transaction.set(doc(collection(db, "sales")), saleData);
-
-            // 2. Update book stock
-            for (const item of data.items) {
-                const bookRef = doc(db, 'books', item.bookId);
-                const bookDoc = await transaction.get(bookRef);
+            // --- 1. READ PHASE ---
+            // Fetch all book documents and customer document first.
+            const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
+            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+            
+            let customerDoc;
+            if (data.paymentMethod === 'Due') {
+                const customerRef = doc(db, 'customers', data.customerId);
+                customerDoc = await transaction.get(customerRef);
+                 if (!customerDoc.exists()) {
+                    throw new Error(`Customer with id ${data.customerId} does not exist!`);
+                }
+            }
+            
+            // Validate stock availability after reading.
+            for (let i = 0; i < data.items.length; i++) {
+                const bookDoc = bookDocs[i];
+                const item = data.items[i];
                 if (!bookDoc.exists()) {
-                    throw `Book with id ${item.bookId} does not exist!`;
+                    throw new Error(`Book with id ${item.bookId} does not exist!`);
                 }
                 const currentStock = bookDoc.data().stock;
                 if (currentStock < item.quantity) {
-                    throw `Not enough stock for ${bookDoc.data().title}. Available: ${currentStock}, Requested: ${item.quantity}`;
+                    throw new Error(`Not enough stock for ${bookDoc.data().title}. Available: ${currentStock}, Requested: ${item.quantity}`);
                 }
+            }
+
+            // --- 2. WRITE PHASE ---
+            // Now, perform all writes.
+            const newSaleRef = doc(collection(db, "sales"));
+            transaction.set(newSaleRef, saleData);
+
+            // Update book stock.
+            for (let i = 0; i < data.items.length; i++) {
+                const bookRef = bookRefs[i];
+                const bookDoc = bookDocs[i];
+                const item = data.items[i];
+                const currentStock = bookDoc.data().stock;
                 transaction.update(bookRef, { stock: currentStock - item.quantity });
             }
 
-            // 3. Create receivable if payment is due
-            if (data.paymentMethod === 'Due') {
-                const customerDoc = await getDoc(doc(db, 'customers', data.customerId));
+            // Create receivable if payment is due.
+            if (data.paymentMethod === 'Due' && customerDoc) {
                 const customer = customerDoc.data();
                 const receivableData = {
                     description: `Sale to ${customer?.name}`,
@@ -164,12 +187,17 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
                     type: 'Receivable'
                 };
                 transaction.set(doc(collection(db, "transactions")), receivableData);
-                revalidatePath('/receivables');
             }
         });
+
+        // Revalidate paths after successful transaction
         revalidatePath('/sales');
         revalidatePath('/dashboard');
         revalidatePath('/books');
+        if (data.paymentMethod === 'Due') {
+            revalidatePath('/receivables');
+        }
+
         return { success: true };
     } catch (e) {
         console.error("Transaction failed: ", e);
