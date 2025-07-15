@@ -129,7 +129,7 @@ export async function getSales(): Promise<Sale[]> {
 }
 
 export async function addSale(
-    data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
+    data: Omit<Sale, 'id' | 'date'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db) return { success: false, error: "Database not configured." };
   
@@ -137,12 +137,23 @@ export async function addSale(
       return await runTransaction(db, async (transaction) => {
         const saleDate = new Date();
         const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
+        
+        // --- 1. Read all data first ---
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-  
+        
+        let customerDoc;
+        if (data.paymentMethod === 'Due') {
+          const customerRef = doc(db, 'customers', data.customerId);
+          customerDoc = await transaction.get(customerRef);
+          if (!customerDoc.exists()) {
+            throw new Error(`Customer with id ${data.customerId} does not exist!`);
+          }
+        }
+
+        // --- 2. Calculate totals and validate stock ---
         let calculatedSubtotal = 0;
         const itemsWithPrices: SaleItem[] = [];
   
-        // --- 1. Read data and calculate totals ---
         for (let i = 0; i < data.items.length; i++) {
           const bookDoc = bookDocs[i];
           const saleItem = data.items[i];
@@ -169,7 +180,7 @@ export async function addSale(
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
         const calculatedTotal = calculatedSubtotal - discountAmount;
   
-        // --- 2. Perform all writes ---
+        // --- 3. Perform all writes ---
         const newSaleRef = doc(collection(db, "sales"));
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
@@ -180,22 +191,14 @@ export async function addSale(
         };
         transaction.set(newSaleRef, saleDataToSave);
   
-        // Update book stock
         for (let i = 0; i < bookDocs.length; i++) {
-          const bookDoc = bookDocs[i];
           const saleItem = data.items[i];
-          const newStock = bookDoc.data().stock - saleItem.quantity;
+          const newStock = bookDocs[i].data()!.stock - saleItem.quantity;
           transaction.update(bookRefs[i], { stock: newStock });
         }
   
-        // Handle 'Due' payment method
-        if (data.paymentMethod === 'Due') {
-          const customerRef = doc(db, 'customers', data.customerId);
-          const customerDoc = await transaction.get(customerRef);
-          if (!customerDoc.exists()) {
-            throw new Error(`Customer with id ${data.customerId} does not exist!`);
-          }
-          const customerData = customerDoc.data();
+        if (data.paymentMethod === 'Due' && customerDoc) {
+          const customerData = customerDoc.data()!;
           const receivableData = {
             description: `Sale to ${customerData.name}`,
             amount: calculatedTotal,
