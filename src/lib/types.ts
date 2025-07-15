@@ -7,6 +7,10 @@ export type Customer = {
   openingBalance: number;
 };
 
+export type CustomerWithDue = Customer & {
+  dueBalance: number;
+};
+
 export type Book = {
   id: string;
   title: string;

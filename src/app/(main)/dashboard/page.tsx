@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft, Database } from 'lucide-react';
-import { getBooks, getSales, getExpenses, getTransactions, seedDatabase, getCustomers } from '@/lib/actions';
+import { getBooks, getSales, getExpenses, getCustomersWithDueBalance, seedDatabase, getCustomers } from '@/lib/actions';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
 import { Button } from '@/components/ui/button';
 import { revalidatePath } from 'next/cache';
@@ -13,11 +13,11 @@ async function handleSeedDatabase() {
 
 
 export default async function DashboardPage() {
-  const [books, sales, expenses, receivables, customers] = await Promise.all([
+  const [books, sales, expenses, customersWithDue, customers] = await Promise.all([
     getBooks(),
     getSales(),
     getExpenses(),
-    getTransactions('Receivable'),
+    getCustomersWithDueBalance(),
     getCustomers(),
   ]);
 
@@ -35,8 +35,7 @@ export default async function DashboardPage() {
   });
   const expensesAmount = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
   
-  const pendingReceivables = receivables.filter(r => r.status === 'Pending');
-  const receivablesAmount = pendingReceivables.reduce((sum, r) => sum + r.amount, 0);
+  const receivablesAmount = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
 
   const grossProfitThisMonth = salesThisMonth.reduce((totalProfit, sale) => {
     const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
@@ -56,7 +55,7 @@ export default async function DashboardPage() {
     totalBooks: totalBooks,
     monthlySalesValue: salesAmountThisMonth,
     netProfit: netProfitThisMonth,
-    pendingReceivables: pendingReceivables.length,
+    pendingReceivables: customersWithDue.length,
     receivablesAmount: receivablesAmount,
   };
 
@@ -116,7 +115,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.receivablesAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{stats.pendingReceivables} pending transaction(s)</p>
+            <p className="text-xs text-muted-foreground">{stats.pendingReceivables} customer(s) with due balance</p>
           </CardContent>
         </Card>
       </div>

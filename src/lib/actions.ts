@@ -15,14 +15,11 @@ import {
   runTransaction,
   getDoc,
   orderBy,
-  DocumentReference,
-  limit,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 
 import { db } from './firebase';
-import type { Book, Customer, Sale, Expense, Transaction, SaleItem } from './types';
+import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue } from './types';
 import { books as mockBooks, customers as mockCustomers, sales as mockSales, expenses as mockExpenses, receivables as mockReceivables, payables as mockPayables } from './data';
 
 
@@ -104,6 +101,39 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
     }
 }
 
+export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
+    if (!db) return [];
+
+    const [allCustomers, allSales, allTransactions] = await Promise.all([
+        getCustomers(),
+        getSales(),
+        getTransactions('Receivable'),
+    ]);
+
+    const customersWithBalances = allCustomers.map(customer => {
+        const customerSales = allSales.filter(sale => sale.customerId === customer.id);
+        
+        const totalDebit = customerSales
+            .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
+            .reduce((sum, sale) => {
+              if (sale.paymentMethod === 'Due') return sum + sale.total;
+              if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
+              return sum;
+            }, customer.openingBalance);
+
+        const totalCredit = allTransactions
+            .filter(t => t.customerId === customer.id && t.status === 'Paid' && t.description.includes('Payment from customer'))
+            .reduce((sum, t) => sum + t.amount, 0);
+        
+        const dueBalance = totalDebit - totalCredit;
+
+        return { ...customer, dueBalance };
+    });
+
+    return customersWithBalances.filter(c => c.dueBalance > 0);
+}
+
+
 export async function addCustomer(data: Omit<Customer, 'id'>) {
   if (!db) return;
   await addDoc(collection(db, 'customers'), data);
@@ -114,12 +144,14 @@ export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
   if (!db) return;
   await updateDoc(doc(db, 'customers', id), data);
   revalidatePath('/customers');
+  revalidatePath('/receivables');
 }
 
 export async function deleteCustomer(id: string) {
   if (!db) return;
   await deleteDoc(doc(db, 'customers', id));
   revalidatePath('/customers');
+  revalidatePath('/receivables');
 }
 
 // --- Sales Actions ---
@@ -308,33 +340,49 @@ export async function addPayment(data: { customerId: string, amount: number, pay
             const newTransactionRef = doc(collection(db, "transactions"));
             transaction.set(newTransactionRef, paymentTransactionData);
 
-            // 2. Find all pending receivables for this customer
+            // 2. Find all pending receivables for this customer that were created from sales
             const receivablesQuery = query(
                 collection(db, 'transactions'),
                 where('type', '==', 'Receivable'),
                 where('status', '==', 'Pending'),
                 where('customerId', '==', data.customerId),
+                where('description', '>=', 'Due from Sale #'),
+                where('description', '<=', 'Due from Sale #z'),
                 orderBy('dueDate') // Settle oldest debts first
             );
-            const pendingDocs = await getDocs(receivablesQuery);
             
-            // 3. Settle the pending receivables with the payment amount
-            for (const docSnap of pendingDocs.docs) {
-                if (amountToSettle <= 0) break; // No more money to settle debts
-
-                const receivable = docSnap.data() as Transaction;
-                const receivableRef = doc(db, 'transactions', docSnap.id);
-
-                if (amountToSettle >= receivable.amount) {
-                    // If payment covers this receivable fully, mark it as Paid
-                    transaction.update(receivableRef, { status: 'Paid' });
-                    amountToSettle -= receivable.amount;
-                } 
-                // Note: This logic does not handle partial payments on a single receivable.
-                // It assumes payment is made against the total due balance.
-                // For this app's logic, we mark the individual due items as paid.
-            }
+            // Note: getDocs() cannot be used inside a transaction.
+            // This is a limitation. For this app, we will assume we can fetch them outside
+            // and apply the changes. For a production app with high concurrency, this would need a more robust solution.
         });
+        
+        // This part has to run outside the transaction due to Firestore limitations.
+        const receivablesQuery = query(
+            collection(db, 'transactions'),
+            where('type', '==', 'Receivable'),
+            where('status', '==', 'Pending'),
+            where('customerId', '==', data.customerId),
+            orderBy('dueDate') // Settle oldest debts first
+        );
+        const pendingDocs = await getDocs(receivablesQuery);
+        let amountToSettle = data.amount;
+
+        const batch = writeBatch(db);
+
+        for (const docSnap of pendingDocs.docs) {
+            if (amountToSettle <= 0) break; // No more money to settle debts
+
+            const receivable = docSnap.data() as Transaction;
+            const receivableRef = doc(db, 'transactions', docSnap.id);
+            
+            // This logic only handles full settlement of a receivable.
+            // A more complex system would handle partial payments against a single receivable.
+            if (amountToSettle >= receivable.amount) {
+                batch.update(receivableRef, { status: 'Paid' });
+                amountToSettle -= receivable.amount;
+            }
+        }
+        await batch.commit();
 
     } catch (e) {
         console.error("Payment processing failed: ", e);
@@ -371,28 +419,37 @@ export async function seedDatabase() {
     
     const batch = writeBatch(db);
 
+    // Clear existing data
+    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions'];
+    for (const coll of collections) {
+      const snapshot = await getDocs(collection(db, coll));
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    }
+    console.log("Cleared existing data...");
+
+
     // Seed Books
     mockBooks.forEach(book => {
-        const docRef = doc(db, 'books', book.id);
+        const docRef = doc(collection(db, 'books'));
         batch.set(docRef, book);
     });
 
     // Seed Customers
     mockCustomers.forEach(customer => {
-        const docRef = doc(db, 'customers', customer.id);
+        const docRef = doc(collection(db, 'customers'));
         batch.set(docRef, customer);
     });
 
     // Seed Sales
     mockSales.forEach(sale => {
-        const docRef = doc(db, 'sales', sale.id);
+        const docRef = doc(collection(db, 'sales'));
         const saleData = { ...sale, date: Timestamp.fromDate(new Date(sale.date)) };
         batch.set(docRef, saleData);
     });
 
     // Seed Expenses
     mockExpenses.forEach(expense => {
-        const docRef = doc(db, 'expenses', expense.id);
+        const docRef = doc(collection(db, 'expenses'));
         const expenseData = { ...expense, date: Timestamp.fromDate(new Date(expense.date)) };
         batch.set(docRef, expenseData);
     });
@@ -404,7 +461,7 @@ export async function seedDatabase() {
     ];
 
     allTransactions.forEach(transaction => {
-        const docRef = doc(db, 'transactions', transaction.id);
+        const docRef = doc(collection(db, 'transactions'));
         const transactionData = { ...transaction, dueDate: Timestamp.fromDate(new Date(transaction.dueDate)) };
         batch.set(docRef, transactionData);
     });

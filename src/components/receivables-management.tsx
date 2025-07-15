@@ -6,62 +6,32 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getTransactions, getCustomers } from '@/lib/actions';
+import { getCustomersWithDueBalance } from '@/lib/actions';
 import { DollarSign, FileSpreadsheet, FileText } from 'lucide-react';
 import ReceivePaymentDialog from './receive-payment-dialog';
+import Link from 'next/link';
 
-import type { Transaction, Customer } from '@/lib/types';
+import type { CustomerWithDue } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 
-export default function ReceivablesManagement() {
-  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
-  const [customers, setCustomers] = React.useState<Customer[]>([]);
+interface ReceivablesManagementProps {
+    initialCustomersWithDue: CustomerWithDue[];
+}
+
+export default function ReceivablesManagement({ initialCustomersWithDue }: ReceivablesManagementProps) {
+  const [customersWithDue, setCustomersWithDue] = React.useState(initialCustomersWithDue);
   const { toast } = useToast();
 
-  const fetchData = React.useCallback(async () => {
-    const [receivables, allCustomers] = await Promise.all([
-      getTransactions('Receivable'),
-      getCustomers(),
-    ]);
-    const pendingReceivables = receivables.filter(r => r.status === 'Pending');
-    setTransactions(pendingReceivables);
-    setCustomers(allCustomers);
-  }, []);
-
   React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const getCustomerName = (transaction: Transaction) => {
-    if (transaction.customerId) {
-        const customer = customers.find(c => c.id === transaction.customerId);
-        if (customer) return customer.name;
-    }
-    // Fallback to check the description if no customerId is found or customer is not in the list
-    const match = transaction.description.match(/Sale to (.*)/i);
-    if (match && match[1]) {
-        return match[1];
-    }
-    const corporateMatch = transaction.description.match(/Sale #s2 - (.*)/i);
-    if (corporateMatch && corporateMatch[1]) {
-      return corporateMatch[1];
-    }
-    return 'N/A';
-  };
-  
-  const getDisplayDescription = (transaction: Transaction) => {
-    const customerName = getCustomerName(transaction);
-    if(customerName !== 'N/A' && transaction.description.includes(customerName)) {
-      return `Sale`;
-    }
-    return transaction.description;
-  }
+    // This effect can be used to re-fetch data if needed, for now it just syncs with the prop.
+    setCustomersWithDue(initialCustomersWithDue);
+  }, [initialCustomersWithDue]);
 
   const handleDownload = (formatType: 'pdf' | 'csv') => {
-    if (transactions.length === 0) {
+    if (customersWithDue.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -71,13 +41,11 @@ export default function ReceivablesManagement() {
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = transactions.map(t => ({
-        Description: t.description,
-        Customer: getCustomerName(t),
-        'Due Date': format(new Date(t.dueDate), 'PPP'),
-        Amount: `$${t.amount.toFixed(2)}`,
+    const body = customersWithDue.map(c => ({
+        Customer: c.name,
+        Phone: c.phone,
+        'Due Amount': `$${c.dueBalance.toFixed(2)}`,
     }));
-
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
@@ -85,7 +53,7 @@ export default function ReceivablesManagement() {
       doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 22);
       autoTable(doc, {
         startY: 30,
-        head: [['Description', 'Customer', 'Due Date', 'Amount']],
+        head: [['Customer', 'Phone', 'Due Amount']],
         body: body.map(row => Object.values(row)),
       });
       doc.save(`pending-receivables-${reportDate}.pdf`);
@@ -101,14 +69,13 @@ export default function ReceivablesManagement() {
     }
   };
 
-
   return (
       <Card className="animate-in fade-in-50">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl">Pending Receivables</CardTitle>
-              <CardDescription>Manage all outstanding amounts owed to the bookstore.</CardDescription>
+              <CardDescription>A list of all customers with an outstanding balance.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
                 <ReceivePaymentDialog>
@@ -132,24 +99,26 @@ export default function ReceivablesManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Description</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead className="text-right">Total Due</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? transactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{getDisplayDescription(transaction)}</TableCell>
-                    <TableCell>{getCustomerName(transaction)}</TableCell>
-                    <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>
-                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                {customersWithDue.length > 0 ? customersWithDue.map((customer) => (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">
+                        <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                            {customer.name}
+                        </Link>
+                    </TableCell>
+                    <TableCell>{customer.phone}</TableCell>
+                    <TableCell className="text-right font-bold text-destructive">${customer.dueBalance.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
-                        No pending receivables.
+                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                        No pending receivables. Great job!
                     </TableCell>
                   </TableRow>
                 )}

@@ -19,8 +19,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { addPayment, getCustomers, getSales, getTransactions } from '@/lib/actions';
-import type { Customer } from '@/lib/types';
+import { addPayment, getCustomersWithDueBalance } from '@/lib/actions';
+import type { CustomerWithDue } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Loader2 } from 'lucide-react';
 
@@ -42,7 +42,7 @@ interface ReceivePaymentDialogProps {
 export default function ReceivePaymentDialog({ customerId, children }: ReceivePaymentDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
-  const [customersWithDue, setCustomersWithDue] = React.useState<Customer[]>([]);
+  const [customersWithDue, setCustomersWithDue] = React.useState<CustomerWithDue[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(false);
   const { toast } = useToast();
 
@@ -50,32 +50,8 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
     async function loadCustomersWithDue() {
       if (isOpen && !customerId) {
         setIsLoadingCustomers(true);
-        const [allCustomers, allSales, allTransactions] = await Promise.all([
-          getCustomers(),
-          getSales(),
-          getTransactions('Receivable'),
-        ]);
-
-        const customersWithBalances = allCustomers.filter(customer => {
-            const customerSales = allSales.filter(sale => sale.customerId === customer.id);
-            
-            const totalDebit = customerSales
-                .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
-                .reduce((sum, sale) => {
-                  if (sale.paymentMethod === 'Due') return sum + sale.total;
-                  if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
-                  return sum;
-                }, customer.openingBalance);
-
-            const totalCredit = allTransactions
-                .filter(t => t.customerId === customer.id && t.status === 'Paid' && t.description.includes('Payment from customer'))
-                .reduce((sum, t) => sum + t.amount, 0);
-            
-            const currentBalance = totalDebit - totalCredit;
-            return currentBalance > 0;
-        });
-
-        setCustomersWithDue(customersWithBalances);
+        const dueCustomers = await getCustomersWithDueBalance();
+        setCustomersWithDue(dueCustomers);
         setIsLoadingCustomers(false);
       }
     }
@@ -157,7 +133,7 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
                       <SelectContent>
                         {customersWithDue.length > 0 ? customersWithDue.map(c => (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name}
+                            {c.name} - (Due: ${c.dueBalance.toFixed(2)})
                           </SelectItem>
                         )) : (
                            <p className="p-4 text-sm text-muted-foreground">No customers with due balance found.</p>

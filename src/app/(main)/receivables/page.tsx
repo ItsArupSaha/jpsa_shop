@@ -1,5 +1,7 @@
 import ReceivablesManagement from '@/components/receivables-management';
+import { getCustomersWithDueBalance } from '@/lib/actions';
 
-export default function ReceivablesPage() {
-  return <ReceivablesManagement />;
+export default async function ReceivablesPage() {
+  const customersWithDue = await getCustomersWithDueBalance();
+  return <ReceivablesManagement initialCustomersWithDue={customersWithDue} />;
 }
