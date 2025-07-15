@@ -1,26 +1,52 @@
 import * as React from 'react';
-import { getCustomerById, getSales, getBooks } from '@/lib/actions';
+import { getCustomerById, getSales, getBooks, getTransactions } from '@/lib/actions';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import CustomerStatementPDF from '@/components/customer-statement-pdf';
+import ReceivePaymentDialog from '@/components/receive-payment-dialog';
+import type { Transaction, Sale } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
-  const [customer, sales, books] = await Promise.all([
+  const [customer, allSales, books, allTransactions] = await Promise.all([
     getCustomerById(customerId),
     getSales(),
     getBooks(),
+    getTransactions('Receivable'),
   ]);
 
   if (!customer) {
     notFound();
   }
   
-  const customerSales = sales.filter(sale => sale.customerId === customerId);
+  const customerSales = allSales.filter(sale => sale.customerId === customerId);
+  const customerReceivables = allTransactions.filter(t => t.customerId === customerId);
 
+  const totalDebit = customerSales
+    .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
+    .reduce((sum, sale) => {
+      if (sale.paymentMethod === 'Due') return sum + sale.total;
+      if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
+      return sum;
+    }, customer.openingBalance);
+
+  const totalCredit = customerReceivables
+    .filter(t => t.status === 'Paid' && t.description.includes('Payment from customer'))
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const currentBalance = totalDebit - totalCredit;
+  
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+
+  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerReceivables];
+  combinedHistory.sort((a, b) => {
+    const dateA = new Date('date' in a ? a.date : a.dueDate);
+    const dateB = new Date('date' in b ? b.date : b.dueDate);
+    return dateB.getTime() - dateA.getTime();
+  });
 
   return (
     <div className="animate-in fade-in-50">
@@ -32,8 +58,17 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               {customer.phone} <br />
               {customer.address}
             </CardDescription>
+            <div className="mt-4">
+                <span className="text-sm">Current Balance:</span>
+                <p className={`font-bold text-2xl ${currentBalance > 0 ? 'text-destructive' : 'text-primary'}`}>
+                    ${currentBalance.toFixed(2)}
+                </p>
+            </div>
           </div>
-          <CustomerStatementPDF customer={customer} sales={customerSales} books={books} />
+          <div className="flex flex-col gap-2 items-end">
+             <ReceivePaymentDialog customerId={customer.id} />
+             <CustomerStatementPDF customer={customer} sales={customerSales} books={books} />
+          </div>
         </CardHeader>
         <CardContent>
           <h2 className="text-xl font-semibold mb-4 font-headline">Transaction History</h2>
@@ -42,21 +77,51 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Debit</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customerSales.length > 0 ? (
-                  customerSales.map((sale) => (
-                    <TableRow key={sale.id}>
-                      <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
-                      <TableCell className="max-w-[400px] truncate">
-                        {sale.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
-                      </TableCell>
-                      <TableCell>{sale.paymentMethod}</TableCell>
-                      <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
+                {combinedHistory.length > 0 ? (
+                  combinedHistory.map((item) => (
+                    <TableRow key={'date' in item ? item.id : item.id}>
+                      <TableCell>{format(new Date('date' in item ? item.date : item.dueDate), 'PPP')}</TableCell>
+                      
+                      {'items' in item ? ( // It's a Sale
+                        <TableCell className="max-w-[400px] truncate">
+                           Sale #{item.id.slice(0,6)}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
+                           <Badge variant="outline" className="ml-2">{item.paymentMethod}</Badge>
+                        </TableCell>
+                      ) : ( // It's a Transaction
+                        <TableCell>
+                           {item.description}
+                           {item.status === 'Paid' && <Badge variant="secondary" className="ml-2">{item.paymentMethod}</Badge>}
+                        </TableCell>
+                      )}
+
+                      {'items' in item ? ( // It's a Sale
+                        <TableCell className="text-right font-medium text-destructive">
+                           { (item.paymentMethod === 'Due' || item.paymentMethod === 'Split') &&
+                             `$${(item.total - (item.amountPaid || 0)).toFixed(2)}`
+                           }
+                        </TableCell>
+                      ) : ( // It's a Transaction
+                        <TableCell className="text-right font-medium text-destructive">
+                           {item.status === 'Pending' && `$${item.amount.toFixed(2)}`}
+                        </TableCell>
+                      )}
+                      
+                       {'items' in item ? ( // It's a Sale
+                        <TableCell className="text-right font-medium text-primary">
+                          { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
+                          { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
+                        </TableCell>
+                       ) : ( // It's a Transaction
+                        <TableCell className="text-right font-medium text-primary">
+                           {item.status === 'Paid' && `$${item.amount.toFixed(2)}`}
+                        </TableCell>
+                       )}
                     </TableRow>
                   ))
                 ) : (

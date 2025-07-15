@@ -43,7 +43,8 @@ const saleFormSchema = z.object({
   items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
   discountType: z.enum(['none', 'percentage', 'amount']),
   discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
-  paymentMethod: z.enum(['Cash', 'Bank', 'Due'], { required_error: 'Payment method is required.'}),
+  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split'], { required_error: 'Payment method is required.'}),
+  amountPaid: z.coerce.number().optional(),
 }).refine(data => {
     if (data.discountType === 'percentage') {
         return data.discountValue >= 0 && data.discountValue <= 100;
@@ -52,6 +53,14 @@ const saleFormSchema = z.object({
 }, {
     message: "Percentage discount must be between 0 and 100.",
     path: ['discountValue'],
+}).refine(data => {
+    if (data.paymentMethod === 'Split') {
+        return data.amountPaid !== undefined && data.amountPaid > 0;
+    }
+    return true;
+}, {
+    message: "Amount paid is required for split payments.",
+    path: ['amountPaid'],
 });
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
@@ -90,6 +99,8 @@ export default function SalesManagement() {
       items: [{ bookId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
+      paymentMethod: 'Cash',
+      amountPaid: 0,
     },
   });
 
@@ -101,8 +112,9 @@ export default function SalesManagement() {
   const watchItems = form.watch('items');
   const watchDiscountType = form.watch('discountType');
   const watchDiscountValue = form.watch('discountValue');
+  const watchPaymentMethod = form.watch('paymentMethod');
+  const watchAmountPaid = form.watch('amountPaid');
 
-  // Calculation logic runs on every render to ensure it's always up-to-date.
   const subtotal = watchItems.reduce((acc, item) => {
     const price = item.price || 0;
     const quantity = Number(item.quantity) || 0;
@@ -118,6 +130,13 @@ export default function SalesManagement() {
   discountAmount = Math.min(subtotal, discountAmount);
 
   const total = subtotal - discountAmount;
+  
+  let dueAmount = 0;
+  if (watchPaymentMethod === 'Due') {
+    dueAmount = total;
+  } else if (watchPaymentMethod === 'Split') {
+    dueAmount = total - (watchAmountPaid || 0);
+  }
 
   const handleAddNew = () => {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
@@ -127,6 +146,7 @@ export default function SalesManagement() {
       discountType: 'none',
       discountValue: 0,
       paymentMethod: 'Cash',
+      amountPaid: 0,
     });
     setCompletedSale(null);
     setIsDialogOpen(true);
@@ -502,7 +522,7 @@ export default function SalesManagement() {
                             />
                         </div>
                       </div>
-                      <FormField
+                       <FormField
                           control={form.control}
                           name="paymentMethod"
                           render={({ field }) => (
@@ -512,25 +532,23 @@ export default function SalesManagement() {
                                 <RadioGroup
                                   onValueChange={field.onChange}
                                   defaultValue={field.value}
-                                  className="flex gap-4 pt-2"
+                                  className="flex flex-wrap gap-4 pt-2"
                                 >
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="Cash" id="cash" />
-                                    </FormControl>
+                                    <FormControl><RadioGroupItem value="Cash" id="cash" /></FormControl>
                                     <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
                                   </FormItem>
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="Bank" id="bank" />
-                                    </FormControl>
+                                    <FormControl><RadioGroupItem value="Bank" id="bank" /></FormControl>
                                     <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
                                   </FormItem>
                                   <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="Due" id="due" />
-                                    </FormControl>
+                                    <FormControl><RadioGroupItem value="Due" id="due" /></FormControl>
                                     <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="Split" id="split" /></FormControl>
+                                    <FormLabel htmlFor="split" className="font-normal">Split</FormLabel>
                                   </FormItem>
                                 </RadioGroup>
                               </FormControl>
@@ -539,8 +557,23 @@ export default function SalesManagement() {
                           )}
                         />
                     </div>
+                     {watchPaymentMethod === 'Split' && (
+                        <FormField
+                            control={form.control}
+                            name="amountPaid"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Amount Paid Now</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                     <Separator />
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-sm pr-4">
                         <div className="flex justify-between">
                             <span>Subtotal</span>
                             <span>${subtotal.toFixed(2)}</span>
@@ -553,6 +586,12 @@ export default function SalesManagement() {
                             <span>Total</span>
                             <span>${total.toFixed(2)}</span>
                         </div>
+                        { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
+                            <div className="flex justify-between font-semibold text-destructive">
+                                <span>Due Amount</span>
+                                <span>${dueAmount.toFixed(2)}</span>
+                            </div>
+                        )}
                     </div>
                   </div>
                   <DialogFooter>

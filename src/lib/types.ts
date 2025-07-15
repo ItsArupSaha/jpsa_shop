@@ -31,7 +31,8 @@ export type Sale = {
   discountType: 'none' | 'percentage' | 'amount';
   discountValue: number;
   total: number;
-  paymentMethod: 'Cash' | 'Bank' | 'Due';
+  paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
+  amountPaid?: number;
 };
 
 export type Expense = {
@@ -48,4 +49,6 @@ export type Transaction = {
   dueDate: string; // Changed to string for serialization
   status: 'Pending' | 'Paid';
   type: 'Receivable' | 'Payable';
+  paymentMethod?: 'Cash' | 'Bank';
+  customerId?: string;
 };

@@ -129,7 +129,7 @@ export async function getSales(): Promise<Sale[]> {
 }
 
 export async function addSale(
-    data: Omit<Sale, 'id' | 'date'>
+    data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db) return { success: false, error: "Database not configured." };
   
@@ -137,19 +137,16 @@ export async function addSale(
       return await runTransaction(db, async (transaction) => {
         const saleDate = new Date();
         const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
+        const customerRef = doc(db, 'customers', data.customerId);
         
         // --- 1. Read all data first ---
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-        
-        let customerDoc;
-        if (data.paymentMethod === 'Due') {
-          const customerRef = doc(db, 'customers', data.customerId);
-          customerDoc = await transaction.get(customerRef);
-          if (!customerDoc.exists()) {
+        const customerDoc = await transaction.get(customerRef);
+        if (!customerDoc.exists()) {
             throw new Error(`Customer with id ${data.customerId} does not exist!`);
-          }
         }
-
+        const customerData = customerDoc.data() as Customer;
+        
         // --- 2. Calculate totals and validate stock ---
         let calculatedSubtotal = 0;
         const itemsWithPrices: SaleItem[] = [];
@@ -197,26 +194,31 @@ export async function addSale(
           transaction.update(bookRefs[i], { stock: newStock });
         }
   
-        if (data.paymentMethod === 'Due' && customerDoc) {
-          const customerData = customerDoc.data()!;
-          const receivableData = {
-            description: `Sale to ${customerData.name}`,
-            amount: calculatedTotal,
-            dueDate: Timestamp.fromDate(new Date()),
-            status: 'Pending' as const,
-            type: 'Receivable' as const
-          };
-          const newTransactionRef = doc(collection(db, "transactions"));
-          transaction.set(newTransactionRef, receivableData);
+        if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
+          let dueAmount = calculatedTotal;
+          if(data.paymentMethod === 'Split' && data.amountPaid) {
+            dueAmount = calculatedTotal - data.amountPaid;
+          }
+
+          if (dueAmount > 0) {
+              const receivableData = {
+                description: `Due from Sale #${newSaleRef.id.slice(0, 6)}`,
+                amount: dueAmount,
+                dueDate: Timestamp.fromDate(new Date()),
+                status: 'Pending' as const,
+                type: 'Receivable' as const,
+                customerId: data.customerId
+              };
+              const newTransactionRef = doc(collection(db, "transactions"));
+              transaction.set(newTransactionRef, receivableData);
+          }
         }
   
         const saleForClient: Sale = {
           id: newSaleRef.id,
           date: saleDate.toISOString(),
-          ...data,
-          items: itemsWithPrices,
-          subtotal: calculatedSubtotal,
-          total: calculatedTotal,
+          ...saleDataToSave,
+          date: saleDate.toISOString(),
         };
   
         return { success: true, sale: saleForClient };
@@ -228,8 +230,9 @@ export async function addSale(
         revalidatePath('/sales');
         revalidatePath('/dashboard');
         revalidatePath('/books');
-        if (data.paymentMethod === 'Due') {
+        if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
             revalidatePath('/receivables');
+            revalidatePath(`/customers/${data.customerId}`);
         }
     }
 }
@@ -281,7 +284,29 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
     await addDoc(collection(db, 'transactions'), transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+    if (data.customerId) {
+      revalidatePath(`/customers/${data.customerId}`);
+    }
 }
+
+export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
+    if (!db) return;
+
+    const paymentData = {
+        description: `Payment from customer`,
+        amount: data.amount,
+        dueDate: Timestamp.fromDate(new Date()),
+        status: 'Paid' as const,
+        type: 'Receivable' as const,
+        paymentMethod: data.paymentMethod,
+        customerId: data.customerId
+    };
+    await addDoc(collection(db, 'transactions'), paymentData);
+    revalidatePath('/receivables');
+    revalidatePath(`/customers/${data.customerId}`);
+    revalidatePath('/dashboard');
+}
+
 
 export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
     if (!db) return;
