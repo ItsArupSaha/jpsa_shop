@@ -65,6 +65,25 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
       `$${item.price.toFixed(2)}`,
       `$${(item.quantity * item.price).toFixed(2)}`
     ]);
+    
+    const footContent = [
+        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
+        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
+        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
+    ];
+
+    if (sale.paymentMethod === 'Split') {
+        const dueAmount = sale.total - (sale.amountPaid || 0);
+        footContent.push(
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.amountPaid?.toFixed(2)}`],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${dueAmount.toFixed(2)}`]
+        );
+    }
+     if (sale.paymentMethod === 'Due') {
+        footContent.push(
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.total.toFixed(2)}`]
+        );
+    }
 
     autoTable(doc, {
       startY: infoY + 25,
@@ -73,11 +92,7 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
       theme: 'striped',
       headStyles: { fillColor: [48, 103, 84] }, // #306754
       footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
-      foot: [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
-      ]
+      foot: footContent,
     });
 
     // Footer
@@ -94,3 +109,4 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
     </Button>
   );
 }
+

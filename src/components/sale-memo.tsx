@@ -70,6 +70,25 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
       `$${(item.quantity * item.price).toFixed(2)}`
     ]);
 
+    const footContent = [
+        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
+        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
+        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
+    ];
+
+    if (sale.paymentMethod === 'Split') {
+        const dueAmount = sale.total - (sale.amountPaid || 0);
+        footContent.push(
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.amountPaid?.toFixed(2)}`],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${dueAmount.toFixed(2)}`]
+        );
+    }
+     if (sale.paymentMethod === 'Due') {
+        footContent.push(
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.total.toFixed(2)}`]
+        );
+    }
+
     autoTable(doc, {
       startY: infoY + 25,
       head: [['Description', 'Qty', 'Unit Price', 'Total']],
@@ -77,11 +96,7 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
       theme: 'striped',
       headStyles: { fillColor: [48, 103, 84] }, // #306754
       footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
-      foot: [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
-      ]
+      foot: footContent,
     });
 
     // Footer
@@ -91,6 +106,8 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
 
     doc.save(`memo-${sale.id.slice(0,6)}.pdf`);
   };
+
+  const dueAmount = sale.total - (sale.amountPaid || 0);
 
   return (
     <>
@@ -145,10 +162,28 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
                         <span>Discount</span>
                         <span>-${(sale.subtotal - sale.total).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-base">
-                        <span>Total</span>
+                    <div className="flex justify-between font-bold text-base border-t pt-2">
+                        <span>Grand Total</span>
                         <span>${sale.total.toFixed(2)}</span>
                     </div>
+                    {sale.paymentMethod === 'Split' && (
+                        <>
+                            <div className="flex justify-between text-primary">
+                                <span>Amount Paid</span>
+                                <span>${sale.amountPaid?.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-destructive">
+                                <span>Amount Due</span>
+                                <span>${dueAmount.toFixed(2)}</span>
+                            </div>
+                        </>
+                    )}
+                    {sale.paymentMethod === 'Due' && (
+                        <div className="flex justify-between text-destructive">
+                            <span>Amount Due</span>
+                            <span>${sale.total.toFixed(2)}</span>
+                        </div>
+                    )}
                 </div>
 
             </div>
