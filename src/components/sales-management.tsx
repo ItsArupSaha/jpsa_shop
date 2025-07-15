@@ -28,6 +28,7 @@ import { SaleDetailsDialog } from './sale-details-dialog';
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
+import { SaleMemo } from './sale-memo';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -60,6 +61,7 @@ export default function SalesManagement() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
@@ -126,20 +128,28 @@ export default function SalesManagement() {
       discountValue: 0,
       paymentMethod: 'Cash',
     });
+    setCompletedSale(null);
     setIsDialogOpen(true);
   };
   
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setCompletedSale(null);
+    }
+    setIsDialogOpen(open);
+  }
+
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
       const saleData = { ...data, subtotal, total };
       const result = await addSale(saleData);
 
-      if (result?.success) {
+      if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
         const [updatedSales, updatedBooks] = await Promise.all([getSales(), getBooks()]);
         setSales(updatedSales);
         setBooks(updatedBooks);
-        setIsDialogOpen(false);
+        setCompletedSale(result.sale); // Set the completed sale for memo preview
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
       }
@@ -244,36 +254,36 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-auto">
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
                         <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
-                            <div className="flex flex-col items-center gap-4">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={dateRange?.from}
-                                    selected={dateRange}
-                                    onSelect={setDateRange}
-                                    numberOfMonths={1}
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    {dateRange?.from ? (
-                                    dateRange.to ? (
-                                        <>
-                                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                                        {format(dateRange.to, "LLL dd, y")}
-                                        </>
-                                    ) : (
-                                        <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                                    )
-                                    ) : (
-                                    <span>Please pick a start and end date.</span>
-                                    )}
-                                </p>
-                            </div>
+                          <div className="flex flex-col items-center gap-4">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={1}
+                            />
+                            <p className="text-sm text-muted-foreground">
+                                {dateRange?.from ? (
+                                dateRange.to ? (
+                                    <>
+                                    Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                                    {format(dateRange.to, "LLL dd, y")}
+                                    </>
+                                ) : (
+                                    <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                                )
+                                ) : (
+                                <span>Please pick a start and end date.</span>
+                                )}
+                            </p>
+                          </div>
                         </div>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
@@ -331,213 +341,219 @@ export default function SalesManagement() {
         </CardContent>
       </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
-            <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a customer" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers.map(customer => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Separator />
-                <FormLabel>Items</FormLabel>
-                {fields.map((field, index) => {
-                  const selectedBook = books.find(b => b.id === watchItems[index]?.bookId);
-                  return (
-                    <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
-                      <div className="flex-1 grid grid-cols-5 gap-3">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.bookId`}
-                          render={({ field }) => (
-                            <FormItem className="col-span-3">
-                              <FormLabel className="text-xs">Book</FormLabel>
-                              <Select onValueChange={(value) => {
-                                const book = books.find(b => b.id === value);
-                                field.onChange(value);
-                                form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
-                              }} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a book" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {books.map(book => (
-                                    <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
-                                      {book.title}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name={`items.${index}.quantity`}
-                          render={({ field }) => (
-                            <FormItem className="col-span-2">
-                              <div className="flex justify-between items-center">
-                                <FormLabel className="text-xs">Quantity</FormLabel>
-                                {selectedBook && (
-                                  <span className="text-xs text-muted-foreground">
-                                    In stock: {selectedBook.stock}
-                                  </span>
+          {completedSale ? (
+             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} books={books} onNewSale={handleAddNew}/>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
+                <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
+                    <FormField
+                      control={form.control}
+                      name="customerId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Customer</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a customer" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {customers.map(customer => (
+                                <SelectItem key={customer.id} value={customer.id}>
+                                  {customer.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Separator />
+                    <FormLabel>Items</FormLabel>
+                    {fields.map((field, index) => {
+                      const selectedBook = books.find(b => b.id === watchItems[index]?.bookId);
+                      return (
+                        <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
+                          <div className="flex-1 grid grid-cols-5 gap-3">
+                            <FormField
+                              control={form.control}
+                              name={`items.${index}.bookId`}
+                              render={({ field }) => (
+                                <FormItem className="col-span-3">
+                                  <FormLabel className="text-xs">Book</FormLabel>
+                                  <Select onValueChange={(value) => {
+                                    const book = books.find(b => b.id === value);
+                                    field.onChange(value);
+                                    form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
+                                  }} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select a book" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {books.map(book => (
+                                        <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
+                                          {book.title}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`items.${index}.quantity`}
+                              render={({ field }) => (
+                                <FormItem className="col-span-2">
+                                  <div className="flex justify-between items-center">
+                                    <FormLabel className="text-xs">Quantity</FormLabel>
+                                    {selectedBook && (
+                                      <span className="text-xs text-muted-foreground">
+                                        In stock: {selectedBook.stock}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <FormControl>
+                                    <Input type="number" min="1" max={selectedBook?.stock} placeholder="1" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => remove(index)}
+                            disabled={fields.length === 1}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => append({ bookId: '', quantity: 1, price: 0 })}
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                    </Button>
+                    <Separator />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <FormLabel>Discount</FormLabel>
+                        <div className="flex gap-2">
+                          <FormField
+                              control={form.control}
+                              name="discountType"
+                              render={({ field }) => (
+                                <FormItem className="w-1/2">
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      <SelectItem value="percentage">%</SelectItem>
+                                      <SelectItem value="amount">$</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="discountValue"
+                                render={({ field }) => (
+                                    <FormItem className={cn("w-1/2", watchDiscountType === 'none' && 'hidden')}>
+                                        <FormControl>
+                                            <Input type="number" placeholder="0" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
                                 )}
-                              </div>
+                            />
+                        </div>
+                      </div>
+                      <FormField
+                          control={form.control}
+                          name="paymentMethod"
+                          render={({ field }) => (
+                            <FormItem className="space-y-2">
+                              <FormLabel>Payment Method</FormLabel>
                               <FormControl>
-                                <Input type="number" min="1" max={selectedBook?.stock} placeholder="1" {...field} />
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="flex gap-4 pt-2"
+                                >
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="Cash" id="cash" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="Bank" id="bank" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="Due" id="due" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={() => remove(index)}
-                        disabled={fields.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
-                  )
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ bookId: '', quantity: 1, price: 0 })}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                </Button>
-                <Separator />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                     <FormLabel>Discount</FormLabel>
-                     <div className="flex gap-2">
-                       <FormField
-                          control={form.control}
-                          name="discountType"
-                          render={({ field }) => (
-                            <FormItem className="w-1/2">
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">None</SelectItem>
-                                  <SelectItem value="percentage">%</SelectItem>
-                                  <SelectItem value="amount">$</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="discountValue"
-                            render={({ field }) => (
-                                <FormItem className={cn("w-1/2", watchDiscountType === 'none' && 'hidden')}>
-                                    <FormControl>
-                                        <Input type="number" placeholder="0" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                     </div>
+                    <Separator />
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span>Subtotal</span>
+                            <span>${subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                            <span>Discount</span>
+                            <span>-${discountAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-base">
+                            <span>Total</span>
+                            <span>${total.toFixed(2)}</span>
+                        </div>
+                    </div>
                   </div>
-                  <FormField
-                      control={form.control}
-                      name="paymentMethod"
-                      render={({ field }) => (
-                        <FormItem className="space-y-2">
-                           <FormLabel>Payment Method</FormLabel>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex gap-4 pt-2"
-                            >
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="Cash" id="cash" />
-                                </FormControl>
-                                <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="Bank" id="bank" />
-                                </FormControl>
-                                <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl>
-                                  <RadioGroupItem value="Due" id="due" />
-                                </FormControl>
-                                <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                </div>
-                 <Separator />
-                 <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                        <span>Subtotal</span>
-                        <span>${subtotal.toFixed(2)}</span>
-                    </div>
-                     <div className="flex justify-between text-muted-foreground">
-                        <span>Discount</span>
-                        <span>-${discountAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-base">
-                        <span>Total</span>
-                        <span>${total.toFixed(2)}</span>
-                    </div>
-                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isPending || total < 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
-              </DialogFooter>
-            </form>
-          </Form>
+                  <DialogFooter>
+                    <Button type="submit" disabled={isPending || total < 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

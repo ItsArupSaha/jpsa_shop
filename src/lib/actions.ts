@@ -14,6 +14,7 @@ import {
   runTransaction,
   getDoc,
   orderBy,
+  DocumentReference,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -126,30 +127,28 @@ export async function getSales(): Promise<Sale[]> {
     return snapshot.docs.map(docToSale);
 }
 
-export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
+export async function addSale(data: Omit<Sale, 'id' | 'date'>): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db) return { success: false, error: "Database not configured." };
+    
+    const newSaleRef = doc(collection(db, "sales"));
+    let saleForClient: Sale | undefined;
+
     try {
         await runTransaction(db, async (transaction) => {
-            const saleData = {
-                ...data,
-                date: Timestamp.fromDate(new Date()),
-            };
-
             // --- 1. READ PHASE ---
-            // Fetch all book documents and customer document first.
             const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
             const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
             
             let customerDoc;
+            let customerRef: DocumentReference | undefined;
             if (data.paymentMethod === 'Due') {
-                const customerRef = doc(db, 'customers', data.customerId);
+                customerRef = doc(db, 'customers', data.customerId);
                 customerDoc = await transaction.get(customerRef);
-                 if (!customerDoc.exists()) {
+                if (!customerDoc.exists()) {
                     throw new Error(`Customer with id ${data.customerId} does not exist!`);
                 }
             }
             
-            // Validate stock availability after reading.
             for (let i = 0; i < data.items.length; i++) {
                 const bookDoc = bookDocs[i];
                 const item = data.items[i];
@@ -163,34 +162,40 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
             }
 
             // --- 2. WRITE PHASE ---
-            // Now, perform all writes.
-            const newSaleRef = doc(collection(db, "sales"));
+            const saleDate = new Date();
+            const saleData = {
+                ...data,
+                date: Timestamp.fromDate(saleDate),
+            };
             transaction.set(newSaleRef, saleData);
 
-            // Update book stock.
             for (let i = 0; i < data.items.length; i++) {
-                const bookRef = bookRefs[i];
                 const bookDoc = bookDocs[i];
                 const item = data.items[i];
-                const currentStock = bookDoc.data().stock;
-                transaction.update(bookRef, { stock: currentStock - item.quantity });
+                const newStock = bookDoc.data().stock - item.quantity;
+                transaction.update(bookDoc.ref, { stock: newStock });
             }
 
-            // Create receivable if payment is due.
-            if (data.paymentMethod === 'Due' && customerDoc) {
-                const customer = customerDoc.data();
+            if (data.paymentMethod === 'Due' && customerDoc?.exists()) {
+                const customerData = customerDoc.data();
                 const receivableData = {
-                    description: `Sale to ${customer?.name}`,
+                    description: `Sale to ${customerData.name}`,
                     amount: data.total,
-                    dueDate: Timestamp.fromDate(new Date()), // Or a calculated due date
+                    dueDate: Timestamp.fromDate(new Date()),
                     status: 'Pending',
                     type: 'Receivable'
                 };
                 transaction.set(doc(collection(db, "transactions")), receivableData);
             }
+            
+            // Prepare the sale object to be returned
+            saleForClient = {
+              ...data,
+              id: newSaleRef.id,
+              date: saleDate.toISOString(),
+            };
         });
 
-        // Revalidate paths after successful transaction
         revalidatePath('/sales');
         revalidatePath('/dashboard');
         revalidatePath('/books');
@@ -198,7 +203,7 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>) {
             revalidatePath('/receivables');
         }
 
-        return { success: true };
+        return { success: true, sale: saleForClient };
     } catch (e) {
         console.error("Transaction failed: ", e);
         return { success: false, error: e instanceof Error ? e.message : String(e) };
