@@ -4,8 +4,8 @@ import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Calendar as CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -25,6 +25,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { SaleDetailsDialog } from './sale-details-dialog';
 import { Badge } from './ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Calendar } from './ui/calendar';
+import type { DateRange } from 'react-day-picker';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -56,8 +59,7 @@ export default function SalesManagement() {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
-  const [startDate, setStartDate] = React.useState<string>('');
-  const [endDate, setEndDate] = React.useState<string>('');
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
@@ -145,7 +147,7 @@ export default function SalesManagement() {
   };
 
   const getFilteredSales = () => {
-    if (!startDate || !endDate) {
+    if (!dateRange?.from || !dateRange?.to) {
         toast({
             variant: "destructive",
             title: "Please select a start and end date.",
@@ -153,8 +155,8 @@ export default function SalesManagement() {
         return null;
     }
     
-    const from = parseISO(startDate);
-    const to = parseISO(endDate);
+    const from = dateRange.from;
+    const to = dateRange.to;
     to.setHours(23, 59, 59, 999); // Include the entire end day
 
     return sales.filter(sale => {
@@ -173,7 +175,7 @@ export default function SalesManagement() {
     }
 
     const doc = new jsPDF();
-    const dateString = `${format(parseISO(startDate), 'PPP')} - ${format(parseISO(endDate), 'PPP')}`;
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to!, 'PPP')}`;
     doc.text(`Sales Report: ${dateString}`, 14, 15);
     
     autoTable(doc, {
@@ -188,7 +190,7 @@ export default function SalesManagement() {
       ]),
     });
     
-    doc.save(`sales-report-${startDate}-to-${endDate}.pdf`);
+    doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleDownloadCsv = () => {
@@ -214,7 +216,7 @@ export default function SalesManagement() {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `sales-report-${startDate}-to-${endDate}.csv`);
+      link.setAttribute('download', `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -247,19 +249,47 @@ export default function SalesManagement() {
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
-                        <div className="grid grid-cols-2 gap-4 py-4">
-                           <FormItem>
-                             <FormLabel>Start Date</FormLabel>
-                             <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                           </FormItem>
-                           <FormItem>
-                             <FormLabel>End Date</FormLabel>
-                             <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                           </FormItem>
+                        <div className="grid gap-4 py-4">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                id="date"
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !dateRange && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange?.from ? (
+                                  dateRange.to ? (
+                                    <>
+                                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                                      {format(dateRange.to, "LLL dd, y")}
+                                    </>
+                                  ) : (
+                                    format(dateRange.from, "LLL dd, y")
+                                  )
+                                ) : (
+                                  <span>Pick a date range</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                              <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={2}
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </div>
                         <DialogFooter className="gap-2 sm:justify-start">
-                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!startDate || !endDate}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!startDate || !endDate}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from || !dateRange?.to}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from || !dateRange?.to}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
