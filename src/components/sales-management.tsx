@@ -101,27 +101,24 @@ export default function SalesManagement() {
   const watchDiscountType = form.watch('discountType');
   const watchDiscountValue = form.watch('discountValue');
 
-  const { subtotal, discountAmount, total } = React.useMemo(() => {
-    const subtotal = watchItems.reduce((acc, item) => {
-      // The price is now set directly on the item, so we use that.
-      const price = item.price || 0;
-      const quantity = Number(item.quantity) || 0;
-      return acc + (price * quantity);
-    }, 0);
+  // --- Calculation Logic ---
+  // Moved out of useMemo to ensure it runs on every render.
+  const subtotal = watchItems.reduce((acc, item) => {
+    const price = item.price || 0;
+    const quantity = Number(item.quantity) || 0;
+    return acc + (price * quantity);
+  }, 0);
 
-    let discountAmount = 0;
-    if (watchDiscountType === 'percentage') {
-      discountAmount = subtotal * (watchDiscountValue / 100);
-    } else if (watchDiscountType === 'amount') {
-      discountAmount = watchDiscountValue;
-    }
-    
-    discountAmount = Math.min(subtotal, discountAmount);
+  let discountAmount = 0;
+  if (watchDiscountType === 'percentage') {
+    discountAmount = subtotal * (watchDiscountValue / 100);
+  } else if (watchDiscountType === 'amount') {
+    discountAmount = watchDiscountValue;
+  }
+  discountAmount = Math.min(subtotal, discountAmount);
 
-    const total = subtotal - discountAmount;
-    return { subtotal, discountAmount, total };
-  }, [watchItems, watchDiscountType, watchDiscountValue, fields]);
-
+  const total = subtotal - discountAmount;
+  // --- End Calculation Logic ---
 
   const handleAddNew = () => {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
@@ -152,7 +149,7 @@ export default function SalesManagement() {
         const [updatedSales, updatedBooks] = await Promise.all([getSales(), getBooks()]);
         setSales(updatedSales);
         setBooks(updatedBooks);
-        setCompletedSale(result.sale); // Set the completed sale for memo preview
+        setCompletedSale(result.sale);
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
       }
@@ -169,8 +166,8 @@ export default function SalesManagement() {
     }
     
     const from = dateRange.from;
-    const to = dateRange.to || dateRange.from; // If no end date, use start date
-    to.setHours(23, 59, 59, 999); // Include the entire end day
+    const to = dateRange.to || dateRange.from;
+    to.setHours(23, 59, 59, 999);
 
     return sales.filter(sale => {
       const saleDate = new Date(sale.date);
@@ -257,7 +254,7 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-auto">
+                    <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
