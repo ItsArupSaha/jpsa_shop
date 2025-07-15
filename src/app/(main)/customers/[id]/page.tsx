@@ -23,7 +23,10 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   }
   
   const customerSales = allSales.filter(sale => sale.customerId === customerId);
-  const customerReceivables = allTransactions.filter(t => t.customerId === customerId);
+  // Filter out receivables that were automatically generated from a 'Due' or 'Split' sale, as the sale itself represents the debit.
+  const customerReceivables = allTransactions.filter(t => 
+    t.customerId === customerId && !t.description.startsWith('Due from Sale')
+  );
 
   const totalDebit = customerSales
     .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
@@ -33,8 +36,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       return sum;
     }, customer.openingBalance);
 
-  const totalCredit = customerReceivables
-    .filter(t => t.status === 'Paid' && t.description.includes('Payment from customer'))
+  const totalCredit = allTransactions
+    .filter(t => t.customerId === customerId && t.status === 'Paid' && t.description.includes('Payment from customer'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const currentBalance = totalDebit - totalCredit;
@@ -106,10 +109,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                              `$${(item.total - (item.amountPaid || 0)).toFixed(2)}`
                            }
                         </TableCell>
-                      ) : ( // It's a Transaction
-                        <TableCell className="text-right font-medium text-destructive">
-                           {item.status === 'Pending' && `$${item.amount.toFixed(2)}`}
-                        </TableCell>
+                      ) : ( // It's a Transaction (These are payments received, so no debit)
+                        <TableCell className="text-right font-medium text-destructive"></TableCell>
                       )}
                       
                        {'items' in item ? ( // It's a Sale
