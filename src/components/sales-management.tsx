@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Calendar as CalendarIcon } from 'lucide-react';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -25,7 +26,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { SaleDetailsDialog } from './sale-details-dialog';
 import { Badge } from './ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
 
@@ -147,16 +147,16 @@ export default function SalesManagement() {
   };
 
   const getFilteredSales = () => {
-    if (!dateRange?.from || !dateRange?.to) {
+    if (!dateRange?.from) {
         toast({
             variant: "destructive",
-            title: "Please select a start and end date.",
+            title: "Please select a start date.",
         });
         return null;
     }
     
     const from = dateRange.from;
-    const to = dateRange.to;
+    const to = dateRange.to || dateRange.from; // If no end date, use start date
     to.setHours(23, 59, 59, 999); // Include the entire end day
 
     return sales.filter(sale => {
@@ -175,7 +175,7 @@ export default function SalesManagement() {
     }
 
     const doc = new jsPDF();
-    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to!, 'PPP')}`;
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
     doc.text(`Sales Report: ${dateString}`, 14, 15);
     
     autoTable(doc, {
@@ -190,7 +190,7 @@ export default function SalesManagement() {
       ]),
     });
     
-    doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.pdf`);
+    doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleDownloadCsv = () => {
@@ -216,7 +216,7 @@ export default function SalesManagement() {
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to!, 'yyyy-MM-dd')}.csv`);
+      link.setAttribute('download', `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -244,52 +244,38 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-auto">
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                id="date"
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !dateRange && "text-muted-foreground"
-                                )}
-                              >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (
-                                  dateRange.to ? (
-                                    <>
-                                      {format(dateRange.from, "LLL dd, y")} -{" "}
-                                      {format(dateRange.to, "LLL dd, y")}
-                                    </>
-                                  ) : (
-                                    format(dateRange.from, "LLL dd, y")
-                                  )
-                                ) : (
-                                  <span>Pick a date range</span>
-                                )}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start" side="bottom">
-                              <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={2}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                        <div className="flex flex-col items-center gap-4 py-4">
+                          <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={dateRange?.from}
+                            selected={dateRange}
+                            onSelect={setDateRange}
+                            numberOfMonths={2}
+                          />
+                           <p className="text-sm text-muted-foreground">
+                            {dateRange?.from ? (
+                              dateRange.to ? (
+                                <>
+                                  Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                                  {format(dateRange.to, "LLL dd, y")}
+                                </>
+                              ) : (
+                                <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                              )
+                            ) : (
+                              <span>Please pick a start and end date.</span>
+                            )}
+                          </p>
                         </div>
-                        <DialogFooter className="gap-2 sm:justify-start">
-                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from || !dateRange?.to}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from || !dateRange?.to}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                        <DialogFooter className="gap-2 sm:justify-end">
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
