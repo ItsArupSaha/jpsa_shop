@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { getCustomerById, getSales, getBooks, getTransactions } from '@/lib/actions';
 import { notFound } from 'next/navigation';
