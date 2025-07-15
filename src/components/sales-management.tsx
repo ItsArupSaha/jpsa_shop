@@ -249,31 +249,33 @@ export default function SalesManagement() {
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
-                        <div className="flex flex-col items-center gap-4 py-4">
-                          <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={dateRange?.from}
-                            selected={dateRange}
-                            onSelect={setDateRange}
-                            numberOfMonths={1}
-                          />
-                           <p className="text-sm text-muted-foreground">
-                            {dateRange?.from ? (
-                              dateRange.to ? (
-                                <>
-                                  Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                                  {format(dateRange.to, "LLL dd, y")}
-                                </>
-                              ) : (
-                                <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                              )
-                            ) : (
-                              <span>Please pick a start and end date.</span>
-                            )}
-                          </p>
+                        <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
+                            <div className="flex flex-col items-center gap-4">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={dateRange?.from}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    numberOfMonths={1}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    {dateRange?.from ? (
+                                    dateRange.to ? (
+                                        <>
+                                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                                        {format(dateRange.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                                    )
+                                    ) : (
+                                    <span>Please pick a start and end date.</span>
+                                    )}
+                                </p>
+                            </div>
                         </div>
-                        <DialogFooter className="gap-2 sm:justify-end">
+                        <DialogFooter className="gap-2 sm:justify-end pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
                         </DialogFooter>
