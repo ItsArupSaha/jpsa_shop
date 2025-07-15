@@ -30,6 +30,7 @@ import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
+import { DownloadSaleMemo } from './download-sale-memo';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -101,8 +102,7 @@ export default function SalesManagement() {
   const watchDiscountType = form.watch('discountType');
   const watchDiscountValue = form.watch('discountValue');
 
-  // --- Calculation Logic ---
-  // Moved out of useMemo to ensure it runs on every render.
+  // Calculation logic runs on every render to ensure it's always up-to-date.
   const subtotal = watchItems.reduce((acc, item) => {
     const price = item.price || 0;
     const quantity = Number(item.quantity) || 0;
@@ -118,7 +118,6 @@ export default function SalesManagement() {
   discountAmount = Math.min(subtotal, discountAmount);
 
   const total = subtotal - discountAmount;
-  // --- End Calculation Logic ---
 
   const handleAddNew = () => {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
@@ -304,35 +303,44 @@ export default function SalesManagement() {
                   <TableHead>Items</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length > 0 ? sales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
-                    <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
-                    <TableCell className="max-w-[300px]">
-                      {sale.items.length > 0 && (
-                          <div className="flex items-center gap-2">
-                              <span>
-                                  {sale.items[0].quantity}x {getBookTitle(sale.items[0].bookId)}
-                              </span>
-                              {sale.items.length > 1 && (
-                                  <SaleDetailsDialog sale={sale} books={books}>
-                                      <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
-                                          +{sale.items.length - 1} more
-                                      </Badge>
-                                  </SaleDetailsDialog>
-                              )}
-                          </div>
-                      )}
-                    </TableCell>
-                    <TableCell>{sale.paymentMethod}</TableCell>
-                    <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
-                  </TableRow>
-                )) : (
+                {sales.length > 0 ? sales.map((sale) => {
+                  const customer = customers.find(c => c.id === sale.customerId);
+                  return (
+                    <TableRow key={sale.id}>
+                      <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
+                      <TableCell className="font-medium">{customer?.name || 'Unknown Customer'}</TableCell>
+                      <TableCell className="max-w-[300px]">
+                        {sale.items.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <span>
+                                    {sale.items[0].quantity}x {getBookTitle(sale.items[0].bookId)}
+                                </span>
+                                {sale.items.length > 1 && (
+                                    <SaleDetailsDialog sale={sale} books={books}>
+                                        <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
+                                            +{sale.items.length - 1} more
+                                        </Badge>
+                                    </SaleDetailsDialog>
+                                )}
+                            </div>
+                        )}
+                      </TableCell>
+                      <TableCell>{sale.paymentMethod}</TableCell>
+                      <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        {customer && (
+                          <DownloadSaleMemo sale={sale} customer={customer} books={books} />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                }) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
