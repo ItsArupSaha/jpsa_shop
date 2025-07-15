@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { addPayment, getCustomers, getSales, getTransactions } from '@/lib/actions';
-import type { Customer, Sale, Transaction } from '@/lib/types';
+import type { Customer } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Loader2 } from 'lucide-react';
 
@@ -62,9 +62,9 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
             const totalDebit = customerSales
                 .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
                 .reduce((sum, sale) => {
-                if (sale.paymentMethod === 'Due') return sum + sale.total;
-                if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
-                return sum;
+                  if (sale.paymentMethod === 'Due') return sum + sale.total;
+                  if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
+                  return sum;
                 }, customer.openingBalance);
 
             const totalCredit = allTransactions

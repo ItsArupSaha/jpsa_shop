@@ -16,6 +16,7 @@ import {
   getDoc,
   orderBy,
   DocumentReference,
+  limit,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -288,7 +289,7 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
 }
 
 export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
-    if (!db) return;
+    if (!db) throw new Error("Database not configured.");
 
     const paymentData = {
         description: `Payment from customer`,
@@ -300,6 +301,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
         customerId: data.customerId
     };
     await addDoc(collection(db, 'transactions'), paymentData);
+
     revalidatePath('/receivables');
     revalidatePath('/dashboard');
     if (data.customerId) {
