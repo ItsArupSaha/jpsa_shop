@@ -8,6 +8,8 @@ import CustomerStatementPDF from '@/components/customer-statement-pdf';
 import ReceivePaymentDialog from '@/components/receive-payment-dialog';
 import type { Transaction, Sale } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DollarSign } from 'lucide-react';
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
@@ -69,7 +71,11 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             </div>
           </div>
           <div className="flex flex-col gap-2 items-end">
-             <ReceivePaymentDialog customerId={customer.id} />
+            <ReceivePaymentDialog customerId={customer.id}>
+                <Button>
+                    <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
+                </Button>
+            </ReceivePaymentDialog>
              <CustomerStatementPDF customer={customer} sales={customerSales} books={books} />
           </div>
         </CardHeader>

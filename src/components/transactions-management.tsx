@@ -33,7 +33,7 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 interface TransactionsManagementProps {
   title: string;
   description: string;
-  type: 'Receivable' | 'Payable';
+  type: 'Payable';
 }
 
 export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {

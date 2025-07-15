@@ -19,10 +19,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { addPayment } from '@/lib/actions';
+import { addPayment, getCustomers } from '@/lib/actions';
 import { DollarSign } from 'lucide-react';
+import type { Customer } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const paymentSchema = z.object({
+  customerId: z.string().min(1, 'Customer is required'),
   amount: z.coerce.number().min(0.01, 'Amount must be positive'),
   paymentMethod: z.enum(['Cash', 'Bank'], {
     required_error: 'You need to select a payment method.',
@@ -32,26 +35,49 @@ const paymentSchema = z.object({
 type PaymentFormValues = z.infer<typeof paymentSchema>;
 
 interface ReceivePaymentDialogProps {
-  customerId: string;
+  customerId?: string;
+  children: React.ReactNode;
 }
 
-export default function ReceivePaymentDialog({ customerId }: ReceivePaymentDialogProps) {
+export default function ReceivePaymentDialog({ customerId, children }: ReceivePaymentDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    // Fetch customers only if no specific customerId is provided
+    if (!customerId) {
+      async function loadCustomers() {
+        const allCustomers = await getCustomers();
+        setCustomers(allCustomers);
+      }
+      loadCustomers();
+    }
+  }, [customerId, isOpen]);
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
+      customerId: customerId || '',
       amount: 0,
       paymentMethod: 'Cash',
     },
   });
 
+  React.useEffect(() => {
+    form.reset({
+      customerId: customerId || '',
+      amount: 0,
+      paymentMethod: 'Cash',
+    });
+  }, [customerId, form]);
+
+
   const onSubmit = (data: PaymentFormValues) => {
     startTransition(async () => {
       try {
-        await addPayment({ ...data, customerId });
+        await addPayment(data);
         toast({
           title: 'Payment Received',
           description: 'The customer payment has been successfully recorded.',
@@ -71,19 +97,43 @@ export default function ReceivePaymentDialog({ customerId }: ReceivePaymentDialo
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
-        </Button>
+        {children}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Receive Due Payment</DialogTitle>
           <DialogDescription>
-            Record a payment received from the customer for their outstanding balance.
+            Record a payment received from a customer for their outstanding balance.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+             {!customerId && (
+               <FormField
+                control={form.control}
+                name="customerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a customer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {customers.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
               control={form.control}
               name="amount"

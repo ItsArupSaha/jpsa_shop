@@ -1,11 +1,5 @@
-import TransactionsManagement from '@/components/transactions-management';
+import ReceivablesManagement from '@/components/receivables-management';
 
 export default function ReceivablesPage() {
-  return (
-    <TransactionsManagement
-      title="Track Receivables"
-      description="Manage amounts owed to the bookstore."
-      type="Receivable"
-    />
-  );
+  return <ReceivablesManagement />;
 }
