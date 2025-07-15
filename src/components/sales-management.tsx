@@ -29,6 +29,7 @@ import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import { SaleMemo } from './sale-memo';
+import { ScrollArea } from './ui/scroll-area';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -102,8 +103,10 @@ export default function SalesManagement() {
 
   const { subtotal, discountAmount, total } = React.useMemo(() => {
     const subtotal = watchItems.reduce((acc, item) => {
+      const book = books.find(b => b.id === item.bookId);
+      const price = book?.sellingPrice || 0;
       const quantity = Number(item.quantity) || 0;
-      return acc + (item.price * quantity);
+      return acc + (price * quantity);
     }, 0);
 
     let discountAmount = 0;
@@ -117,7 +120,7 @@ export default function SalesManagement() {
 
     const total = subtotal - discountAmount;
     return { subtotal, discountAmount, total };
-  }, [watchItems, watchDiscountType, watchDiscountValue]);
+  }, [watchItems, watchDiscountType, watchDiscountValue, books]);
 
   const handleAddNew = () => {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
@@ -141,8 +144,7 @@ export default function SalesManagement() {
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
-      const saleData = { ...data, subtotal, total };
-      const result = await addSale(saleData);
+      const result = await addSale(data);
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
@@ -259,8 +261,8 @@ export default function SalesManagement() {
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
                         </DialogHeader>
-                        <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
-                          <div className="flex flex-col items-center gap-4">
+                        <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                        <div className="py-4 flex flex-col items-center gap-4">
                             <Calendar
                                 initialFocus
                                 mode="range"
@@ -284,7 +286,7 @@ export default function SalesManagement() {
                                 )}
                             </p>
                           </div>
-                        </div>
+                          </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
