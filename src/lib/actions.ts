@@ -130,72 +130,58 @@ export async function getSales(): Promise<Sale[]> {
 export async function addSale(data: Omit<Sale, 'id' | 'date'>): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db) return { success: false, error: "Database not configured." };
     
-    const newSaleRef = doc(collection(db, "sales"));
-    let saleForClient: Sale | undefined;
-
     try {
-        await runTransaction(db, async (transaction) => {
-            // --- 1. READ PHASE ---
-            const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-            
-            let customerDoc;
-            let customerRef: DocumentReference | undefined;
-            if (data.paymentMethod === 'Due') {
-                customerRef = doc(db, 'customers', data.customerId);
-                customerDoc = await transaction.get(customerRef);
-                if (!customerDoc.exists()) {
-                    throw new Error(`Customer with id ${data.customerId} does not exist!`);
-                }
-            }
-            
-            for (let i = 0; i < data.items.length; i++) {
-                const bookDoc = bookDocs[i];
-                const item = data.items[i];
-                if (!bookDoc.exists()) {
-                    throw new Error(`Book with id ${item.bookId} does not exist!`);
-                }
-                const currentStock = bookDoc.data().stock;
-                if (currentStock < item.quantity) {
-                    throw new Error(`Not enough stock for ${bookDoc.data().title}. Available: ${currentStock}, Requested: ${item.quantity}`);
-                }
-            }
+        const batch = writeBatch(db);
+        const saleDate = new Date();
+        
+        // --- 1. Validate stock and prepare book updates ---
+        for (const item of data.items) {
+            const bookRef = doc(db, 'books', item.bookId);
+            const bookDoc = await getDoc(bookRef);
 
-            // --- 2. WRITE PHASE ---
-            const saleDate = new Date();
-            const saleData = {
-                ...data,
-                date: Timestamp.fromDate(saleDate),
+            if (!bookDoc.exists()) {
+                throw new Error(`Book with id ${item.bookId} does not exist!`);
+            }
+            const currentStock = bookDoc.data().stock;
+            if (currentStock < item.quantity) {
+                throw new Error(`Not enough stock for ${bookDoc.data().title}. Available: ${currentStock}, Requested: ${item.quantity}`);
+            }
+            const newStock = currentStock - item.quantity;
+            batch.update(bookRef, { stock: newStock });
+        }
+
+        // --- 2. Prepare sale record ---
+        const newSaleRef = doc(collection(db, "sales"));
+        const saleDataToSave = {
+            ...data,
+            date: Timestamp.fromDate(saleDate),
+        };
+        batch.set(newSaleRef, saleDataToSave);
+
+
+        // --- 3. Handle 'Due' payment method ---
+        if (data.paymentMethod === 'Due') {
+            const customerRef = doc(db, 'customers', data.customerId);
+            const customerDoc = await getDoc(customerRef);
+            if (!customerDoc.exists()) {
+                throw new Error(`Customer with id ${data.customerId} does not exist!`);
+            }
+            const customerData = customerDoc.data();
+            const receivableData = {
+                description: `Sale to ${customerData.name}`,
+                amount: data.total,
+                dueDate: Timestamp.fromDate(new Date()),
+                status: 'Pending',
+                type: 'Receivable'
             };
-            transaction.set(newSaleRef, saleData);
+            const newTransactionRef = doc(collection(db, "transactions"));
+            batch.set(newTransactionRef, receivableData);
+        }
 
-            for (let i = 0; i < data.items.length; i++) {
-                const bookDoc = bookDocs[i];
-                const item = data.items[i];
-                const newStock = bookDoc.data().stock - item.quantity;
-                transaction.update(bookDoc.ref, { stock: newStock });
-            }
+        // --- 4. Commit all writes at once ---
+        await batch.commit();
 
-            if (data.paymentMethod === 'Due' && customerDoc?.exists()) {
-                const customerData = customerDoc.data();
-                const receivableData = {
-                    description: `Sale to ${customerData.name}`,
-                    amount: data.total,
-                    dueDate: Timestamp.fromDate(new Date()),
-                    status: 'Pending',
-                    type: 'Receivable'
-                };
-                transaction.set(doc(collection(db, "transactions")), receivableData);
-            }
-            
-            // Prepare the sale object to be returned
-            saleForClient = {
-              ...data,
-              id: newSaleRef.id,
-              date: saleDate.toISOString(),
-            };
-        });
-
+        // --- 5. Revalidate paths and return success ---
         revalidatePath('/sales');
         revalidatePath('/dashboard');
         revalidatePath('/books');
@@ -203,9 +189,16 @@ export async function addSale(data: Omit<Sale, 'id' | 'date'>): Promise<{ succes
             revalidatePath('/receivables');
         }
 
+        const saleForClient: Sale = {
+          ...data,
+          id: newSaleRef.id,
+          date: saleDate.toISOString(),
+        };
+
         return { success: true, sale: saleForClient };
+
     } catch (e) {
-        console.error("Transaction failed: ", e);
+        console.error("Sale creation failed: ", e);
         return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
 }
