@@ -291,21 +291,61 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
 export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
     if (!db) throw new Error("Database not configured.");
 
-    const paymentData = {
-        description: `Payment from customer`,
-        amount: data.amount,
-        dueDate: Timestamp.fromDate(new Date()),
-        status: 'Paid' as const,
-        type: 'Receivable' as const,
-        paymentMethod: data.paymentMethod,
-        customerId: data.customerId
-    };
-    await addDoc(collection(db, 'transactions'), paymentData);
+    try {
+        await runTransaction(db, async (transaction) => {
+            let amountToSettle = data.amount;
 
-    revalidatePath('/receivables');
-    revalidatePath('/dashboard');
-    if (data.customerId) {
-        revalidatePath(`/customers/${data.customerId}`);
+            // 1. Create a "credit" transaction for the payment received. This is crucial for accurate history.
+            const paymentTransactionData = {
+                description: `Payment from customer`,
+                amount: data.amount,
+                dueDate: Timestamp.fromDate(new Date()),
+                status: 'Paid' as const,
+                type: 'Receivable' as const,
+                paymentMethod: data.paymentMethod,
+                customerId: data.customerId
+            };
+            const newTransactionRef = doc(collection(db, "transactions"));
+            transaction.set(newTransactionRef, paymentTransactionData);
+
+            // 2. Find all pending receivables for this customer
+            const receivablesQuery = query(
+                collection(db, 'transactions'),
+                where('type', '==', 'Receivable'),
+                where('status', '==', 'Pending'),
+                where('customerId', '==', data.customerId),
+                orderBy('dueDate') // Settle oldest debts first
+            );
+            const pendingDocs = await getDocs(receivablesQuery);
+            
+            // 3. Settle the pending receivables with the payment amount
+            for (const docSnap of pendingDocs.docs) {
+                if (amountToSettle <= 0) break; // No more money to settle debts
+
+                const receivable = docSnap.data() as Transaction;
+                const receivableRef = doc(db, 'transactions', docSnap.id);
+
+                if (amountToSettle >= receivable.amount) {
+                    // If payment covers this receivable fully, mark it as Paid
+                    transaction.update(receivableRef, { status: 'Paid' });
+                    amountToSettle -= receivable.amount;
+                } 
+                // Note: This logic does not handle partial payments on a single receivable.
+                // It assumes payment is made against the total due balance.
+                // For this app's logic, we mark the individual due items as paid.
+            }
+        });
+
+    } catch (e) {
+        console.error("Payment processing failed: ", e);
+        throw e; // Rethrow to be caught by the client
+    } finally {
+        // Revalidate all paths that could be affected by the payment
+        revalidatePath('/receivables');
+        revalidatePath('/dashboard');
+        if (data.customerId) {
+            revalidatePath(`/customers/${data.customerId}`);
+        }
     }
 }
 
