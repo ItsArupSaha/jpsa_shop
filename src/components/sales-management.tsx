@@ -275,7 +275,7 @@ export default function SalesManagement() {
                                 </p>
                             </div>
                         </div>
-                        <DialogFooter className="gap-2 sm:justify-end pt-4 border-t">
+                        <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
                         </DialogFooter>
