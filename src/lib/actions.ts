@@ -145,7 +145,6 @@ export async function addSale(
         if (!customerDoc.exists()) {
             throw new Error(`Customer with id ${data.customerId} does not exist!`);
         }
-        const customerData = customerDoc.data() as Customer;
         
         // --- 2. Calculate totals and validate stock ---
         let calculatedSubtotal = 0;
@@ -218,7 +217,6 @@ export async function addSale(
           id: newSaleRef.id,
           date: saleDate.toISOString(),
           ...saleDataToSave,
-          date: saleDate.toISOString(),
         };
   
         return { success: true, sale: saleForClient };
@@ -230,8 +228,8 @@ export async function addSale(
         revalidatePath('/sales');
         revalidatePath('/dashboard');
         revalidatePath('/books');
-        if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-            revalidatePath('/receivables');
+        revalidatePath('/receivables');
+        if (data.customerId) {
             revalidatePath(`/customers/${data.customerId}`);
         }
     }
@@ -303,8 +301,10 @@ export async function addPayment(data: { customerId: string, amount: number, pay
     };
     await addDoc(collection(db, 'transactions'), paymentData);
     revalidatePath('/receivables');
-    revalidatePath(`/customers/${data.customerId}`);
     revalidatePath('/dashboard');
+    if (data.customerId) {
+        revalidatePath(`/customers/${data.customerId}`);
+    }
 }
 
 

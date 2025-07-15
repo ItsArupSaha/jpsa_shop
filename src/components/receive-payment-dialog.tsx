@@ -19,10 +19,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { addPayment, getCustomers } from '@/lib/actions';
-import { DollarSign } from 'lucide-react';
-import type { Customer } from '@/lib/types';
+import { addPayment, getCustomers, getSales, getTransactions } from '@/lib/actions';
+import type { Customer, Sale, Transaction } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Loader2 } from 'lucide-react';
 
 const paymentSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
@@ -42,19 +42,46 @@ interface ReceivePaymentDialogProps {
 export default function ReceivePaymentDialog({ customerId, children }: ReceivePaymentDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
-  const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [customersWithDue, setCustomersWithDue] = React.useState<Customer[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = React.useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
-    // Fetch customers only if no specific customerId is provided
-    if (!customerId) {
-      async function loadCustomers() {
-        const allCustomers = await getCustomers();
-        setCustomers(allCustomers);
+    async function loadCustomersWithDue() {
+      if (isOpen && !customerId) {
+        setIsLoadingCustomers(true);
+        const [allCustomers, allSales, allTransactions] = await Promise.all([
+          getCustomers(),
+          getSales(),
+          getTransactions('Receivable'),
+        ]);
+
+        const customersWithBalances = allCustomers.filter(customer => {
+            const customerSales = allSales.filter(sale => sale.customerId === customer.id);
+            
+            const totalDebit = customerSales
+                .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
+                .reduce((sum, sale) => {
+                if (sale.paymentMethod === 'Due') return sum + sale.total;
+                if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
+                return sum;
+                }, customer.openingBalance);
+
+            const totalCredit = allTransactions
+                .filter(t => t.customerId === customer.id && t.status === 'Paid' && t.description.includes('Payment from customer'))
+                .reduce((sum, t) => sum + t.amount, 0);
+            
+            const currentBalance = totalDebit - totalCredit;
+            return currentBalance > 0;
+        });
+
+        setCustomersWithDue(customersWithBalances);
+        setIsLoadingCustomers(false);
       }
-      loadCustomers();
     }
-  }, [customerId, isOpen]);
+    
+    loadCustomersWithDue();
+  }, [isOpen, customerId]);
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -71,7 +98,7 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
       amount: 0,
       paymentMethod: 'Cash',
     });
-  }, [customerId, form]);
+  }, [customerId, form, isOpen]);
 
 
   const onSubmit = (data: PaymentFormValues) => {
@@ -84,6 +111,8 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
         });
         form.reset();
         setIsOpen(false);
+        // This will trigger a re-fetch on the pages that use this dialog
+        window.location.reload();
       } catch (error) {
         toast({
           variant: 'destructive',
@@ -118,15 +147,21 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a customer" />
+                          {isLoadingCustomers ? (
+                            <span className="flex items-center text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading customers...</span>
+                          ) : (
+                            <SelectValue placeholder="Select a customer" />
+                          )}
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {customers.map(c => (
+                        {customersWithDue.length > 0 ? customersWithDue.map(c => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.name}
                           </SelectItem>
-                        ))}
+                        )) : (
+                           <p className="p-4 text-sm text-muted-foreground">No customers with due balance found.</p>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -174,7 +209,7 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
               )}
             />
             <DialogFooter>
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || isLoadingCustomers}>
                 {isPending ? 'Saving...' : 'Save Payment'}
               </Button>
             </DialogFooter>
