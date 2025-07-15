@@ -35,10 +35,30 @@ export default function ReceivablesManagement() {
     fetchData();
   }, [fetchData]);
 
-  const getCustomerName = (customerId?: string) => {
-    if (!customerId) return 'N/A';
-    return customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
+  const getCustomerName = (transaction: Transaction) => {
+    if (transaction.customerId) {
+        const customer = customers.find(c => c.id === transaction.customerId);
+        if (customer) return customer.name;
+    }
+    // Fallback to check the description if no customerId is found or customer is not in the list
+    const match = transaction.description.match(/Sale to (.*)/i);
+    if (match && match[1]) {
+        return match[1];
+    }
+    const corporateMatch = transaction.description.match(/Sale #s2 - (.*)/i);
+    if (corporateMatch && corporateMatch[1]) {
+      return corporateMatch[1];
+    }
+    return 'N/A';
   };
+  
+  const getDisplayDescription = (transaction: Transaction) => {
+    const customerName = getCustomerName(transaction);
+    if(customerName !== 'N/A' && transaction.description.includes(customerName)) {
+      return `Sale`;
+    }
+    return transaction.description;
+  }
 
   const handleDownload = (formatType: 'pdf' | 'csv') => {
     if (transactions.length === 0) {
@@ -53,7 +73,7 @@ export default function ReceivablesManagement() {
     const reportDate = format(new Date(), 'yyyy-MM-dd');
     const body = transactions.map(t => ({
         Description: t.description,
-        Customer: getCustomerName(t.customerId),
+        Customer: getCustomerName(t),
         'Due Date': format(new Date(t.dueDate), 'PPP'),
         Amount: `$${t.amount.toFixed(2)}`,
     }));
@@ -121,8 +141,8 @@ export default function ReceivablesManagement() {
               <TableBody>
                 {transactions.length > 0 ? transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>{getCustomerName(transaction.customerId)}</TableCell>
+                    <TableCell className="font-medium">{getDisplayDescription(transaction)}</TableCell>
+                    <TableCell>{getCustomerName(transaction)}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>
                     <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
                   </TableRow>
