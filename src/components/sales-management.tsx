@@ -244,7 +244,7 @@ export default function SalesManagement() {
                             <Download className="mr-2 h-4 w-4" /> Download Reports
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-auto">
+                    <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Download Sales Report</DialogTitle>
                             <DialogDescription>Select a date range to download your sales data.</DialogDescription>
@@ -256,7 +256,7 @@ export default function SalesManagement() {
                             defaultMonth={dateRange?.from}
                             selected={dateRange}
                             onSelect={setDateRange}
-                            numberOfMonths={2}
+                            numberOfMonths={1}
                           />
                            <p className="text-sm text-muted-foreground">
                             {dateRange?.from ? (
@@ -299,7 +299,7 @@ export default function SalesManagement() {
                   <TableRow key={sale.id}>
                     <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(sale.customerId)}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[300px]">
                       {sale.items.length > 0 && (
                           <div className="flex items-center gap-2">
                               <span>
