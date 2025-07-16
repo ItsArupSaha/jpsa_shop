@@ -40,16 +40,18 @@ export type Sale = {
 };
 
 export type PurchaseItem = {
-    bookId: string;
+    itemName: string;
+    category: 'Book' | 'Office Asset';
+    author?: string; // Optional, only for books
     quantity: number;
     cost: number;
 };
 
 export type Purchase = {
     id: string;
+    purchaseId: string; // The auto-generated ID like PUR-0001
     date: string;
     supplier: string;
-    invoiceNumber?: string;
     items: PurchaseItem[];
     totalAmount: number;
     dueDate: string;
@@ -72,3 +74,8 @@ export type Transaction = {
   paymentMethod?: 'Cash' | 'Bank';
   customerId?: string;
 };
+
+// Metadata for counters, etc.
+export type Metadata = {
+  lastPurchaseNumber: number;
+}

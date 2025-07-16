@@ -15,11 +15,12 @@ import {
   runTransaction,
   getDoc,
   orderBy,
+  collectionGroup,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
 import { db } from './firebase';
-import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem } from './types';
+import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata } from './types';
 import { books as mockBooks, customers as mockCustomers, sales as mockSales, expenses as mockExpenses, receivables as mockReceivables, payables as mockPayables } from './data';
 
 
@@ -284,63 +285,90 @@ export async function getPurchases(): Promise<Purchase[]> {
     return snapshot.docs.map(docToPurchase);
 }
 
-export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount'> & { dueDate: Date }) {
-    if (!db) return;
+export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: Date }) {
+  if (!db) return;
 
-    try {
-        return await runTransaction(db, async (transaction) => {
-            const purchaseDate = new Date();
-            const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
-            
-            // Read book data
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+  try {
+      return await runTransaction(db, async (transaction) => {
+          const purchaseDate = new Date();
+          const metadataRef = doc(db, 'metadata', 'counters');
 
-            let totalAmount = 0;
-            for (let i = 0; i < data.items.length; i++) {
-                const item = data.items[i];
-                if (!bookDocs[i].exists()) {
-                    throw new Error(`Book with id ${item.bookId} does not exist!`);
-                }
-                totalAmount += item.cost * item.quantity;
-            }
+          // Get and update the purchase counter
+          const metadataDoc = await transaction.get(metadataRef);
+          let lastPurchaseNumber = 0;
+          if (metadataDoc.exists()) {
+              lastPurchaseNumber = (metadataDoc.data() as Metadata).lastPurchaseNumber || 0;
+          }
+          const newPurchaseNumber = lastPurchaseNumber + 1;
+          const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
+          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-            // Create purchase record
-            const newPurchaseRef = doc(collection(db, 'purchases'));
-            const purchaseData = {
-                ...data,
-                date: Timestamp.fromDate(purchaseDate),
-                dueDate: Timestamp.fromDate(data.dueDate),
-                totalAmount: totalAmount,
-            };
-            transaction.set(newPurchaseRef, purchaseData);
+          // Calculate total amount
+          let totalAmount = 0;
+          for (const item of data.items) {
+              totalAmount += item.cost * item.quantity;
+          }
 
-            // Update book stock
-            for (let i = 0; i < bookDocs.length; i++) {
-                const bookDoc = bookDocs[i];
-                const item = data.items[i];
-                const newStock = bookDoc.data()!.stock + item.quantity;
-                transaction.update(bookRefs[i], { stock: newStock });
-            }
+          // Create purchase record
+          const newPurchaseRef = doc(collection(db, 'purchases'));
+          const purchaseData = {
+              ...data,
+              purchaseId,
+              date: Timestamp.fromDate(purchaseDate),
+              dueDate: Timestamp.fromDate(data.dueDate),
+              totalAmount: totalAmount,
+          };
+          transaction.set(newPurchaseRef, purchaseData);
 
-            // Create a payable transaction
-            const payableData = {
-                description: `Purchase from ${data.supplier}` + (data.invoiceNumber ? ` (Inv: ${data.invoiceNumber})` : ''),
-                amount: totalAmount,
-                dueDate: Timestamp.fromDate(data.dueDate),
-                status: 'Pending' as const,
-                type: 'Payable' as const,
-            };
-            const newTransactionRef = doc(collection(db, 'transactions'));
-            transaction.set(newTransactionRef, payableData);
-        });
-    } catch (e) {
-        console.error("Purchase creation failed: ", e);
-    } finally {
-        revalidatePath('/purchases');
-        revalidatePath('/books');
-        revalidatePath('/payables');
-        revalidatePath('/dashboard');
-    }
+          // Update book stock for 'Book' category items
+          const booksCollectionRef = collection(db, 'books');
+          for (const item of data.items) {
+              if (item.category === 'Book') {
+                  const q = query(booksCollectionRef, where("title", "==", item.itemName));
+                  const bookSnapshot = await getDocs(q); // Use getDocs instead of transaction.get with query
+
+                  if (!bookSnapshot.empty) {
+                      // Book exists, update stock
+                      const bookDoc = bookSnapshot.docs[0];
+                      const currentStock = bookDoc.data().stock || 0;
+                      transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
+                  } else {
+                      // Book doesn't exist, create it
+                      const newBookRef = doc(booksCollectionRef);
+                      const newBookData: Omit<Book, 'id'> = {
+                          title: item.itemName,
+                          author: item.author || 'Unknown',
+                          stock: item.quantity,
+                          productionPrice: item.cost,
+                          sellingPrice: item.cost * 1.5, // Default markup of 50%
+                      };
+                      transaction.set(newBookRef, newBookData);
+                  }
+              }
+          }
+
+          // Create a payable transaction
+          const payableData = {
+              description: `Purchase ${purchaseId} from ${data.supplier}`,
+              amount: totalAmount,
+              dueDate: Timestamp.fromDate(data.dueDate),
+              status: 'Pending' as const,
+              type: 'Payable' as const,
+          };
+          const newTransactionRef = doc(collection(db, 'transactions'));
+          transaction.set(newTransactionRef, payableData);
+
+          return { success: true };
+      });
+  } catch (e) {
+      console.error("Purchase creation failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+      revalidatePath('/purchases');
+      revalidatePath('/books');
+      revalidatePath('/payables');
+      revalidatePath('/dashboard');
+  }
 }
 
 
@@ -400,46 +428,48 @@ export async function addPayment(data: { customerId: string, amount: number, pay
     if (!db) throw new Error("Database not configured.");
 
     try {
-        const batch = writeBatch(db);
+        return await runTransaction(db, async (transaction) => {
+            let amountToSettle = data.amount;
 
-        // 1. Create a "credit" transaction for the payment received. This is crucial for accurate history.
-        const paymentTransactionData = {
-            description: `Payment from customer`,
-            amount: data.amount,
-            dueDate: Timestamp.fromDate(new Date()),
-            status: 'Paid' as const,
-            type: 'Receivable' as const,
-            paymentMethod: data.paymentMethod,
-            customerId: data.customerId
-        };
-        const newTransactionRef = doc(collection(db, "transactions"));
-        batch.set(newTransactionRef, paymentTransactionData);
+            // 1. Create a "credit" transaction for the payment received. This is crucial for accurate history.
+            const paymentTransactionData = {
+                description: `Payment from customer`,
+                amount: data.amount,
+                dueDate: Timestamp.fromDate(new Date()),
+                status: 'Paid' as const,
+                type: 'Receivable' as const,
+                paymentMethod: data.paymentMethod,
+                customerId: data.customerId
+            };
+            const newTransactionRef = doc(collection(db, "transactions"));
+            transaction.set(newTransactionRef, paymentTransactionData);
 
-        // 2. Find all pending receivables for this customer
-        const receivablesQuery = query(
-            collection(db, 'transactions'),
-            where('type', '==', 'Receivable'),
-            where('status', '==', 'Pending'),
-            where('customerId', '==', data.customerId),
-            orderBy('dueDate') // Settle oldest debts first
-        );
-        const pendingDocs = await getDocs(receivablesQuery);
-        
-        let amountToSettle = data.amount;
-
-        for (const docSnap of pendingDocs.docs) {
-            if (amountToSettle <= 0) break;
-
-            const receivable = docSnap.data() as Transaction;
-            const receivableRef = doc(db, 'transactions', docSnap.id);
+            // 2. Find all pending receivables for this customer
+            const receivablesQuery = query(
+                collection(db, 'transactions'),
+                where('type', '==', 'Receivable'),
+                where('status', '==', 'Pending'),
+                where('customerId', '==', data.customerId),
+                orderBy('dueDate') // Settle oldest debts first
+            );
             
-            // For now, we only handle full settlement of a receivable.
-            if (amountToSettle >= receivable.amount) {
-                batch.update(receivableRef, { status: 'Paid' });
-                amountToSettle -= receivable.amount;
+            // We need to perform the get outside the transaction for queries.
+            const pendingDocs = await getDocs(receivablesQuery);
+            
+            for (const docSnap of pendingDocs.docs) {
+                if (amountToSettle <= 0) break;
+
+                const receivable = docSnap.data() as Transaction;
+                const receivableRef = doc(db, 'transactions', docSnap.id);
+                
+                // For now, we only handle full settlement of a receivable.
+                // A more complex system could handle partial settlement.
+                if (amountToSettle >= receivable.amount) {
+                    transaction.update(receivableRef, { status: 'Paid' });
+                    amountToSettle -= receivable.amount;
+                }
             }
-        }
-        await batch.commit();
+        });
 
     } catch (e) {
         console.error("Payment processing failed: ", e);
@@ -476,7 +506,7 @@ export async function seedDatabase() {
     const batch = writeBatch(db);
 
     // Clear existing data
-    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases'];
+    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'metadata'];
     for (const coll of collections) {
       const snapshot = await getDocs(collection(db, coll));
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -521,6 +551,10 @@ export async function seedDatabase() {
         const transactionData = { ...transaction, dueDate: Timestamp.fromDate(new Date(transaction.dueDate)) };
         batch.set(docRef, transactionData);
     });
+
+    // Seed metadata
+    const metadataRef = doc(db, 'metadata', 'counters');
+    batch.set(metadataRef, { lastPurchaseNumber: 0 });
 
     await batch.commit();
     console.log("Database seeded successfully!");

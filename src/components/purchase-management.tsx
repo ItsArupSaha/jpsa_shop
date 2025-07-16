@@ -4,11 +4,15 @@ import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
-import { getPurchases, getBooks, addPurchase } from '@/lib/actions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import { getPurchases, addPurchase } from '@/lib/actions';
+import type { DateRange } from 'react-day-picker';
 
-import type { Purchase, Book } from '@/lib/types';
+import type { Purchase } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -18,17 +22,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { Textarea } from './ui/textarea';
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { ScrollArea } from './ui/scroll-area';
 
 const purchaseItemSchema = z.object({
-  bookId: z.string().min(1, 'Book is required'),
+  itemName: z.string().min(1, 'Item name is required'),
+  category: z.enum(['Book', 'Office Asset'], { required_error: 'Category is required' }),
+  author: z.string().optional(),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
+}).refine(data => {
+    if (data.category === 'Book') {
+        return !!data.author && data.author.length > 0;
+    }
+    return true;
+}, {
+    message: "Author is required for books.",
+    path: ['author'],
 });
 
 const purchaseFormSchema = z.object({
   supplier: z.string().min(1, 'Supplier is required'),
-  invoiceNumber: z.string().optional(),
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required.'),
   dueDate: z.date({ required_error: "A due date is required." }),
 });
@@ -37,20 +54,15 @@ type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
 export default function PurchaseManagement() {
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [books, setBooks] = React.useState<Book[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
-
   const loadData = React.useCallback(async () => {
-    const [initialPurchases, initialBooks] = await Promise.all([
-      getPurchases(),
-      getBooks(),
-    ]);
+    const initialPurchases = await getPurchases();
     setPurchases(initialPurchases);
-    setBooks(initialBooks);
   }, []);
 
   React.useEffect(() => {
@@ -61,8 +73,7 @@ export default function PurchaseManagement() {
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
       supplier: '',
-      invoiceNumber: '',
-      items: [{ bookId: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
       dueDate: new Date(),
     },
   });
@@ -82,8 +93,7 @@ export default function PurchaseManagement() {
   const handleAddNew = () => {
     form.reset({
       supplier: '',
-      invoiceNumber: '',
-      items: [{ bookId: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
       dueDate: new Date(),
     });
     setIsDialogOpen(true);
@@ -91,12 +101,86 @@ export default function PurchaseManagement() {
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
-      await addPurchase(data);
-      toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
-      await loadData();
-      setIsDialogOpen(false);
+      const result = await addPurchase(data);
+      if (result?.success) {
+        toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
+        await loadData();
+        setIsDialogOpen(false);
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record purchase.' });
+      }
     });
   };
+
+  const getFilteredPurchases = () => {
+    if (!dateRange?.from) {
+        toast({ variant: "destructive", title: "Please select a start date." });
+        return null;
+    }
+    const from = dateRange.from;
+    const to = dateRange.to || dateRange.from;
+    to.setHours(23, 59, 59, 999);
+    return purchases.filter(p => {
+      const pDate = new Date(p.date);
+      return pDate >= from && pDate <= to;
+    });
+  }
+
+  const handleDownloadPdf = () => {
+    const filteredPurchases = getFilteredPurchases();
+    if (!filteredPurchases) return;
+    if (filteredPurchases.length === 0) {
+      toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
+      return;
+    }
+    const doc = new jsPDF();
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
+    doc.text(`Purchases Report: ${dateString}`, 14, 15);
+    autoTable(doc, {
+      startY: 20,
+      head: [['Date', 'Purchase ID', 'Supplier', 'Items', 'Total']],
+      body: filteredPurchases.map(p => [
+        format(new Date(p.date), 'yyyy-MM-dd'),
+        p.purchaseId,
+        p.supplier,
+        p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
+        `$${p.totalAmount.toFixed(2)}`
+      ]),
+    });
+    doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    const filteredPurchases = getFilteredPurchases();
+    if (!filteredPurchases) return;
+    if (filteredPurchases.length === 0) {
+      toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
+      return;
+    }
+    const csvData = filteredPurchases.flatMap(p => 
+      p.items.map(i => ({
+        'Date': format(new Date(p.date), 'yyyy-MM-dd'),
+        'Purchase ID': p.purchaseId,
+        'Supplier': p.supplier,
+        'Item Name': i.itemName,
+        'Category': i.category,
+        'Author': i.author || '',
+        'Quantity': i.quantity,
+        'Unit Cost': i.cost,
+        'Total Cost': i.quantity * i.cost,
+        'Grand Total': p.totalAmount,
+      }))
+    );
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
   return (
     <>
@@ -107,9 +191,38 @@ export default function PurchaseManagement() {
               <CardTitle className="font-headline text-2xl">Record Purchases</CardTitle>
               <CardDescription>Manage purchases of books and other assets for the store.</CardDescription>
             </div>
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+                <Button onClick={handleAddNew}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
+                </Button>
+                <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline">
+                            <Download className="mr-2 h-4 w-4" /> Download Reports
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Download Purchase Report</DialogTitle>
+                            <DialogDescription>Select a date range to download your purchase data.</DialogDescription>
+                        </DialogHeader>
+                         <div className="py-4 flex flex-col items-center gap-4">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={1}
+                            />
+                        </div>
+                        <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                            <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
+                            <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -118,6 +231,7 @@ export default function PurchaseManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Purchase ID</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead className="text-right">Total</TableHead>
@@ -127,15 +241,16 @@ export default function PurchaseManagement() {
                 {purchases.length > 0 ? purchases.map((purchase) => (
                   <TableRow key={purchase.id}>
                     <TableCell>{format(new Date(purchase.date), 'PPP')}</TableCell>
+                    <TableCell className="font-mono">{purchase.purchaseId}</TableCell>
                     <TableCell className="font-medium">{purchase.supplier}</TableCell>
                     <TableCell className="max-w-[300px] truncate">
-                      {purchase.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
+                      {purchase.items.map(i => `${i.quantity}x ${i.itemName}`).join(', ')}
                     </TableCell>
                     <TableCell className="text-right font-medium">${purchase.totalAmount.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -145,149 +260,153 @@ export default function PurchaseManagement() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="font-headline">Record New Purchase</DialogTitle>
-            <DialogDescription>Enter supplier details and the items purchased.</DialogDescription>
+            <DialogDescription>Enter supplier details and the items purchased. New books will be created automatically.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="supplier"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Supplier Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Main Street Books" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                   <FormField
-                    control={form.control}
-                    name="invoiceNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Invoice # (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="INV-12345" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                
-                <Separator />
-                <FormLabel>Items</FormLabel>
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
-                    <div className="flex-1 grid grid-cols-6 gap-3">
-                      <FormField
+              <ScrollArea className="max-h-[60vh] p-4">
+                <div className="space-y-4 pr-2">
+                    <FormField
                         control={form.control}
-                        name={`items.${index}.bookId`}
+                        name="supplier"
                         render={({ field }) => (
-                          <FormItem className="col-span-3">
-                            <FormLabel className="text-xs">Book</FormLabel>
-                            <Select onValueChange={(value) => {
-                                field.onChange(value);
-                                const book = books.find(b => b.id === value);
-                                form.setValue(`items.${index}.cost`, book?.productionPrice || 0);
-                            }} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a book" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {books.map(book => (
-                                  <SelectItem key={book.id} value={book.id}>
-                                    {book.title}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                       <FormField
-                          control={form.control}
-                          name={`items.${index}.cost`}
-                          render={({ field }) => (
-                            <FormItem className="col-span-2">
-                              <FormLabel className="text-xs">Unit Cost</FormLabel>
-                              <FormControl>
-                                <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.quantity`}
-                        render={({ field }) => (
-                          <FormItem className="col-span-1">
-                            <FormLabel className="text-xs">Qty</FormLabel>
+                        <FormItem>
+                            <FormLabel>Supplier Name</FormLabel>
                             <FormControl>
-                              <Input type="number" min="1" placeholder="1" {...field} />
+                            <Input placeholder="e.g., Global Publishing House" {...field} />
                             </FormControl>
                             <FormMessage />
-                          </FormItem>
+                        </FormItem>
                         )}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10"
-                      onClick={() => remove(index)}
-                      disabled={fields.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ bookId: '', quantity: 1, cost: 0 })}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                </Button>
-                <Separator />
-                <FormField
-                    control={form.control}
-                    name="dueDate"
-                    render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                        <FormLabel>Payment Due Date</FormLabel>
-                        <FormControl>
-                            <Input type="date" {...field} 
-                                value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
-                                onChange={(e) => field.onChange(new Date(e.target.value))}
+                    />
+                    
+                    <Separator />
+                    <FormLabel>Items</FormLabel>
+                    {fields.map((field, index) => (
+                    <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md relative">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+                            <FormField
+                                control={form.control}
+                                name={`items.${index}.itemName`}
+                                render={({ field }) => (
+                                <FormItem className="md:col-span-2">
+                                    <FormLabel className="text-xs">Item Name</FormLabel>
+                                    <FormControl><Input placeholder="e.g., The Midnight Library" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
                             />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
+                            <FormField
+                                control={form.control}
+                                name={`items.${index}.category`}
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Category</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="Book">Book</SelectItem>
+                                        <SelectItem value="Office Asset">Office Asset</SelectItem>
+                                    </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            {watchItems[index]?.category === 'Book' && (
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.author`}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Author</FormLabel>
+                                        <FormControl><Input placeholder="e.g., Matt Haig" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                            )}
+                            <FormField
+                                control={form.control}
+                                name={`items.${index}.quantity`}
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs">Qty</FormLabel>
+                                    <FormControl><Input type="number" min="1" placeholder="1" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name={`items.${index}.cost`}
+                                render={({ field }) => (
+                                <FormItem className={watchItems[index]?.category !== 'Book' ? 'md:col-start-4' : ''}>
+                                    <FormLabel className="text-xs">Unit Cost</FormLabel>
+                                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </div>
+                        <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10 mt-6"
+                        onClick={() => remove(index)}
+                        disabled={fields.length === 1}
+                        >
+                        <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    ))}
+                    <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => append({ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 })}
+                    >
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                    </Button>
+                    <Separator />
+                     <FormField
+                        control={form.control}
+                        name="dueDate"
+                        render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>Payment Due Date</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <Separator />
 
-                <div className="space-y-2 text-sm pr-4">
-                  <div className="flex justify-between font-bold text-base">
-                    <span>Total Amount</span>
-                    <span>${totalAmount.toFixed(2)}</span>
-                  </div>
+                    <div className="space-y-2 text-sm pr-4">
+                        <div className="flex justify-between font-bold text-base">
+                            <span>Total Amount</span>
+                            <span>${totalAmount.toFixed(2)}</span>
+                        </div>
+                    </div>
                 </div>
-              </div>
-              <DialogFooter>
+              </ScrollArea>
+              <DialogFooter className="pt-4 border-t">
                 <Button type="submit" disabled={isPending || totalAmount <= 0 || !form.formState.isValid}>
                   {isPending ? "Saving..." : "Confirm Purchase"}
                 </Button>
