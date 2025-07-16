@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -266,7 +267,7 @@ export default function PurchaseManagement() {
             <DialogDescription>Enter supplier details and the items purchased. New books will be created automatically.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)}>
               <ScrollArea className="max-h-[60vh] p-4">
                 <div className="space-y-4 pr-2">
                     <FormField
@@ -418,3 +419,5 @@ export default function PurchaseManagement() {
     </>
   );
 }
+
+    
