@@ -1,17 +1,22 @@
+
 'use client';
 
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { getExpenses, addExpense, deleteExpense } from '@/lib/actions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import type { DateRange } from 'react-day-picker';
 
 import type { Expense } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +25,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from './ui/scroll-area';
 
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -31,7 +37,9 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 export default function ExpensesManagement() {
   const [expenses, setExpenses] = React.useState<Expense[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
@@ -53,7 +61,7 @@ export default function ExpensesManagement() {
 
   const handleAddNew = () => {
     form.reset({ description: '', amount: 0, date: new Date() });
-    setIsDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
@@ -71,22 +79,148 @@ export default function ExpensesManagement() {
         const updatedExpenses = await getExpenses();
         setExpenses(updatedExpenses);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
-        setIsDialogOpen(false);
+        setIsAddDialogOpen(false);
     });
   };
+  
+  const getFilteredExpenses = () => {
+    if (!dateRange?.from) {
+        toast({
+            variant: "destructive",
+            title: "Please select a start date.",
+        });
+        return null;
+    }
+    
+    const from = dateRange.from;
+    const to = dateRange.to || dateRange.from;
+    to.setHours(23, 59, 59, 999);
+
+    return expenses.filter(expense => {
+      const expenseDate = new Date(expense.date);
+      return expenseDate >= from && expenseDate <= to;
+    });
+  }
+
+  const handleDownloadPdf = () => {
+    const filteredExpenses = getFilteredExpenses();
+    if (!filteredExpenses) return;
+
+    if (filteredExpenses.length === 0) {
+      toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
+      return;
+    }
+
+    const doc = new jsPDF();
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+    doc.text(`Expense Report: ${dateString}`, 14, 15);
+    
+    autoTable(doc, {
+      startY: 20,
+      head: [['Date', 'Description', 'Amount']],
+      body: filteredExpenses.map(e => [
+        format(new Date(e.date), 'yyyy-MM-dd'),
+        e.description,
+        `$${e.amount.toFixed(2)}`
+      ]),
+      foot: [
+        [{ content: 'Total', colSpan: 2, styles: { halign: 'right' } }, `$${totalExpenses.toFixed(2)}`],
+      ],
+      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
+    });
+    
+    doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    const filteredExpenses = getFilteredExpenses();
+    if (!filteredExpenses) return;
+
+    if (filteredExpenses.length === 0) {
+      toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
+      return;
+    }
+
+    const csvData = filteredExpenses.map(e => ({
+      Date: format(new Date(e.date), 'yyyy-MM-dd'),
+      Description: e.description,
+      Amount: e.amount.toFixed(2),
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
 
   return (
     <>
       <Card className="animate-in fade-in-50">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl">Track Expenses</CardTitle>
               <CardDescription>Record and manage all bookstore expenses.</CardDescription>
             </div>
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Expense
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+                <Button onClick={handleAddNew}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Expense
+                </Button>
+                <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline">
+                            <Download className="mr-2 h-4 w-4" /> Download Report
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Download Expense Report</DialogTitle>
+                            <DialogDescription>Select a date range to download your expense data.</DialogDescription>
+                        </DialogHeader>
+                        <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                            <div className="py-4 flex flex-col items-center gap-4">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={dateRange?.from}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    numberOfMonths={1}
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                    {dateRange?.from ? (
+                                    dateRange.to ? (
+                                        <>
+                                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                                        {format(dateRange.to, "LLL dd, y")}
+                                        </>
+                                    ) : (
+                                        <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                                    )
+                                    ) : (
+                                    <span>Please pick a start and end date.</span>
+                                    )}
+                                </p>
+                            </div>
+                        </ScrollArea>
+                        <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -123,7 +257,7 @@ export default function ExpensesManagement() {
         </CardContent>
       </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="font-headline">Add New Expense</DialogTitle>
@@ -208,3 +342,5 @@ export default function ExpensesManagement() {
     </>
   );
 }
+
+    
