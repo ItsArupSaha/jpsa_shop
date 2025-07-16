@@ -39,6 +39,22 @@ export type Sale = {
   amountPaid?: number;
 };
 
+export type PurchaseItem = {
+    bookId: string;
+    quantity: number;
+    cost: number;
+};
+
+export type Purchase = {
+    id: string;
+    date: string;
+    supplier: string;
+    invoiceNumber?: string;
+    items: PurchaseItem[];
+    totalAmount: number;
+    dueDate: string;
+};
+
 export type Expense = {
   id: string;
   date: string; // Changed to string for serialization

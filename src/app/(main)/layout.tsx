@@ -10,7 +10,8 @@ import {
   ArrowRightLeft,
   FileText,
   ShoppingCart,
-  Users
+  Users,
+  ShoppingBag
 } from 'lucide-react';
 
 import {
@@ -32,6 +33,7 @@ const navItems = [
   { href: '/books', icon: Book, label: 'Books' },
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
+  { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
   { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },
