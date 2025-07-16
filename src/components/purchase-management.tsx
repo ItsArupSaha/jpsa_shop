@@ -268,23 +268,23 @@ export default function PurchaseManagement() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <ScrollArea className="max-h-[60vh] p-4">
-                <div className="space-y-4 pr-2">
-                    <FormField
-                        control={form.control}
-                        name="supplier"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Supplier Name</FormLabel>
-                            <FormControl>
-                            <Input placeholder="e.g., Global Publishing House" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    
-                    <Separator />
+              <div className="grid gap-4 py-4">
+                <FormField
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Supplier Name</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., Global Publishing House" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <Separator />
+                <ScrollArea className="max-h-[40vh] p-1 pr-3">
+                  <div className="space-y-4">
                     <FormLabel>Items</FormLabel>
                     {fields.map((field, index) => (
                     <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md relative">
@@ -328,7 +328,7 @@ export default function PurchaseManagement() {
                                         <FormMessage />
                                     </FormItem>
                                     )}
-                                />
+                            />
                             )}
                             <FormField
                                 control={form.control}
@@ -373,40 +373,40 @@ export default function PurchaseManagement() {
                     >
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
-                    <Separator />
-                     <FormField
-                        control={form.control}
-                        name="dueDate"
-                        render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                            <FormLabel>Payment Due Date</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <FormControl>
-                                    <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
-                                </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <Separator />
-
-                    <div className="space-y-2 text-sm pr-4">
-                        <div className="flex justify-between font-bold text-base">
-                            <span>Total Amount</span>
-                            <span>${totalAmount.toFixed(2)}</span>
-                        </div>
+                  </div>
+                </ScrollArea>
+                <Separator />
+                <FormField
+                    control={form.control}
+                    name="dueDate"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                        <FormLabel>Payment Due Date</FormLabel>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <Separator />
+                <div className="space-y-2 text-sm pr-4">
+                    <div className="flex justify-between font-bold text-base">
+                        <span>Total Amount</span>
+                        <span>${totalAmount.toFixed(2)}</span>
                     </div>
                 </div>
-              </ScrollArea>
+              </div>
               <DialogFooter className="pt-4 border-t">
                 <Button type="submit" disabled={isPending || totalAmount <= 0 || !form.formState.isValid}>
                   {isPending ? "Saving..." : "Confirm Purchase"}
@@ -419,5 +419,3 @@ export default function PurchaseManagement() {
     </>
   );
 }
-
-    
