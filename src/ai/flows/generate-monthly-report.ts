@@ -18,7 +18,7 @@ const GenerateMonthlyReportInputSchema = z.object({
 
 export type GenerateMonthlyReportInput = z.infer<typeof GenerateMonthlyReportInputSchema>;
 
-export const ReportAnalysisSchema = z.object({
+const ReportAnalysisSchema = z.object({
     openingBalances: z.object({
         cash: z.number().describe('The starting cash balance.'),
         bank: z.number().describe('The starting bank balance.'),
