@@ -5,14 +5,19 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { getDonations, addDonation } from '@/lib/actions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import type { DateRange } from 'react-day-picker';
+
 
 import type { Donation } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,6 +28,7 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Textarea } from './ui/textarea';
+import { ScrollArea } from './ui/scroll-area';
 
 const donationSchema = z.object({
   donorName: z.string().min(1, 'Donor name is required'),
@@ -37,6 +43,8 @@ type DonationFormValues = z.infer<typeof donationSchema>;
 export default function DonationsManagement() {
   const [donations, setDonations] = React.useState<Donation[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
@@ -73,6 +81,90 @@ export default function DonationsManagement() {
     });
   };
 
+  const getFilteredDonations = () => {
+    if (!dateRange?.from) {
+        toast({
+            variant: "destructive",
+            title: "Please select a start date.",
+        });
+        return null;
+    }
+    
+    const from = dateRange.from;
+    const to = dateRange.to || dateRange.from;
+    to.setHours(23, 59, 59, 999);
+
+    return donations.filter(donation => {
+      const donationDate = new Date(donation.date);
+      return donationDate >= from && donationDate <= to;
+    });
+  }
+
+  const handleDownloadPdf = () => {
+    const filteredDonations = getFilteredDonations();
+    if (!filteredDonations) return;
+
+    if (filteredDonations.length === 0) {
+      toast({ title: 'No Donations Found', description: 'There are no donations in the selected date range.' });
+      return;
+    }
+
+    const doc = new jsPDF();
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
+    const totalDonations = filteredDonations.reduce((sum, d) => sum + d.amount, 0);
+
+    doc.text(`Donations Report: ${dateString}`, 14, 15);
+    
+    autoTable(doc, {
+      startY: 20,
+      head: [['Date', 'Donor', 'Method', 'Notes', 'Amount']],
+      body: filteredDonations.map(d => [
+        format(new Date(d.date), 'yyyy-MM-dd'),
+        d.donorName,
+        d.paymentMethod,
+        d.notes || '',
+        `$${d.amount.toFixed(2)}`
+      ]),
+      foot: [
+        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `$${totalDonations.toFixed(2)}`],
+      ],
+      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
+    });
+    
+    doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    const filteredDonations = getFilteredDonations();
+    if (!filteredDonations) return;
+
+    if (filteredDonations.length === 0) {
+      toast({ title: 'No Donations Found', description: 'There are no donations in the selected date range.' });
+      return;
+    }
+
+    const csvData = filteredDonations.map(d => ({
+      Date: format(new Date(d.date), 'yyyy-MM-dd'),
+      'Donor Name': d.donorName,
+      'Payment Method': d.paymentMethod,
+      Amount: d.amount.toFixed(2),
+      Notes: d.notes || '',
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <>
       <Card className="animate-in fade-in-50">
@@ -82,9 +174,40 @@ export default function DonationsManagement() {
               <CardTitle className="font-headline text-2xl">Donations</CardTitle>
               <CardDescription>Record and view all donations received.</CardDescription>
             </div>
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Donation
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button onClick={handleAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Donation
+              </Button>
+              <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                  <DialogTrigger asChild>
+                      <Button variant="outline">
+                          <Download className="mr-2 h-4 w-4" /> Download Report
+                      </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                          <DialogTitle>Download Donations Report</DialogTitle>
+                          <DialogDescription>Select a date range to download your donation data.</DialogDescription>
+                      </DialogHeader>
+                      <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                          <div className="py-4 flex flex-col items-center gap-4">
+                              <Calendar
+                                  initialFocus
+                                  mode="range"
+                                  defaultMonth={dateRange?.from}
+                                  selected={dateRange}
+                                  onSelect={setDateRange}
+                                  numberOfMonths={1}
+                              />
+                          </div>
+                      </ScrollArea>
+                      <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                        <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                        <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                      </DialogFooter>
+                  </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

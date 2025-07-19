@@ -5,23 +5,27 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { getTransactions, addTransaction } from '@/lib/actions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import type { DateRange } from 'react-day-picker';
 
 import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from './ui/scroll-area';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -40,6 +44,8 @@ interface TransactionsManagementProps {
 export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
@@ -74,18 +80,105 @@ export default function TransactionsManagement({ title, description, type }: Tra
     });
   };
 
+  const getFilteredTransactions = () => {
+    if (!dateRange?.from) {
+        toast({ variant: "destructive", title: "Please select a start date." });
+        return null;
+    }
+    const from = dateRange.from;
+    const to = dateRange.to || dateRange.from;
+    to.setHours(23, 59, 59, 999);
+    return transactions.filter(t => {
+      const tDate = new Date(t.dueDate);
+      return tDate >= from && tDate <= to;
+    });
+  }
+
+  const handleDownloadPdf = () => {
+    const filteredTransactions = getFilteredTransactions();
+    if (!filteredTransactions) return;
+    if (filteredTransactions.length === 0) {
+      toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
+      return;
+    }
+    const doc = new jsPDF();
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
+    doc.text(`Pending ${type}s Report: ${dateString}`, 14, 15);
+    autoTable(doc, {
+      startY: 20,
+      head: [['Description', 'Due Date', 'Amount']],
+      body: filteredTransactions.map(t => [
+        t.description,
+        format(new Date(t.dueDate), 'yyyy-MM-dd'),
+        `$${t.amount.toFixed(2)}`
+      ]),
+    });
+    doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadCsv = () => {
+    const filteredTransactions = getFilteredTransactions();
+    if (!filteredTransactions) return;
+    if (filteredTransactions.length === 0) {
+      toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
+      return;
+    }
+    const csvData = filteredTransactions.map(t => ({
+      'Description': t.description,
+      'Due Date': format(new Date(t.dueDate), 'yyyy-MM-dd'),
+      'Amount': t.amount.toFixed(2),
+    }));
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <>
       <Card className="animate-in fade-in-50">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl">{title}</CardTitle>
               <CardDescription>{description}</CardDescription>
             </div>
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New {type}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button onClick={handleAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New {type}
+              </Button>
+              <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                  <DialogTrigger asChild>
+                      <Button variant="outline">
+                          <Download className="mr-2 h-4 w-4" /> Download Report
+                      </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                          <DialogTitle>Download {type} Report</DialogTitle>
+                          <DialogDescription>Select a date range to download your pending {type.toLowerCase()} data.</DialogDescription>
+                      </DialogHeader>
+                       <div className="py-4 flex flex-col items-center gap-4">
+                          <Calendar
+                              initialFocus
+                              mode="range"
+                              defaultMonth={dateRange?.from}
+                              selected={dateRange}
+                              onSelect={setDateRange}
+                              numberOfMonths={1}
+                          />
+                      </div>
+                      <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
+                      </DialogFooter>
+                  </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
