@@ -180,6 +180,20 @@ export async function getSales(): Promise<Sale[]> {
     return snapshot.docs.map(docToSale);
 }
 
+export async function getSalesForMonth(year: number, month: number): Promise<Sale[]> {
+    if (!db) return [];
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const q = query(
+        collection(db, 'sales'),
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate)),
+        orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToSale);
+}
+
 export async function addSale(
     data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
@@ -416,6 +430,20 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
 export async function getExpenses(): Promise<Expense[]> {
     if (!db) return [];
     const snapshot = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
+    return snapshot.docs.map(docToExpense);
+}
+
+export async function getExpensesForMonth(year: number, month: number): Promise<Expense[]> {
+    if (!db) return [];
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const q = query(
+        collection(db, 'expenses'),
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate)),
+        orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(docToExpense);
 }
 

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft, Database } from 'lucide-react';
-import { getBooks, getSales, getExpenses, getCustomersWithDueBalance, resetDatabase, getCustomers } from '@/lib/actions';
+import { getBooks, getSalesForMonth, getExpensesForMonth, getCustomersWithDueBalance, resetDatabase, getCustomers } from '@/lib/actions';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
 import { Button } from '@/components/ui/button';
 import { revalidatePath } from 'next/cache';
@@ -13,26 +13,22 @@ async function handleResetDatabase() {
 
 
 export default async function DashboardPage() {
-  const [books, sales, expenses, customersWithDue, customers] = await Promise.all([
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  const [books, salesThisMonth, expensesThisMonth, customersWithDue, customers] = await Promise.all([
     getBooks(),
-    getSales(),
-    getExpenses(),
+    getSalesForMonth(year, month),
+    getExpensesForMonth(year, month),
     getCustomersWithDueBalance(),
     getCustomers(),
   ]);
 
   const totalBooks = books.reduce((sum, book) => sum + book.stock, 0);
 
-  const salesThisMonth = sales.filter(s => {
-      const saleDate = new Date(s.date);
-      return saleDate.getMonth() === new Date().getMonth() && saleDate.getFullYear() === new Date().getFullYear();
-  });
   const salesAmountThisMonth = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
   
-  const expensesThisMonth = expenses.filter(e => {
-      const expenseDate = new Date(e.date);
-      return expenseDate.getMonth() === new Date().getMonth() && expenseDate.getFullYear() === new Date().getFullYear()
-  });
   const expensesAmount = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
   
   const receivablesAmount = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
@@ -65,7 +61,7 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6 animate-in fade-in-50">
       <div className="flex justify-between items-start">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
-        {isDataPresent && (
+        {!isDataPresent && (
           <form action={handleResetDatabase}>
             <Button variant="outline">
               <Database className="mr-2" /> Reset Database
