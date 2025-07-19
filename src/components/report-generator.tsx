@@ -90,10 +90,11 @@ export default function ReportGenerator() {
       }
     } catch (error) {
       console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
       toast({
         variant: "destructive",
         title: "Uh oh! Something went wrong.",
-        description: "There was a problem generating your report. Please check the console for details.",
+        description: `There was a problem generating your report. Error: ${errorMessage}`,
       });
     } finally {
       setIsLoading(false);

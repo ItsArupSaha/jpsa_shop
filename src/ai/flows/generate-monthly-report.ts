@@ -33,7 +33,7 @@ const reportPrompt = ai.definePrompt({
   output: {schema: z.string().nullable()},
   prompt: `You are an expert financial analyst specializing in creating concise and informative monthly reports for bookstores.
 
-  Given the following data for the month of {{month}} {{year}}, generate a report that includes:
+  Given the following data for the month of {{month}} {{year}}, generate a complete report that includes all of the following sections, even if the values are zero:
 
   - Total Sales Revenue
   - Total Cost of Goods Sold (COGS)
@@ -46,10 +46,8 @@ const reportPrompt = ai.definePrompt({
   To calculate Cost of Goods Sold (COGS), you must look up the 'productionPrice' for each book sold from the booksData and multiply it by the quantity sold.
   The 'price' in the sales data is the selling price.
 
-  Format the report in a way that is easy to read and understand. The report should be structured with clear headings. The report should not be more than 300 words.
+  IMPORTANT: If the provided sales or expense data is empty, you must still generate the full report structure and use '0' for the financial values. For "Key Insights", state that no insights can be drawn due to a lack of data for the period. Do not output null or an error message. The report should be structured with clear headings and should not be more than 300 words.
   
-  If the provided sales and expense data is empty or contains no relevant information, respond with a clear message stating "No data available for the selected period to generate a report.". Do not try to make up any data.
-
   Sales Data: {{{salesData}}}
   Expense Data: {{{expensesData}}}
   Book Catalog Data: {{{booksData}}}
@@ -67,7 +65,7 @@ const generateMonthlyReportFlow = ai.defineFlow(
 
     if (!output) {
       const pdf = new jsPDF();
-      pdf.text("No report could be generated. There might be no data for the selected period.", 10, 10);
+      pdf.text("No report could be generated. The AI model failed to return a response.", 10, 10);
       const reportDataUri = pdf.output('datauristring');
       return { reportDataUri };
     }
