@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -8,7 +9,7 @@ import { generateMonthlyReport } from '@/ai/flows/generate-monthly-report';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download } from 'lucide-react';
 import type { Sale, Expense, Book } from '@/lib/types';
@@ -131,9 +132,11 @@ export default function ReportGenerator() {
                           <SelectValue placeholder="Select a month" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                      </SelectContent>
+                      <SelectPortal>
+                        <SelectContent>
+                          {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                        </SelectContent>
+                      </SelectPortal>
                     </Select>
                     <FormMessage />
                   </FormItem>
@@ -151,9 +154,11 @@ export default function ReportGenerator() {
                           <SelectValue placeholder="Select a year" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                      </SelectContent>
+                      <SelectPortal>
+                        <SelectContent>
+                          {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                        </SelectContent>
+                      </SelectPortal>
                     </Select>
                     <FormMessage />
                   </FormItem>

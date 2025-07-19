@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -146,6 +147,8 @@ const SelectSeparator = React.forwardRef<
 ))
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName
 
+const SelectPortal = SelectPrimitive.Portal;
+
 export {
   Select,
   SelectGroup,
@@ -157,4 +160,5 @@ export {
   SelectSeparator,
   SelectScrollUpButton,
   SelectScrollDownButton,
+  SelectPortal,
 }
