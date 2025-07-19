@@ -105,7 +105,9 @@ export default function ReportGenerator() {
     label: new Date(0, i).toLocaleString('default', { month: 'long' }),
   }));
 
-  const years = ['2024', '2023'];
+  const currentYear = new Date().getFullYear();
+  const startYear = 2023;
+  const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => (currentYear - i).toString());
 
   return (
     <Card className="max-w-2xl mx-auto animate-in fade-in-50">
@@ -154,8 +156,8 @@ export default function ReportGenerator() {
                           <SelectValue placeholder="Select a year" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectPortal>
-                        <SelectContent position="popper">
+                       <SelectPortal>
+                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                           {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                         </SelectContent>
                       </SelectPortal>
