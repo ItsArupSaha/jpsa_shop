@@ -15,6 +15,7 @@ import { Loader2 } from 'lucide-react';
 import type { Sale, Expense, Book, Donation } from '@/lib/types';
 import { getSales, getExpenses, getBooks, getDonations, getBalanceSheetData } from '@/lib/actions';
 import ReportPreview from './report-preview';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
