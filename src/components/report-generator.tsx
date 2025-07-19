@@ -133,7 +133,7 @@ export default function ReportGenerator() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectPortal>
-                        <SelectContent>
+                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                           {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                         </SelectContent>
                       </SelectPortal>
@@ -155,7 +155,7 @@ export default function ReportGenerator() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectPortal>
-                        <SelectContent>
+                        <SelectContent position="popper">
                           {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                         </SelectContent>
                       </SelectPortal>
