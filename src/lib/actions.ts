@@ -20,7 +20,7 @@ import {
 import { revalidatePath } from 'next/cache';
 
 import { db } from './firebase';
-import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata } from './types';
+import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata, Donation } from './types';
 import { books as mockBooks, customers as mockCustomers, sales as mockSales, expenses as mockExpenses, receivables as mockReceivables, payables as mockPayables } from './data';
 
 
@@ -55,6 +55,14 @@ function docToExpense(d: any): Expense {
         ...data,
         date: data.date.toDate().toISOString(),
     } as Expense;
+}
+function docToDonation(d: any): Donation {
+    const data = d.data();
+    return { 
+        id: d.id, 
+        ...data,
+        date: data.date.toDate().toISOString(),
+    } as Donation;
 }
 function docToTransaction(d: any): Transaction {
     const data = d.data();
@@ -349,7 +357,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                   description: `Payment for Purchase ${purchaseId}`,
                   amount: totalAmount,
                   date: Timestamp.fromDate(new Date()),
-                  paymentMethod: data.paymentMethod, // Add payment method to expense
+                  paymentMethod: data.paymentMethod,
               };
               transaction.set(doc(collection(db, 'expenses')), expenseData);
           } else if (data.paymentMethod === 'Split') {
@@ -361,7 +369,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                       description: `Partial payment for Purchase ${purchaseId}`,
                       amount: amountPaid,
                       date: Timestamp.fromDate(new Date()),
-                      paymentMethod: data.splitPaymentMethod, // Add payment method to expense
+                      paymentMethod: data.splitPaymentMethod,
                   };
                   transaction.set(doc(collection(db, 'expenses')), expenseData);
               }
@@ -429,6 +437,24 @@ export async function deleteExpense(id: string) {
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
+}
+
+// --- Donations Actions ---
+export async function getDonations(): Promise<Donation[]> {
+  if (!db) return [];
+  const snapshot = await getDocs(query(collection(db, 'donations'), orderBy('date', 'desc')));
+  return snapshot.docs.map(docToDonation);
+}
+
+export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: Date }) {
+  if (!db) return;
+  const donationData = {
+      ...data,
+      date: Timestamp.fromDate(data.date),
+  };
+  await addDoc(collection(db, 'donations'), donationData);
+  revalidatePath('/donations');
+  revalidatePath('/balance-sheet');
 }
 
 
@@ -554,12 +580,13 @@ export async function getBalanceSheetData() {
         throw new Error("Database not connected");
     }
 
-    const [books, sales, expenses, allTransactionsData, purchases] = await Promise.all([
+    const [books, sales, expenses, allTransactionsData, purchases, donations] = await Promise.all([
         getBooks(),
         getSales(),
         getExpenses(),
         getDocs(collection(db, 'transactions')), // Get ALL transactions for balance sheet
         getPurchases(),
+        getDonations(),
     ]);
     const allTransactions = allTransactionsData.docs.map(docToTransaction);
 
@@ -576,6 +603,15 @@ export async function getBalanceSheetData() {
         } else if (sale.paymentMethod === 'Split' && sale.amountPaid) {
             // Assume split payments are cash for now. This could be enhanced.
             cash += sale.amountPaid;
+        }
+    });
+    
+    // Donations income
+    donations.forEach(donation => {
+        if (donation.paymentMethod === 'Cash') {
+            cash += donation.amount;
+        } else if (donation.paymentMethod === 'Bank') {
+            bank += donation.amount;
         }
     });
 
@@ -645,7 +681,7 @@ export async function seedDatabase() {
     const batch = writeBatch(db);
 
     // Clear existing data
-    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'metadata'];
+    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
     for (const coll of collections) {
       const snapshot = await getDocs(collection(db, coll));
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -704,6 +740,7 @@ export async function seedDatabase() {
     revalidatePath('/customers');
     revalidatePath('/sales');
     revalidatePath('/expenses');
+    revalidatePath('/donations');
     revalidatePath('/receivables');
     revalidatePath('/payables');
     revalidatePath('/purchases');

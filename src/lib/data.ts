@@ -1,3 +1,4 @@
+
 import type { Book, Sale, Expense, Transaction, Customer } from './types';
 
 export const customers: Omit<Customer, 'id'>[] = [
@@ -64,10 +65,10 @@ export const sales: Omit<Sale, 'id' | 'customerId'>[] = [
 ];
 
 export const expenses: Omit<Expense, 'id'>[] = [
-  { date: new Date('2024-05-01').toISOString(), description: 'Rent', amount: 1500 },
-  { date: new Date('2024-05-10').toISOString(), description: 'Utilities', amount: 250 },
-  { date: new Date('2024-05-25').toISOString(), description: 'New Book Shipment', amount: 800 },
-  { date: new Date().toISOString(), description: 'Marketing', amount: 300 },
+  { date: new Date('2024-05-01').toISOString(), description: 'Rent', amount: 1500, paymentMethod: 'Bank' },
+  { date: new Date('2024-05-10').toISOString(), description: 'Utilities', amount: 250, paymentMethod: 'Bank' },
+  { date: new Date('2024-05-25').toISOString(), description: 'New Book Shipment', amount: 800, paymentMethod: 'Cash' },
+  { date: new Date().toISOString(), description: 'Marketing', amount: 300, paymentMethod: 'Cash' },
 ];
 
 export const receivables: Omit<Transaction, 'id'>[] = [

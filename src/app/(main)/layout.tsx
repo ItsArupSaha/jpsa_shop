@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -12,7 +13,8 @@ import {
   ShoppingCart,
   Users,
   ShoppingBag,
-  Scale
+  Scale,
+  Gift,
 } from 'lucide-react';
 
 import {
@@ -35,6 +37,7 @@ const navItems = [
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
   { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
+  { href: '/donations', icon: Gift, label: 'Donations' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
   { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },

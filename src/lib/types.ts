@@ -1,3 +1,4 @@
+
 export type Customer = {
   id: string;
   name: string;
@@ -66,6 +67,15 @@ export type Expense = {
   description: string;
   amount: number;
   paymentMethod?: 'Cash' | 'Bank';
+};
+
+export type Donation = {
+  id: string;
+  date: string;
+  donorName: string;
+  amount: number;
+  paymentMethod: 'Cash' | 'Bank';
+  notes?: string;
 };
 
 export type Transaction = {
