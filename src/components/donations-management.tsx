@@ -149,7 +149,7 @@ export default function DonationsManagement() {
                       <FormItem>
                         <FormLabel>Amount</FormLabel>
                         <FormControl>
-                          <Input type="number" min="0" placeholder="100.00" {...field} />
+                          <Input type="text" placeholder="100.00" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
