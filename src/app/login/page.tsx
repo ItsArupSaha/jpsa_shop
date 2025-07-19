@@ -8,7 +8,6 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, Loader2 } from 'lucide-react';
-import jpsImage from '/public/jps_image.jpg';
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -56,7 +55,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 h-24 w-24 relative overflow-hidden rounded-full">
             <Image 
-              src={jpsImage}
+              src="https://placehold.co/200x200.png"
               alt="JPS Archives Bangladesh"
               layout="fill"
               objectFit="cover"
