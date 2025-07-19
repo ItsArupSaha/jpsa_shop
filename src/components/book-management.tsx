@@ -321,7 +321,7 @@ export default function BookManagement() {
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="font-headline">{editingBook ? 'Edit Book' : 'Add New Book'}</DialogTitle>
             <DialogDescription>
@@ -329,42 +329,17 @@ export default function BookManagement() {
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="The Great Gatsby" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="author"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Author</FormLabel>
-                    <FormControl>
-                      <Input placeholder="F. Scott Fitzgerald" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                 <FormField
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
+             <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
+                <div className="space-y-4 py-4 px-4">
+                <FormField
                   control={form.control}
-                  name="productionPrice"
+                  name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Production Price</FormLabel>
+                      <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="5.50" {...field} />
+                        <Input placeholder="The Great Gatsby" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -372,32 +347,61 @@ export default function BookManagement() {
                 />
                 <FormField
                   control={form.control}
-                  name="sellingPrice"
+                  name="author"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Selling Price</FormLabel>
+                      <FormLabel>Author</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="10.99" {...field} />
+                        <Input placeholder="F. Scott Fitzgerald" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="productionPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Production Price</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="5.50" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sellingPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Selling Price</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="10.99" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="stock"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="15" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                </div>
               </div>
-              <FormField
-                control={form.control}
-                name="stock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stock</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="15" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
+              <DialogFooter className="pt-4 border-t">
                 <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save changes"}</Button>
               </DialogFooter>
             </form>
