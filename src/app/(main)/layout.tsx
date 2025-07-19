@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth.tsx';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -71,13 +72,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   if (user && !isApproved) {
     return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-background p-4 text-center">
-            <Card className="max-w-md p-8">
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-muted/40 p-4 text-center">
+            <Card className="max-w-md p-6 shadow-lg">
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Pending Approval</CardTitle>
                     <CardDescription>
                         Your account is currently waiting for approval from an administrator. 
-                        Please check back later.
+                        Please check back later or contact support.
                     </CardDescription>
                 </CardHeader>
                 <CardFooter>
@@ -156,6 +157,3 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     </SidebarProvider>
   );
 }
-
-// Add these to avoid ReferenceError
-import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
