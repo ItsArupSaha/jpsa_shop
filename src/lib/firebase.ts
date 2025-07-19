@@ -36,5 +36,4 @@ if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your-project
     auth = getAuth(app);
 }
 
-
 export { app, db, auth };

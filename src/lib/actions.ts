@@ -18,31 +18,9 @@ import {
   collectionGroup,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
-import { getAuth } from 'firebase/auth';
 
-import { db, auth as firebaseAuth } from './firebase';
+import { db } from './firebase';
 import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata, Donation } from './types';
-
-// Helper to get current user's UID
-function getCurrentUserId(): string {
-  const user = firebaseAuth.currentUser;
-  if (!user) {
-    throw new Error("User is not authenticated. Cannot perform database operations.");
-  }
-  return user.uid;
-}
-
-// Helper to create a reference to a user-specific collection
-function getUserCollection(collectionName: string) {
-    const userId = getCurrentUserId();
-    return collection(db, 'users', userId, collectionName);
-}
-
-// Helper to create a reference to a user-specific document
-function getUserDoc(collectionName: string, docId: string) {
-    const userId = getCurrentUserId();
-    return doc(db, 'users', userId, collectionName, docId);
-}
 
 // Helper to convert Firestore docs to our types
 function docToBook(d: any): Book {
@@ -97,27 +75,27 @@ function docToTransaction(d: any): Transaction {
 // --- Books Actions ---
 export async function getBooks(): Promise<Book[]> {
   if (!db) return [];
-  const snapshot = await getDocs(query(getUserCollection('books'), orderBy('title')));
+  const snapshot = await getDocs(query(collection(db, 'books'), orderBy('title')));
   return snapshot.docs.map(docToBook);
 }
 
 export async function addBook(data: Omit<Book, 'id'>) {
   if (!db) return;
-  await addDoc(getUserCollection('books'), data);
+  await addDoc(collection(db, 'books'), data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
 }
 
 export async function updateBook(id: string, data: Omit<Book, 'id'>) {
   if (!db) return;
-  await updateDoc(getUserDoc('books', id), data);
+  await updateDoc(doc(db, 'books', id), data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
 }
 
 export async function deleteBook(id: string) {
   if (!db) return;
-  await deleteDoc(getUserDoc('books', id));
+  await deleteDoc(doc(db, 'books', id));
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
 }
@@ -126,13 +104,13 @@ export async function deleteBook(id: string) {
 // --- Customers Actions ---
 export async function getCustomers(): Promise<Customer[]> {
   if (!db) return [];
-  const snapshot = await getDocs(query(getUserCollection('customers'), orderBy('name')));
+  const snapshot = await getDocs(query(collection(db, 'customers'), orderBy('name')));
   return snapshot.docs.map(docToCustomer);
 }
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
     if (!db) return null;
-    const docRef = getUserDoc('customers', id);
+    const docRef = doc(db, 'customers', id);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -147,7 +125,7 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
 
     const allCustomers = await getCustomers();
     const allSales = await getSales();
-    const allTransactionsData = await getDocs(getUserCollection('transactions'));
+    const allTransactionsData = await getDocs(collection(db, 'transactions'));
     const allTransactions = allTransactionsData.docs.map(docToTransaction);
 
     const customersWithBalances = allCustomers.map(customer => {
@@ -176,13 +154,13 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
 
 export async function addCustomer(data: Omit<Customer, 'id'>) {
   if (!db) return;
-  await addDoc(getUserCollection('customers'), data);
+  await addDoc(collection(db, 'customers'), data);
   revalidatePath('/customers');
 }
 
 export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
   if (!db) return;
-  await updateDoc(getUserDoc('customers', id), data);
+  await updateDoc(doc(db, 'customers', id), data);
   revalidatePath('/customers');
   revalidatePath('/receivables');
   revalidatePath(`/customers/${id}`);
@@ -190,7 +168,7 @@ export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
 
 export async function deleteCustomer(id: string) {
   if (!db) return;
-  await deleteDoc(getUserDoc('customers', id));
+  await deleteDoc(doc(db, 'customers', id));
   revalidatePath('/customers');
   revalidatePath('/receivables');
 }
@@ -198,7 +176,7 @@ export async function deleteCustomer(id: string) {
 // --- Sales Actions ---
 export async function getSales(): Promise<Sale[]> {
     if (!db) return [];
-    const snapshot = await getDocs(query(getUserCollection('sales'), orderBy('date', 'desc')));
+    const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
 
@@ -206,13 +184,12 @@ export async function addSale(
     data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db) return { success: false, error: "Database not configured." };
-    const userId = getCurrentUserId();
   
     try {
       const result = await runTransaction(db, async (transaction) => {
         const saleDate = new Date();
-        const bookRefs = data.items.map(item => doc(db, 'users', userId, 'books', item.bookId));
-        const customerRef = doc(db, 'users', userId, 'customers', data.customerId);
+        const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
+        const customerRef = doc(db, 'customers', data.customerId);
         
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
         const customerDoc = await transaction.get(customerRef);
@@ -249,7 +226,7 @@ export async function addSale(
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
         const calculatedTotal = calculatedSubtotal - discountAmount;
   
-        const newSaleRef = doc(getUserCollection("sales"));
+        const newSaleRef = doc(collection(db, "sales"));
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
           items: itemsWithPrices,
@@ -280,7 +257,7 @@ export async function addSale(
                 type: 'Receivable' as const,
                 customerId: data.customerId
               };
-              const newTransactionRef = doc(getUserCollection("transactions"));
+              const newTransactionRef = doc(collection(db, "transactions"));
               transaction.set(newTransactionRef, receivableData);
           }
         }
@@ -311,18 +288,17 @@ export async function addSale(
 // --- Purchases Actions ---
 export async function getPurchases(): Promise<Purchase[]> {
     if (!db) return [];
-    const snapshot = await getDocs(query(getUserCollection('purchases'), orderBy('date', 'desc')));
+    const snapshot = await getDocs(query(collection(db, 'purchases'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToPurchase);
 }
 
 export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: Date }) {
   if (!db) return { success: false, error: 'Database not connected' };
-  const userId = getCurrentUserId();
 
   try {
       const result = await runTransaction(db, async (transaction) => {
           const purchaseDate = new Date();
-          const metadataRef = doc(db, 'users', userId, 'metadata', 'counters');
+          const metadataRef = doc(db, 'metadata', 'counters');
 
           const metadataDoc = await transaction.get(metadataRef);
           let lastPurchaseNumber = 0;
@@ -337,7 +313,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
               totalAmount += item.cost * item.quantity;
           }
 
-          const newPurchaseRef = doc(getUserCollection('purchases'));
+          const newPurchaseRef = doc(collection(db, 'purchases'));
           const purchaseData = {
               ...data,
               purchaseId,
@@ -348,7 +324,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-          const booksCollectionRef = getUserCollection('books');
+          const booksCollectionRef = collection(db, 'books');
           for (const item of data.items) {
               if (item.category === 'Book') {
                   const q = query(booksCollectionRef, where("title", "==", item.itemName));
@@ -383,7 +359,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                   date: Timestamp.fromDate(new Date()),
                   paymentMethod: data.paymentMethod,
               };
-              transaction.set(doc(getUserCollection('expenses')), expenseData);
+              transaction.set(doc(collection(db, 'expenses')), expenseData);
           } else if (data.paymentMethod === 'Split') {
               const amountPaid = data.amountPaid || 0;
               const payableAmount = totalAmount - amountPaid;
@@ -395,7 +371,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                       date: Timestamp.fromDate(new Date()),
                       paymentMethod: data.splitPaymentMethod,
                   };
-                  transaction.set(doc(getUserCollection('expenses')), expenseData);
+                  transaction.set(doc(collection(db, 'expenses')), expenseData);
               }
 
               if (payableAmount > 0) {
@@ -406,7 +382,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                       status: 'Pending' as const,
                       type: 'Payable' as const,
                   };
-                  transaction.set(doc(getUserCollection('transactions')), payableData);
+                  transaction.set(doc(collection(db, 'transactions')), payableData);
               }
           } else if (data.paymentMethod === 'Due') {
               const payableData = {
@@ -416,7 +392,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                   status: 'Pending' as const,
                   type: 'Payable' as const,
               };
-              transaction.set(doc(getUserCollection('transactions')), payableData);
+              transaction.set(doc(collection(db, 'transactions')), payableData);
           }
 
           return { success: true };
@@ -439,7 +415,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
 // --- Expenses Actions ---
 export async function getExpenses(): Promise<Expense[]> {
     if (!db) return [];
-    const snapshot = await getDocs(query(getUserCollection('expenses'), orderBy('date', 'desc')));
+    const snapshot = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToExpense);
 }
 
@@ -449,7 +425,7 @@ export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Da
         ...data,
         date: Timestamp.fromDate(data.date),
     };
-    await addDoc(getUserCollection('expenses'), expenseData);
+    await addDoc(collection(db, 'expenses'), expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -457,7 +433,7 @@ export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Da
 
 export async function deleteExpense(id: string) {
     if (!db) return;
-    await deleteDoc(getUserDoc('expenses', id));
+    await deleteDoc(doc(db, 'expenses', id));
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -466,7 +442,7 @@ export async function deleteExpense(id: string) {
 // --- Donations Actions ---
 export async function getDonations(): Promise<Donation[]> {
   if (!db) return [];
-  const snapshot = await getDocs(query(getUserCollection('donations'), orderBy('date', 'desc')));
+  const snapshot = await getDocs(query(collection(db, 'donations'), orderBy('date', 'desc')));
   return snapshot.docs.map(docToDonation);
 }
 
@@ -476,7 +452,7 @@ export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: 
       ...data,
       date: Timestamp.fromDate(data.date),
   };
-  await addDoc(getUserCollection('donations'), donationData);
+  await addDoc(collection(db, 'donations'), donationData);
   revalidatePath('/donations');
   revalidatePath('/balance-sheet');
 }
@@ -485,7 +461,7 @@ export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
     if (!db) return [];
-    const q = query(getUserCollection('transactions'), where('type', '==', type), where('status', '==', 'Pending'));
+    const q = query(collection(db, 'transactions'), where('type', '==', type), where('status', '==', 'Pending'));
     const snapshot = await getDocs(q);
     const transactions = snapshot.docs.map(docToTransaction);
     // Sort in application code to avoid needing a composite index
@@ -499,7 +475,7 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
         status: 'Pending',
         dueDate: Timestamp.fromDate(data.dueDate),
     };
-    await addDoc(getUserCollection('transactions'), transactionData);
+    await addDoc(collection(db, 'transactions'), transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -510,7 +486,6 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
 
 export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
     if (!db) throw new Error("Database not configured.");
-    const userId = getCurrentUserId();
 
     try {
         const result = await runTransaction(db, async (transaction) => {
@@ -525,11 +500,11 @@ export async function addPayment(data: { customerId: string, amount: number, pay
                 paymentMethod: data.paymentMethod,
                 customerId: data.customerId
             };
-            const newTransactionRef = doc(getUserCollection("transactions"));
+            const newTransactionRef = doc(collection(db, "transactions"));
             transaction.set(newTransactionRef, paymentTransactionData);
 
             const receivablesQuery = query(
-                getUserCollection('transactions'),
+                collection(db, 'transactions'),
                 where('type', '==', 'Receivable'),
                 where('status', '==', 'Pending'),
                 where('customerId', '==', data.customerId),
@@ -542,7 +517,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
                 if (amountToSettle <= 0) break;
 
                 const receivable = docToTransaction(docSnap);
-                const receivableRef = getUserDoc('transactions', docSnap.id);
+                const receivableRef = doc(db, 'transactions', docSnap.id);
                 
                 if (amountToSettle >= receivable.amount) {
                     transaction.update(receivableRef, { status: 'Paid' });
@@ -569,7 +544,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
 
 export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
     if (!db) return;
-    const transRef = getUserDoc('transactions', id);
+    const transRef = doc(db, 'transactions', id);
     const transDoc = await getDoc(transRef);
     
     await updateDoc(transRef, { status });
@@ -588,7 +563,7 @@ export async function updateTransactionStatus(id: string, status: 'Pending' | 'P
 
 export async function deleteTransaction(id: string, type: 'Receivable' | 'Payable') {
     if (!db) return;
-    await deleteDoc(getUserDoc('transactions', id));
+    await deleteDoc(doc(db, 'transactions', id));
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -604,7 +579,7 @@ export async function getBalanceSheetData() {
         getBooks(),
         getSales(),
         getExpenses(),
-        getDocs(getUserCollection('transactions')),
+        getDocs(collection(db, 'transactions')),
         getPurchases(),
         getDonations(),
     ]);
@@ -683,19 +658,18 @@ export async function getBalanceSheetData() {
 // --- Database Seeding/Resetting ---
 export async function resetDatabase() {
     if (!db) return;
-    const userId = getCurrentUserId();
-    console.log(`Starting database reset for user ${userId}...`);
+    console.log(`Starting database reset...`);
     
     const batch = writeBatch(db);
 
     const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
     for (const coll of collections) {
-      const snapshot = await getDocs(collection(db, 'users', userId, coll));
+      const snapshot = await getDocs(collection(db, coll));
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
     }
-    console.log(`Cleared all subcollections for user ${userId}...`);
+    console.log(`Cleared all collections...`);
 
-    const metadataRef = doc(db, 'users', userId, 'metadata', 'counters');
+    const metadataRef = doc(db, 'metadata', 'counters');
     batch.set(metadataRef, { lastPurchaseNumber: 0 });
 
     const walkInCustomer: Omit<Customer, 'id'> = {
@@ -704,13 +678,13 @@ export async function resetDatabase() {
         address: 'N/A',
         openingBalance: 0,
     };
-    const customerRef = doc(collection(db, 'users', userId, 'customers'));
+    const customerRef = doc(collection(db, 'customers'));
     batch.set(customerRef, walkInCustomer);
     
     console.log("Reset purchase counter and added walk-in customer.");
 
     await batch.commit();
-    console.log(`Database reset for user ${userId} successfully!`);
+    console.log(`Database reset successfully!`);
 
     revalidatePath('/dashboard');
     revalidatePath('/books');
