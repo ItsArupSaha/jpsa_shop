@@ -59,13 +59,13 @@ export default async function DashboardPage() {
     receivablesAmount: receivablesAmount,
   };
 
-  const isDataEmpty = books.length === 0 && customers.length <= 1; // Allows for walk-in customer
+  const isDataPresent = books.length > 0 || customers.length > 1; // Allows for walk-in customer
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in-50">
       <div className="flex justify-between items-start">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
-        {isDataEmpty && (
+        {isDataPresent && (
           <form action={handleResetDatabase}>
             <Button variant="outline">
               <Database className="mr-2" /> Reset Database
