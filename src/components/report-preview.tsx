@@ -25,7 +25,7 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {
-  const { openingBalances, monthlyActivity, netResult, summary, keyInsights } = reportData;
+  const { openingBalances, monthlyActivity, netResult } = reportData;
 
   const handleDownloadPdf = () => {
     const doc = new jsPDF();
@@ -34,20 +34,10 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.text(`Monthly Financial Report`, 105, 20, { align: 'center' });
     doc.setFontSize(12);
     doc.text(`${month} ${year}`, 105, 28, { align: 'center' });
-
-    // Summary Section
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Executive Summary", 14, 45);
-    doc.setFont('helvetica', 'normal');
-    const splitSummary = doc.splitTextToSize(summary, 180);
-    doc.text(splitSummary, 14, 52);
     
-    const summaryHeight = (splitSummary.length * 7) + 15;
-
     // Balances Table
     autoTable(doc, {
-      startY: summaryHeight,
+      startY: 40,
       head: [['Opening Balances', 'Amount']],
       body: [
         ['Cash', formatCurrency(openingBalances.cash)],
@@ -85,14 +75,6 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.text(formatCurrency(netResult.netProfitOrLoss), 200, finalY + 15, { align: 'right' });
     doc.setTextColor(0); // Reset color
     
-    // Key Insights
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Key Insights", 14, finalY + 30);
-    doc.setFont('helvetica', 'normal');
-    const splitInsights = doc.splitTextToSize(keyInsights.replace(/•/g, '-'), 180);
-    doc.text(splitInsights, 14, finalY + 37);
-
     doc.save(`report-${month}-${year}.pdf`);
   };
 
@@ -113,14 +95,6 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
         </Button>
       </CardHeader>
       <CardContent className="space-y-8">
-        {/* Executive Summary */}
-        <div>
-          <h3 className="text-lg font-semibold mb-2 font-headline text-primary">Executive Summary</h3>
-          <p className="text-sm text-muted-foreground">{summary}</p>
-        </div>
-
-        <Separator />
-        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Tables */}
           <div className="space-y-6">
@@ -146,7 +120,7 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
               </Table>
             </div>
           </div>
-          {/* Key Insights & Net Result */}
+          {/* Net Result */}
           <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-semibold mb-2 font-headline">Net Result for {month}</h3>
@@ -154,14 +128,6 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                     <p className="text-sm text-muted-foreground">Net Profit / Loss</p>
                     <p className={`text-3xl font-bold ${netColor}`}>{formatCurrency(netResult.netProfitOrLoss)}</p>
                 </div>
-            </div>
-             <div>
-              <h3 className="text-lg font-semibold mb-2 font-headline text-primary">Key Insights</h3>
-              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                {keyInsights.split(/•|-/).filter(s => s.trim()).map((insight, i) => (
-                    <li key={i}>{insight.trim()}</li>
-                ))}
-              </ul>
             </div>
           </div>
         </div>

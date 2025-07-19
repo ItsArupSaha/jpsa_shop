@@ -33,8 +33,6 @@ const ReportAnalysisSchema = z.object({
     netResult: z.object({
         netProfitOrLoss: z.number().describe('The net profit or loss for the month (Gross Profit - Total Expenses + Total Donations).'),
     }),
-    summary: z.string().describe("A brief, professional summary of the month's financial performance, highlighting key factors."),
-    keyInsights: z.string().describe("Bulleted list of key insights (e.g., best-selling book by revenue, most significant expense category, impact of donations).")
 });
 export type ReportAnalysis = z.infer<typeof ReportAnalysisSchema>;
 
@@ -55,8 +53,7 @@ const reportPrompt = ai.definePrompt({
   3.  **Calculate Gross Profit:** To get Gross Profit, you first need to calculate Cost of Goods Sold (COGS). For each book sold, find its 'productionPrice' in the booksData and multiply by quantity. Sum this up for all sales to get total COGS. Then, Gross Profit = Total Sales Revenue - COGS.
   4.  **Calculate Net Profit/Loss:** The final calculation is: Net Profit/Loss = Gross Profit - Total Expenses + Total Donations.
   5.  **Handle Zero Data:** If there is no sales, expense, or donation data for the month, you must still generate the full report structure. Use '0' for the financial values in 'monthlyActivity' and 'netResult'.
-  6.  **Provide Insights:** Based on the data, generate a short summary and a few bullet points for key insights. If there's no data, state that no insights can be drawn.
-
+  
   **Data:**
   - Book Catalog: {{{booksData}}}
   - Balance Data (Cash, Bank, Stock Value): {{{balanceData}}}
