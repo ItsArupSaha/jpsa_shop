@@ -5,15 +5,16 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { generateMonthlyReport } from '@/ai/flows/generate-monthly-report';
+import { generateMonthlyReport, type ReportAnalysis } from '@/ai/flows/generate-monthly-report';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Download } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { Sale, Expense, Book, Donation } from '@/lib/types';
 import { getSales, getExpenses, getBooks, getDonations, getBalanceSheetData } from '@/lib/actions';
+import ReportPreview from './report-preview';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -22,7 +23,7 @@ const reportSchema = z.object({
 
 type ReportFormValues = z.infer<typeof reportSchema>;
 
-interface ReportData {
+interface ReportDataSource {
   sales: Sale[];
   expenses: Expense[];
   books: Book[];
@@ -31,51 +32,66 @@ interface ReportData {
 }
 
 export default function ReportGenerator() {
-  const [data, setData] = React.useState<ReportData | null>(null);
+  const [dataSource, setDataSource] = React.useState<ReportDataSource | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [reportUri, setReportUri] = React.useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [reportData, setReportData] = React.useState<ReportAnalysis | null>(null);
+  const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
+
   const { toast } = useToast();
 
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
-      const [sales, expenses, books, donations, balanceSheet] = await Promise.all([
-        getSales(),
-        getExpenses(),
-        getBooks(),
-        getDonations(),
-        getBalanceSheetData(),
-      ]);
-      setData({ sales, expenses, books, donations, balanceSheet });
-      setIsLoading(false);
+      try {
+        const [sales, expenses, books, donations, balanceSheet] = await Promise.all([
+          getSales(),
+          getExpenses(),
+          getBooks(),
+          getDonations(),
+          getBalanceSheetData(),
+        ]);
+        setDataSource({ sales, expenses, books, donations, balanceSheet });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load data",
+          description: "Could not fetch the necessary data for reports. Please try again later.",
+        });
+        console.error("Failed to load report data sources:", error);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, []);
+  }, [toast]);
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
   });
 
   const onSubmit = async (formData: ReportFormValues) => {
-    if (!data) return;
+    if (!dataSource) return;
     
-    setIsLoading(true);
-    setReportUri(null);
+    setIsGenerating(true);
+    setReportData(null);
+    setFormValues(formData);
+
     try {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const salesForMonth = data.sales.filter(s => {
+      const salesForMonth = dataSource.sales.filter(s => {
         const saleDate = new Date(s.date);
         return saleDate.getMonth() === selectedMonth && saleDate.getFullYear() === selectedYear;
       });
 
-      const expensesForMonth = data.expenses.filter(e => {
+      const expensesForMonth = dataSource.expenses.filter(e => {
         const expenseDate = new Date(e.date);
         return expenseDate.getMonth() === selectedMonth && expenseDate.getFullYear() === selectedYear;
       });
 
-      const donationsForMonth = data.donations.filter(d => {
+      const donationsForMonth = dataSource.donations.filter(d => {
         const donationDate = new Date(d.date);
         return donationDate.getMonth() === selectedMonth && donationDate.getFullYear() === selectedYear;
       });
@@ -84,11 +100,11 @@ export default function ReportGenerator() {
         salesData: JSON.stringify(salesForMonth),
         expensesData: JSON.stringify(expensesForMonth),
         donationsData: JSON.stringify(donationsForMonth),
-        booksData: JSON.stringify(data.books),
+        booksData: JSON.stringify(dataSource.books),
         balanceData: JSON.stringify({
-            cash: data.balanceSheet.cash,
-            bank: data.balanceSheet.bank,
-            stockValue: data.balanceSheet.stockValue,
+            cash: dataSource.balanceSheet.cash,
+            bank: dataSource.balanceSheet.bank,
+            stockValue: dataSource.balanceSheet.stockValue,
         }),
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
@@ -96,14 +112,14 @@ export default function ReportGenerator() {
 
       const result = await generateMonthlyReport(input);
       
-      if (result.reportDataUri) {
-        setReportUri(result.reportDataUri);
+      if (result) {
+        setReportData(result);
         toast({
           title: "Report Generated",
-          description: "Your monthly report is ready for download.",
+          description: "Your monthly report preview is ready below.",
         });
       } else {
-        throw new Error("Failed to generate report URI.");
+        throw new Error("The AI model failed to return valid report data.");
       }
     } catch (error) {
       console.error(error);
@@ -114,7 +130,7 @@ export default function ReportGenerator() {
         description: `There was a problem generating your report. Error: ${errorMessage}`,
       });
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
   
@@ -128,80 +144,89 @@ export default function ReportGenerator() {
   const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => (currentYear - i).toString());
 
   return (
-    <Card className="max-w-2xl mx-auto animate-in fade-in-50">
-      <CardHeader>
-        <CardTitle className="font-headline text-2xl">Monthly Report Generator</CardTitle>
-        <CardDescription>
-          Select a month and year to generate an automated profit-loss report.
-          The AI will analyze the data and provide a summary with key metrics.
-        </CardDescription>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="month"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Month</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a month" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectPortal>
-                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                          {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                        </SelectContent>
-                      </SelectPortal>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="year"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Year</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a year" />
-                        </SelectTrigger>
-                      </FormControl>
-                       <SelectPortal>
-                        <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                          {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                        </SelectContent>
-                      </SelectPortal>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between items-center">
-            <Button type="submit" disabled={isLoading || !data}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Generate Report
-            </Button>
-            {reportUri && (
-              <Button asChild variant="outline">
-                <a href={reportUri} download={`report-${form.getValues('month') ? months[parseInt(form.getValues('month'))].label : 'monthly'}-${form.getValues('year')}.pdf`}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </a>
+    <div className="space-y-6">
+      <Card className="max-w-2xl mx-auto animate-in fade-in-50">
+        <CardHeader>
+          <CardTitle className="font-headline text-2xl">Monthly Report Generator</CardTitle>
+          <CardDescription>
+            Select a month and year to generate an automated profit-loss report.
+            The AI will analyze the data and provide a summary with key metrics.
+          </CardDescription>
+        </CardHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="month"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Month</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a month" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectPortal>
+                          <SelectContent position="popper" className="max-h-60 overflow-y-auto">
+                            {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                          </SelectContent>
+                        </SelectPortal>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="year"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Year</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a year" />
+                          </SelectTrigger>
+                        </FormControl>
+                         <SelectPortal>
+                          <SelectContent position="popper" className="max-h-60 overflow-y-auto">
+                            {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                          </SelectContent>
+                        </SelectPortal>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-start">
+              <Button type="submit" disabled={isLoading || isGenerating}>
+                {(isLoading || isGenerating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? 'Loading Data...' : isGenerating ? 'Generating...' : 'Generate Report'}
               </Button>
-            )}
-          </CardFooter>
-        </form>
-      </Form>
-    </Card>
+            </CardFooter>
+          </form>
+        </Form>
+      </Card>
+
+      {isGenerating && (
+         <Card className="max-w-4xl mx-auto animate-pulse">
+            <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
+            <CardContent className="space-y-4">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+            </CardContent>
+        </Card>
+      )}
+
+      {reportData && formValues && (
+        <ReportPreview reportData={reportData} month={months[parseInt(formValues.month, 10)].label} year={formValues.year} />
+      )}
+    </div>
   );
 }
