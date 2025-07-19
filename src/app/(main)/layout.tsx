@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   Scale,
   Gift,
+  LogOut,
 } from 'lucide-react';
 
 import {
@@ -30,6 +31,9 @@ import {
   SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/hooks/use-auth.tsx';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -47,7 +51,49 @@ const navItems = [
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard'
+  const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard';
+  const { user, loading, isApproved, signOut } = useAuth();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+  
+  if (loading) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <Book className="h-8 w-8 animate-spin text-primary" />
+        </div>
+    )
+  }
+
+  if (user && !isApproved) {
+    return (
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-background p-4 text-center">
+            <Card className="max-w-md p-8">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Pending Approval</CardTitle>
+                    <CardDescription>
+                        Your account is currently waiting for approval from an administrator. 
+                        Please check back later.
+                    </CardDescription>
+                </CardHeader>
+                <CardFooter>
+                    <Button onClick={signOut} variant="outline" className="w-full">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                    </Button>
+                </CardFooter>
+            </Card>
+        </div>
+    )
+  }
+  
+  if (!user || !isApproved) {
+    return null;
+  }
 
   return (
     <SidebarProvider>
@@ -82,13 +128,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <SidebarFooter className="p-4 border-t">
             <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarImage src="https://placehold.co/40x40" alt="User" data-ai-hint="person" />
-                <AvatarFallback>SO</AvatarFallback>
+                <AvatarImage src={user.photoURL || "https://placehold.co/40x40"} alt="User" data-ai-hint="person" />
+                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="flex flex-col">
-                <span className="font-semibold text-sm">Store Owner</span>
-                <span className="text-xs text-muted-foreground">owner@bookstore.com</span>
+              <div className="flex flex-col truncate">
+                <span className="font-semibold text-sm truncate">{user.displayName || 'Store Owner'}</span>
+                <span className="text-xs text-muted-foreground truncate">{user.email}</span>
               </div>
+              <Button onClick={signOut} variant="ghost" size="icon" className="ml-auto" title="Sign Out">
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </SidebarFooter>
         </Sidebar>
@@ -107,3 +156,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     </SidebarProvider>
   );
 }
+
+// Add these to avoid ReferenceError
+import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';

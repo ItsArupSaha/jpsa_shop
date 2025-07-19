@@ -1,5 +1,7 @@
+
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,6 +14,7 @@ const firebaseConfig = {
 
 let app;
 let db;
+let auth;
 
 // Check if the config values are present and not placeholders
 if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your-project-id')) {
@@ -30,7 +33,8 @@ if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your-project
     // Initialize Firebase
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);
+    auth = getAuth(app);
 }
 
 
-export { app, db };
+export { app, db, auth };
