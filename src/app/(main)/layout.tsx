@@ -11,7 +11,8 @@ import {
   FileText,
   ShoppingCart,
   Users,
-  ShoppingBag
+  ShoppingBag,
+  Scale
 } from 'lucide-react';
 
 import {
@@ -38,6 +39,7 @@ const navItems = [
   { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },
   { href: '/reports', icon: FileText, label: 'Reports' },
+  { href: '/balance-sheet', icon: Scale, label: 'Balance Sheet' },
 ];
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {

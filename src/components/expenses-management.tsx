@@ -26,11 +26,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from './ui/scroll-area';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   amount: z.coerce.number().min(0.01, 'Amount must be positive'),
   date: z.date({ required_error: "An expense date is required." }),
+  paymentMethod: z.enum(['Cash', 'Bank'], { required_error: "A payment method is required." }),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
@@ -56,11 +58,12 @@ export default function ExpensesManagement() {
     defaultValues: {
       description: '',
       amount: 0,
+      paymentMethod: 'Cash',
     },
   });
 
   const handleAddNew = () => {
-    form.reset({ description: '', amount: 0, date: new Date() });
+    form.reset({ description: '', amount: 0, date: new Date(), paymentMethod: 'Cash' });
     setIsAddDialogOpen(true);
   };
 
@@ -119,14 +122,15 @@ export default function ExpensesManagement() {
     
     autoTable(doc, {
       startY: 20,
-      head: [['Date', 'Description', 'Amount']],
+      head: [['Date', 'Description', 'Method', 'Amount']],
       body: filteredExpenses.map(e => [
         format(new Date(e.date), 'yyyy-MM-dd'),
         e.description,
+        e.paymentMethod,
         `$${e.amount.toFixed(2)}`
       ]),
       foot: [
-        [{ content: 'Total', colSpan: 2, styles: { halign: 'right' } }, `$${totalExpenses.toFixed(2)}`],
+        [{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, `$${totalExpenses.toFixed(2)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
     });
@@ -146,6 +150,7 @@ export default function ExpensesManagement() {
     const csvData = filteredExpenses.map(e => ({
       Date: format(new Date(e.date), 'yyyy-MM-dd'),
       Description: e.description,
+      Method: e.paymentMethod,
       Amount: e.amount.toFixed(2),
     }));
 
@@ -230,6 +235,7 @@ export default function ExpensesManagement() {
                 <TableRow>
                   <TableHead>Description</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead>Method</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -239,6 +245,7 @@ export default function ExpensesManagement() {
                   <TableRow key={expense.id}>
                     <TableCell className="font-medium">{expense.description}</TableCell>
                     <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
+                    <TableCell>{expense.paymentMethod}</TableCell>
                     <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                        <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
@@ -248,7 +255,7 @@ export default function ExpensesManagement() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
+                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -286,6 +293,32 @@ export default function ExpensesManagement() {
                     <FormLabel>Amount</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="50.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Payment Method</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex gap-4"
+                      >
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl><RadioGroupItem value="Cash" /></FormControl>
+                          <FormLabel className="font-normal">Cash</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2">
+                          <FormControl><RadioGroupItem value="Bank" /></FormControl>
+                          <FormLabel className="font-normal">Bank</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -342,5 +375,3 @@ export default function ExpensesManagement() {
     </>
   );
 }
-
-    

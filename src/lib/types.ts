@@ -65,6 +65,7 @@ export type Expense = {
   date: string; // Changed to string for serialization
   description: string;
   amount: number;
+  paymentMethod?: 'Cash' | 'Bank';
 };
 
 export type Transaction = {

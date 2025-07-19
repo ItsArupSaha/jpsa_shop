@@ -77,18 +77,21 @@ export async function addBook(data: Omit<Book, 'id'>) {
   if (!db) return;
   await addDoc(collection(db, 'books'), data);
   revalidatePath('/books');
+  revalidatePath('/balance-sheet');
 }
 
 export async function updateBook(id: string, data: Omit<Book, 'id'>) {
   if (!db) return;
   await updateDoc(doc(db, 'books', id), data);
   revalidatePath('/books');
+  revalidatePath('/balance-sheet');
 }
 
 export async function deleteBook(id: string) {
   if (!db) return;
   await deleteDoc(doc(db, 'books', id));
   revalidatePath('/books');
+  revalidatePath('/balance-sheet');
 }
 
 
@@ -264,6 +267,7 @@ export async function addSale(
       revalidatePath('/dashboard');
       revalidatePath('/books');
       revalidatePath('/receivables');
+      revalidatePath('/balance-sheet');
       if (data.customerId) {
           revalidatePath(`/customers/${data.customerId}`);
       }
@@ -344,6 +348,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                   description: `Payment for Purchase ${purchaseId}`,
                   amount: totalAmount,
                   date: Timestamp.fromDate(new Date()),
+                  paymentMethod: data.paymentMethod, // Add payment method to expense
               };
               transaction.set(doc(collection(db, 'expenses')), expenseData);
           } else if (data.paymentMethod === 'Split') {
@@ -355,6 +360,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
                       description: `Partial payment for Purchase ${purchaseId}`,
                       amount: amountPaid,
                       date: Timestamp.fromDate(new Date()),
+                      paymentMethod: data.splitPaymentMethod, // Add payment method to expense
                   };
                   transaction.set(doc(collection(db, 'expenses')), expenseData);
               }
@@ -388,6 +394,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
       revalidatePath('/payables');
       revalidatePath('/expenses');
       revalidatePath('/dashboard');
+      revalidatePath('/balance-sheet');
       return result;
   } catch (e) {
       console.error("Purchase creation failed: ", e);
@@ -412,6 +419,7 @@ export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Da
     await addDoc(collection(db, 'expenses'), expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
 }
 
 export async function deleteExpense(id: string) {
@@ -419,6 +427,7 @@ export async function deleteExpense(id: string) {
     await deleteDoc(doc(db, 'expenses', id));
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
 }
 
 
@@ -428,9 +437,8 @@ export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<T
     const q = query(collection(db, 'transactions'), where('type', '==', type));
     const snapshot = await getDocs(q);
     const transactions = snapshot.docs.map(docToTransaction);
-    // Sort manually to avoid needing a composite index
-    transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
-    return transactions;
+    // Sort in application code to avoid needing a composite index
+    return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
 export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }) {
@@ -443,6 +451,7 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
     await addDoc(collection(db, 'transactions'), transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
     if (data.customerId) {
       revalidatePath(`/customers/${data.customerId}`);
     }
@@ -498,6 +507,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
 
         revalidatePath('/receivables');
         revalidatePath('/dashboard');
+        revalidatePath('/balance-sheet');
         if (data.customerId) {
             revalidatePath(`/customers/${data.customerId}`);
         }
@@ -519,6 +529,7 @@ export async function updateTransactionStatus(id: string, status: 'Pending' | 'P
 
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
     if (transDoc.exists()){
       const customerId = transDoc.data().customerId;
       if (customerId) {
@@ -533,7 +544,99 @@ export async function deleteTransaction(id: string, type: 'Receivable' | 'Payabl
     await deleteDoc(doc(db, 'transactions', id));
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
 }
+
+// --- Balance Sheet Action ---
+export async function getBalanceSheetData() {
+    if (!db) {
+        throw new Error("Database not connected");
+    }
+
+    const [books, sales, expenses, transactions, purchases] = await Promise.all([
+        getBooks(),
+        getSales(),
+        getExpenses(),
+        getDocs(collection(db, 'transactions')),
+        getPurchases(),
+    ]);
+
+    // Calculate Cash and Bank
+    let cash = 0;
+    let bank = 0;
+
+    // Sales income
+    sales.forEach(sale => {
+        if (sale.paymentMethod === 'Cash') {
+            cash += sale.total;
+        } else if (sale.paymentMethod === 'Bank') {
+            bank += sale.total;
+        } else if (sale.paymentMethod === 'Split' && sale.amountPaid) {
+            // Assume split payments are cash for now. This could be enhanced.
+            cash += sale.amountPaid;
+        }
+    });
+
+    // Customer payments received
+    transactions.docs.forEach(d => {
+        const t = docToTransaction(d);
+        if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
+            if (t.paymentMethod === 'Cash') {
+                cash += t.amount;
+            } else if (t.paymentMethod === 'Bank') {
+                bank += t.amount;
+            }
+        }
+    });
+
+    // Expenses paid
+    expenses.forEach(expense => {
+        // We need to assume a payment method for expenses. Defaulting to cash if not specified.
+        if (expense.paymentMethod === 'Bank') {
+            bank -= expense.amount;
+        } else {
+            cash -= expense.amount;
+        }
+    });
+
+
+    // Calculate stock value
+    const stockValue = books.reduce((sum, book) => sum + (book.productionPrice * book.stock), 0);
+
+    // Calculate Office Assets Value from purchases
+    const officeAssetsValue = purchases
+        .flatMap(p => p.items)
+        .filter(i => i.category === 'Office Asset')
+        .reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+
+
+    // Calculate Receivables (money owed to us)
+    const receivables = transactions.docs
+        .map(docToTransaction)
+        .filter(t => t.type === 'Receivable' && t.status === 'Pending')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    // Calculate Payables (money we owe)
+    const payables = transactions.docs
+        .map(docToTransaction)
+        .filter(t => t.type === 'Payable' && t.status === 'Pending')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalAssets = cash + bank + receivables + stockValue + officeAssetsValue;
+    const equity = totalAssets - payables;
+
+    return {
+        cash,
+        bank,
+        stockValue,
+        officeAssetsValue,
+        receivables,
+        totalAssets,
+        payables,
+        equity
+    };
+}
+
 
 // --- Database Seeding ---
 export async function seedDatabase() {
@@ -605,4 +708,5 @@ export async function seedDatabase() {
     revalidatePath('/receivables');
     revalidatePath('/payables');
     revalidatePath('/purchases');
+    revalidatePath('/balance-sheet');
 }
