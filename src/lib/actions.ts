@@ -119,7 +119,8 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
 
     const allCustomers = await getCustomers();
     const allSales = await getSales();
-    const allTransactions = await getTransactions('Receivable');
+    const allTransactionsData = await getDocs(collection(db, 'transactions'));
+    const allTransactions = allTransactionsData.docs.map(docToTransaction);
 
     const customersWithBalances = allCustomers.map(customer => {
         const customerSales = allSales.filter(sale => sale.customerId === customer.id);
@@ -434,7 +435,7 @@ export async function deleteExpense(id: string) {
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
     if (!db) return [];
-    const q = query(collection(db, 'transactions'), where('type', '==', type));
+    const q = query(collection(db, 'transactions'), where('type', '==', type), where('status', '==', 'Pending'));
     const snapshot = await getDocs(q);
     const transactions = snapshot.docs.map(docToTransaction);
     // Sort in application code to avoid needing a composite index
@@ -553,13 +554,14 @@ export async function getBalanceSheetData() {
         throw new Error("Database not connected");
     }
 
-    const [books, sales, expenses, transactions, purchases] = await Promise.all([
+    const [books, sales, expenses, allTransactionsData, purchases] = await Promise.all([
         getBooks(),
         getSales(),
         getExpenses(),
-        getDocs(collection(db, 'transactions')),
+        getDocs(collection(db, 'transactions')), // Get ALL transactions for balance sheet
         getPurchases(),
     ]);
+    const allTransactions = allTransactionsData.docs.map(docToTransaction);
 
     // Calculate Cash and Bank
     let cash = 0;
@@ -578,8 +580,7 @@ export async function getBalanceSheetData() {
     });
 
     // Customer payments received
-    transactions.docs.forEach(d => {
-        const t = docToTransaction(d);
+    allTransactions.forEach(t => {
         if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
             if (t.paymentMethod === 'Cash') {
                 cash += t.amount;
@@ -611,14 +612,12 @@ export async function getBalanceSheetData() {
 
 
     // Calculate Receivables (money owed to us)
-    const receivables = transactions.docs
-        .map(docToTransaction)
+    const receivables = allTransactions
         .filter(t => t.type === 'Receivable' && t.status === 'Pending')
         .reduce((sum, t) => sum + t.amount, 0);
 
     // Calculate Payables (money we owe)
-    const payables = transactions.docs
-        .map(docToTransaction)
+    const payables = allTransactions
         .filter(t => t.type === 'Payable' && t.status === 'Pending')
         .reduce((sum, t) => sum + t.amount, 0);
 

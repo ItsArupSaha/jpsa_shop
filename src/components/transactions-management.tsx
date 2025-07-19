@@ -96,7 +96,6 @@ export default function TransactionsManagement({ title, description, type }: Tra
                   <TableHead>Description</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,15 +104,10 @@ export default function TransactionsManagement({ title, description, type }: Tra
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>
                     <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={transaction.status === 'Paid' ? 'secondary' : 'default'}>
-                        {transaction.status}
-                      </Badge>
-                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">No {type.toLowerCase()}s recorded.</TableCell>
+                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">No pending {type.toLowerCase()}s recorded.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
