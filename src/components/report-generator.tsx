@@ -12,8 +12,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download } from 'lucide-react';
-import type { Sale, Expense, Book } from '@/lib/types';
-import { getSales, getExpenses, getBooks } from '@/lib/actions';
+import type { Sale, Expense, Book, Donation } from '@/lib/types';
+import { getSales, getExpenses, getBooks, getDonations, getBalanceSheetData } from '@/lib/actions';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -26,22 +26,28 @@ interface ReportData {
   sales: Sale[];
   expenses: Expense[];
   books: Book[];
+  donations: Donation[];
+  balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
 export default function ReportGenerator() {
   const [data, setData] = React.useState<ReportData | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [reportUri, setReportUri] = React.useState<string | null>(null);
   const { toast } = useToast();
 
   React.useEffect(() => {
     async function loadData() {
-      const [sales, expenses, books] = await Promise.all([
+      setIsLoading(true);
+      const [sales, expenses, books, donations, balanceSheet] = await Promise.all([
         getSales(),
         getExpenses(),
         getBooks(),
+        getDonations(),
+        getBalanceSheetData(),
       ]);
-      setData({ sales, expenses, books });
+      setData({ sales, expenses, books, donations, balanceSheet });
+      setIsLoading(false);
     }
     loadData();
   }, []);
@@ -68,11 +74,22 @@ export default function ReportGenerator() {
         const expenseDate = new Date(e.date);
         return expenseDate.getMonth() === selectedMonth && expenseDate.getFullYear() === selectedYear;
       });
+
+      const donationsForMonth = data.donations.filter(d => {
+        const donationDate = new Date(d.date);
+        return donationDate.getMonth() === selectedMonth && donationDate.getFullYear() === selectedYear;
+      });
       
       const input = {
         salesData: JSON.stringify(salesForMonth),
         expensesData: JSON.stringify(expensesForMonth),
+        donationsData: JSON.stringify(donationsForMonth),
         booksData: JSON.stringify(data.books),
+        balanceData: JSON.stringify({
+            cash: data.balanceSheet.cash,
+            bank: data.balanceSheet.bank,
+            stockValue: data.balanceSheet.stockValue,
+        }),
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
       };
