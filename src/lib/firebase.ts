@@ -29,12 +29,7 @@ if (!firebaseConfig.projectId || firebaseConfig.projectId.includes('your-project
     * The application will not be able to connect to Firestore until this is done.   *
     **********************************************************************************
   `);
-  console.log('Current Firebase Config:', firebaseConfig);
 } else {
-    // Log the config for debugging purposes
-    console.log('Initializing Firebase with the following config:');
-    console.table(firebaseConfig);
-    
     // Initialize Firebase
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);
