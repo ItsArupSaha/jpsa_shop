@@ -293,7 +293,6 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           const purchaseDate = new Date();
           const metadataRef = doc(db, 'metadata', 'counters');
 
-          // Get and update the purchase counter
           const metadataDoc = await transaction.get(metadataRef);
           let lastPurchaseNumber = 0;
           if (metadataDoc.exists()) {
@@ -303,13 +302,11 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-          // Calculate total amount
           let totalAmount = 0;
           for (const item of data.items) {
               totalAmount += item.cost * item.quantity;
           }
 
-          // Create purchase record
           const newPurchaseRef = doc(collection(db, 'purchases'));
           const purchaseData = {
               ...data,
@@ -320,43 +317,52 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           };
           transaction.set(newPurchaseRef, purchaseData);
 
-          // Update book stock for 'Book' category items
           const booksCollectionRef = collection(db, 'books');
           for (const item of data.items) {
               if (item.category === 'Book') {
                   const q = query(booksCollectionRef, where("title", "==", item.itemName));
-                  const bookSnapshot = await getDocs(q); // Use getDocs instead of transaction.get with query
+                  const bookSnapshot = await getDocs(q); 
 
                   if (!bookSnapshot.empty) {
-                      // Book exists, update stock
                       const bookDoc = bookSnapshot.docs[0];
                       const currentStock = bookDoc.data().stock || 0;
                       transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
                   } else {
-                      // Book doesn't exist, create it
                       const newBookRef = doc(booksCollectionRef);
                       const newBookData: Omit<Book, 'id'> = {
                           title: item.itemName,
                           author: item.author || 'Unknown',
                           stock: item.quantity,
                           productionPrice: item.cost,
-                          sellingPrice: item.cost * 1.5, // Default markup of 50%
+                          sellingPrice: item.cost * 1.5,
                       };
                       transaction.set(newBookRef, newBookData);
                   }
               }
           }
 
-          // Create a payable transaction
-          const payableData = {
-              description: `Purchase ${purchaseId} from ${data.supplier}`,
-              amount: totalAmount,
-              dueDate: Timestamp.fromDate(data.dueDate),
-              status: 'Pending' as const,
-              type: 'Payable' as const,
-          };
-          const newTransactionRef = doc(collection(db, 'transactions'));
-          transaction.set(newTransactionRef, payableData);
+          let payableAmount = totalAmount;
+          let payableStatus: 'Pending' | 'Paid' = 'Pending';
+
+          if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
+              payableStatus = 'Paid';
+              payableAmount = 0;
+          } else if (data.paymentMethod === 'Split') {
+              payableAmount = totalAmount - (data.amountPaid || 0);
+          }
+
+          if (payableAmount > 0 || payableStatus === 'Paid') {
+              const newTransactionRef = doc(collection(db, 'transactions'));
+              const payableData = {
+                  description: `Purchase ${purchaseId} from ${data.supplier}`,
+                  amount: payableAmount > 0 ? payableAmount : totalAmount,
+                  dueDate: Timestamp.fromDate(data.dueDate),
+                  status: payableStatus,
+                  type: 'Payable' as const,
+                  paymentMethod: data.paymentMethod,
+              };
+              transaction.set(newTransactionRef, payableData);
+          }
 
           return { success: true };
       });

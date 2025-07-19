@@ -28,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from './ui/scroll-area';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -48,7 +49,17 @@ const purchaseItemSchema = z.object({
 const purchaseFormSchema = z.object({
   supplier: z.string().min(1, 'Supplier is required'),
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required.'),
+  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split'], { required_error: 'Payment method is required.'}),
+  amountPaid: z.coerce.number().optional(),
   dueDate: z.date({ required_error: "A due date is required." }),
+}).refine(data => {
+    if (data.paymentMethod === 'Split') {
+        return data.amountPaid !== undefined && data.amountPaid > 0;
+    }
+    return true;
+}, {
+    message: "Amount paid is required for split payments.",
+    path: ['amountPaid'],
 });
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
@@ -75,6 +86,8 @@ export default function PurchaseManagement() {
     defaultValues: {
       supplier: '',
       items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
+      paymentMethod: 'Due',
+      amountPaid: 0,
       dueDate: new Date(),
     },
   });
@@ -85,16 +98,28 @@ export default function PurchaseManagement() {
   });
   
   const watchItems = form.watch('items');
+  const watchPaymentMethod = form.watch('paymentMethod');
+  const watchAmountPaid = form.watch('amountPaid');
+
   const totalAmount = watchItems.reduce((acc, item) => {
     const cost = item.cost || 0;
     const quantity = Number(item.quantity) || 0;
     return acc + (cost * quantity);
   }, 0);
 
+  let dueAmount = 0;
+  if (watchPaymentMethod === 'Due') {
+    dueAmount = totalAmount;
+  } else if (watchPaymentMethod === 'Split') {
+    dueAmount = totalAmount - (watchAmountPaid || 0);
+  }
+
   const handleAddNew = () => {
     form.reset({
       supplier: '',
       items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
+      paymentMethod: 'Due',
+      amountPaid: 0,
       dueDate: new Date(),
     });
     setIsDialogOpen(true);
@@ -235,6 +260,7 @@ export default function PurchaseManagement() {
                   <TableHead>Purchase ID</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -247,11 +273,12 @@ export default function PurchaseManagement() {
                     <TableCell className="max-w-[300px] truncate">
                       {purchase.items.map(i => `${i.quantity}x ${i.itemName}`).join(', ')}
                     </TableCell>
+                    <TableCell>{purchase.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">${purchase.totalAmount.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -267,9 +294,9 @@ export default function PurchaseManagement() {
             <DialogDescription>Enter supplier details and the items purchased. New books will be created automatically.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-4 p-1">
-                <FormField
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+              <div className="flex-1 space-y-4 max-h-[70vh] overflow-y-auto pr-4 p-1">
+                 <FormField
                     control={form.control}
                     name="supplier"
                     render={({ field }) => (
@@ -374,44 +401,100 @@ export default function PurchaseManagement() {
                 </Button>
                 
                  <Separator />
-                <FormField
-                    control={form.control}
-                    name="dueDate"
-                    render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                        <FormLabel>Payment Due Date</FormLabel>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <FormControl>
-                                <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                            </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
-                            </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                    </FormItem>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                      control={form.control}
+                      name="paymentMethod"
+                      render={({ field }) => (
+                        <FormItem className="space-y-2">
+                          <FormLabel>Payment Method</FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              className="flex flex-wrap gap-4 pt-2"
+                            >
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Cash" id="cash-pur" /></FormControl>
+                                <FormLabel htmlFor="cash-pur" className="font-normal">Cash</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Bank" id="bank-pur" /></FormControl>
+                                <FormLabel htmlFor="bank-pur" className="font-normal">Bank</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Due" id="due-pur" /></FormControl>
+                                <FormLabel htmlFor="due-pur" className="font-normal">Due</FormLabel>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Split" id="split-pur" /></FormControl>
+                                <FormLabel htmlFor="split-pur" className="font-normal">Split</FormLabel>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {watchPaymentMethod === 'Split' && (
+                        <FormField
+                            control={form.control}
+                            name="amountPaid"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Amount Paid Now</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                     )}
-                />
-                 <Separator />
-                <div className="space-y-2 text-sm pr-4">
-                    <div className="flex justify-between font-bold text-base">
-                        <span>Total Amount</span>
-                        <span>${totalAmount.toFixed(2)}</span>
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="dueDate"
+                      render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                          <FormLabel>Payment Due Date</FormLabel>
+                          <Popover>
+                              <PopoverTrigger asChild>
+                              <FormControl>
+                                  <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                  {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                              </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
+                              </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                      </FormItem>
+                      )}
+                  />
                 </div>
-
               </div>
-
-              <DialogFooter className="pt-4 border-t mt-auto">
-                <Button type="submit" disabled={isPending || totalAmount <= 0 || !form.formState.isValid}>
-                  {isPending ? "Saving..." : "Confirm Purchase"}
-                </Button>
-              </DialogFooter>
+              <div className="mt-auto pt-4 space-y-4 border-t">
+                  <div className="space-y-2 text-sm pr-4">
+                      <div className="flex justify-between font-bold text-base">
+                          <span>Total Amount</span>
+                          <span>${totalAmount.toFixed(2)}</span>
+                      </div>
+                      { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
+                          <div className="flex justify-between font-semibold text-destructive">
+                              <span>Due Amount</span>
+                              <span>${dueAmount.toFixed(2)}</span>
+                          </div>
+                      )}
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" disabled={isPending || totalAmount <= 0 || !form.formState.isValid}>
+                      {isPending ? "Saving..." : "Confirm Purchase"}
+                    </Button>
+                  </DialogFooter>
+              </div>
             </form>
           </Form>
         </DialogContent>

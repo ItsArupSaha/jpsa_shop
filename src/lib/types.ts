@@ -54,6 +54,8 @@ export type Purchase = {
     supplier: string;
     items: PurchaseItem[];
     totalAmount: number;
+    paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
+    amountPaid?: number;
     dueDate: string;
 };
 
