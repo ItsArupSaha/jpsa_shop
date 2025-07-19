@@ -1,12 +1,13 @@
+
 'use client';
 
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { getTransactions, addTransaction, updateTransactionStatus, deleteTransaction } from '@/lib/actions';
+import { getTransactions, addTransaction } from '@/lib/actions';
 
 import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -64,22 +65,6 @@ export default function TransactionsManagement({ title, description, type }: Tra
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    startTransition(async () => {
-        await deleteTransaction(id, type);
-        await fetchData();
-        toast({ title: `${type} Deleted`, description: `The transaction has been removed.` });
-    });
-  };
-  
-  const handleMarkAsPaid = (id: string) => {
-    startTransition(async () => {
-        await updateTransactionStatus(id, 'Paid', type);
-        await fetchData();
-        toast({ title: "Status Updated", description: `The ${type.toLowerCase()} has been marked as paid.` });
-    });
-  };
-
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
         await addTransaction({ ...data, type });
@@ -112,7 +97,6 @@ export default function TransactionsManagement({ title, description, type }: Tra
                   <TableHead>Due Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -126,20 +110,10 @@ export default function TransactionsManagement({ title, description, type }: Tra
                         {transaction.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                       {transaction.status === 'Pending' && (
-                         <Button variant="ghost" size="icon" onClick={() => handleMarkAsPaid(transaction.id)} title="Mark as Paid" disabled={isPending}>
-                           <CheckCircle2 className="h-4 w-4 text-primary" />
-                         </Button>
-                       )}
-                       <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)} title="Delete" disabled={isPending}>
-                         <Trash2 className="h-4 w-4 text-destructive" />
-                       </Button>
-                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No {type.toLowerCase()}s recorded.</TableCell>
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">No {type.toLowerCase()}s recorded.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
