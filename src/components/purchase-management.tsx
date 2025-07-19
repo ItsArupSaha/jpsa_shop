@@ -51,14 +51,15 @@ const purchaseFormSchema = z.object({
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required.'),
   paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split'], { required_error: 'Payment method is required.'}),
   amountPaid: z.coerce.number().optional(),
+  splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
   dueDate: z.date({ required_error: "A due date is required." }),
 }).refine(data => {
     if (data.paymentMethod === 'Split') {
-        return data.amountPaid !== undefined && data.amountPaid > 0;
+        return data.amountPaid !== undefined && data.amountPaid > 0 && !!data.splitPaymentMethod;
     }
     return true;
 }, {
-    message: "Amount paid is required for split payments.",
+    message: "Amount paid and its method are required for split payments.",
     path: ['amountPaid'],
 });
 
@@ -88,6 +89,7 @@ export default function PurchaseManagement() {
       items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
+      splitPaymentMethod: 'Cash',
       dueDate: new Date(),
     },
   });
@@ -120,6 +122,7 @@ export default function PurchaseManagement() {
       items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
+      splitPaymentMethod: 'Cash',
       dueDate: new Date(),
     });
     setIsDialogOpen(true);
@@ -437,19 +440,37 @@ export default function PurchaseManagement() {
                       )}
                     />
                     {watchPaymentMethod === 'Split' && (
-                        <FormField
+                        <div className='space-y-2'>
+                          <FormField
+                              control={form.control}
+                              name="amountPaid"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <FormLabel>Amount Paid Now</FormLabel>
+                                      <FormControl>
+                                          <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          <FormField
                             control={form.control}
-                            name="amountPaid"
+                            name="splitPaymentMethod"
                             render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Amount Paid Now</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
+                                <FormItem className="space-y-2">
+                                <FormLabel className="text-sm">Paid Via</FormLabel>
+                                <FormControl>
+                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" /></FormControl><FormLabel className="font-normal">Bank</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
                                 </FormItem>
                             )}
-                        />
+                           />
+                        </div>
                     )}
                     <FormField
                       control={form.control}

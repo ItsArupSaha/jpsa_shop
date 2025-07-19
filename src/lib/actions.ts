@@ -114,11 +114,9 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
 export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
     if (!db) return [];
 
-    const [allCustomers, allSales, allTransactions] = await Promise.all([
-        getCustomers(),
-        getSales(),
-        getTransactions('Receivable'),
-    ]);
+    const allCustomers = await getCustomers();
+    const allSales = await getSales();
+    const allTransactions = await getTransactions('Receivable');
 
     const customersWithBalances = allCustomers.map(customer => {
         const customerSales = allSales.filter(sale => sale.customerId === customer.id);
@@ -140,7 +138,7 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
         return { ...customer, dueBalance };
     });
 
-    return customersWithBalances.filter(c => c.dueBalance > 0);
+    return customersWithBalances.filter(c => c.dueBalance > 0.01);
 }
 
 
@@ -155,6 +153,7 @@ export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
   await updateDoc(doc(db, 'customers', id), data);
   revalidatePath('/customers');
   revalidatePath('/receivables');
+  revalidatePath(`/customers/${id}`);
 }
 
 export async function deleteCustomer(id: string) {
@@ -177,19 +176,17 @@ export async function addSale(
     if (!db) return { success: false, error: "Database not configured." };
   
     try {
-      return await runTransaction(db, async (transaction) => {
+      const result = await runTransaction(db, async (transaction) => {
         const saleDate = new Date();
         const bookRefs = data.items.map(item => doc(db, 'books', item.bookId));
         const customerRef = doc(db, 'customers', data.customerId);
         
-        // --- 1. Read all data first ---
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
         const customerDoc = await transaction.get(customerRef);
         if (!customerDoc.exists()) {
             throw new Error(`Customer with id ${data.customerId} does not exist!`);
         }
         
-        // --- 2. Calculate totals and validate stock ---
         let calculatedSubtotal = 0;
         const itemsWithPrices: SaleItem[] = [];
   
@@ -219,7 +216,6 @@ export async function addSale(
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
         const calculatedTotal = calculatedSubtotal - discountAmount;
   
-        // --- 3. Perform all writes ---
         const newSaleRef = doc(collection(db, "sales"));
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
@@ -264,17 +260,17 @@ export async function addSale(
   
         return { success: true, sale: saleForClient };
       });
+      revalidatePath('/sales');
+      revalidatePath('/dashboard');
+      revalidatePath('/books');
+      revalidatePath('/receivables');
+      if (data.customerId) {
+          revalidatePath(`/customers/${data.customerId}`);
+      }
+      return result;
     } catch (e) {
       console.error("Sale creation failed: ", e);
       return { success: false, error: e instanceof Error ? e.message : String(e) };
-    } finally {
-        revalidatePath('/sales');
-        revalidatePath('/dashboard');
-        revalidatePath('/books');
-        revalidatePath('/receivables');
-        if (data.customerId) {
-            revalidatePath(`/customers/${data.customerId}`);
-        }
     }
 }
 
@@ -286,10 +282,10 @@ export async function getPurchases(): Promise<Purchase[]> {
 }
 
 export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: Date }) {
-  if (!db) return;
+  if (!db) return { success: false, error: 'Database not connected' };
 
   try {
-      return await runTransaction(db, async (transaction) => {
+      const result = await runTransaction(db, async (transaction) => {
           const purchaseDate = new Date();
           const metadataRef = doc(db, 'metadata', 'counters');
 
@@ -300,7 +296,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           }
           const newPurchaseNumber = lastPurchaseNumber + 1;
           const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
-          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
+          
 
           let totalAmount = 0;
           for (const item of data.items) {
@@ -316,6 +312,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
               totalAmount: totalAmount,
           };
           transaction.set(newPurchaseRef, purchaseData);
+          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
           const booksCollectionRef = collection(db, 'books');
           for (const item of data.items) {
@@ -341,39 +338,60 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
               }
           }
 
-          let payableAmount = totalAmount;
-          let payableStatus: 'Pending' | 'Paid' = 'Pending';
-
+          // Handle payment logic
           if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
-              payableStatus = 'Paid';
-              payableAmount = 0;
+              const expenseData = {
+                  description: `Payment for Purchase ${purchaseId}`,
+                  amount: totalAmount,
+                  date: Timestamp.fromDate(new Date()),
+              };
+              transaction.set(doc(collection(db, 'expenses')), expenseData);
           } else if (data.paymentMethod === 'Split') {
-              payableAmount = totalAmount - (data.amountPaid || 0);
-          }
+              const amountPaid = data.amountPaid || 0;
+              const payableAmount = totalAmount - amountPaid;
 
-          if (payableAmount > 0 || payableStatus === 'Paid') {
-              const newTransactionRef = doc(collection(db, 'transactions'));
+              if (amountPaid > 0) {
+                  const expenseData = {
+                      description: `Partial payment for Purchase ${purchaseId}`,
+                      amount: amountPaid,
+                      date: Timestamp.fromDate(new Date()),
+                  };
+                  transaction.set(doc(collection(db, 'expenses')), expenseData);
+              }
+
+              if (payableAmount > 0) {
+                  const payableData = {
+                      description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
+                      amount: payableAmount,
+                      dueDate: Timestamp.fromDate(data.dueDate),
+                      status: 'Pending' as const,
+                      type: 'Payable' as const,
+                  };
+                  transaction.set(doc(collection(db, 'transactions')), payableData);
+              }
+          } else if (data.paymentMethod === 'Due') {
               const payableData = {
                   description: `Purchase ${purchaseId} from ${data.supplier}`,
-                  amount: payableAmount > 0 ? payableAmount : totalAmount,
+                  amount: totalAmount,
                   dueDate: Timestamp.fromDate(data.dueDate),
-                  status: payableStatus,
+                  status: 'Pending' as const,
                   type: 'Payable' as const,
-                  paymentMethod: data.paymentMethod,
               };
-              transaction.set(newTransactionRef, payableData);
+              transaction.set(doc(collection(db, 'transactions')), payableData);
           }
 
           return { success: true };
       });
-  } catch (e) {
-      console.error("Purchase creation failed: ", e);
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
-  } finally {
+
       revalidatePath('/purchases');
       revalidatePath('/books');
       revalidatePath('/payables');
+      revalidatePath('/expenses');
       revalidatePath('/dashboard');
+      return result;
+  } catch (e) {
+      console.error("Purchase creation failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -434,7 +452,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
     if (!db) throw new Error("Database not configured.");
 
     try {
-        return await runTransaction(db, async (transaction) => {
+        const result = await runTransaction(db, async (transaction) => {
             let amountToSettle = data.amount;
 
             // 1. Create a "credit" transaction for the payment received. This is crucial for accurate history.
@@ -459,42 +477,55 @@ export async function addPayment(data: { customerId: string, amount: number, pay
                 orderBy('dueDate') // Settle oldest debts first
             );
             
-            // We need to perform the get outside the transaction for queries.
+            // Get has to be outside the transaction
             const pendingDocs = await getDocs(receivablesQuery);
             
             for (const docSnap of pendingDocs.docs) {
                 if (amountToSettle <= 0) break;
 
-                const receivable = docSnap.data() as Transaction;
+                const receivable = docToTransaction(docSnap);
                 const receivableRef = doc(db, 'transactions', docSnap.id);
                 
                 // For now, we only handle full settlement of a receivable.
-                // A more complex system could handle partial settlement.
+                // A more complex system could handle partial settlement in future.
                 if (amountToSettle >= receivable.amount) {
                     transaction.update(receivableRef, { status: 'Paid' });
                     amountToSettle -= receivable.amount;
                 }
             }
+             return { success: true };
         });
 
-    } catch (e) {
-        console.error("Payment processing failed: ", e);
-        throw e;
-    } finally {
         revalidatePath('/receivables');
         revalidatePath('/dashboard');
         if (data.customerId) {
             revalidatePath(`/customers/${data.customerId}`);
         }
+        return result;
+
+    } catch (e) {
+        console.error("Payment processing failed: ", e);
+        throw e instanceof Error ? e : new Error('An unknown error occurred during payment processing.');
     }
 }
 
 
 export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
     if (!db) return;
-    await updateDoc(doc(db, 'transactions', id), { status });
+    const transRef = doc(db, 'transactions', id);
+    const transDoc = await getDoc(transRef);
+    
+    await updateDoc(transRef, { status });
+
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
+    if (transDoc.exists()){
+      const customerId = transDoc.data().customerId;
+      if (customerId) {
+        revalidatePath(`/customers/${customerId}`);
+        revalidatePath('/receivables');
+      }
+    }
 }
 
 export async function deleteTransaction(id: string, type: 'Receivable' | 'Payable') {

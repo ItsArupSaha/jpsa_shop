@@ -56,6 +56,7 @@ export type Purchase = {
     totalAmount: number;
     paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
     amountPaid?: number;
+    splitPaymentMethod?: 'Cash' | 'Bank';
     dueDate: string;
 };
 
