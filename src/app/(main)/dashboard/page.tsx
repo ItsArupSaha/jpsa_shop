@@ -1,13 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft, Database } from 'lucide-react';
-import { getBooks, getSales, getExpenses, getCustomersWithDueBalance, seedDatabase, getCustomers } from '@/lib/actions';
+import { getBooks, getSales, getExpenses, getCustomersWithDueBalance, resetDatabase, getCustomers } from '@/lib/actions';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
 import { Button } from '@/components/ui/button';
 import { revalidatePath } from 'next/cache';
 
-async function handleSeedDatabase() {
+async function handleResetDatabase() {
   'use server';
-  await seedDatabase();
+  await resetDatabase();
   revalidatePath('/dashboard');
 }
 
@@ -59,16 +59,16 @@ export default async function DashboardPage() {
     receivablesAmount: receivablesAmount,
   };
 
-  const isDataEmpty = books.length === 0 && customers.length === 0;
+  const isDataEmpty = books.length === 0 && customers.length <= 1; // Allows for walk-in customer
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in-50">
       <div className="flex justify-between items-start">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
         {isDataEmpty && (
-          <form action={handleSeedDatabase}>
+          <form action={handleResetDatabase}>
             <Button variant="outline">
-              <Database className="mr-2" /> Seed Database
+              <Database className="mr-2" /> Reset Database
             </Button>
           </form>
         )}

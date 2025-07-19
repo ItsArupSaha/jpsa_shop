@@ -21,8 +21,6 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from './firebase';
 import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata, Donation } from './types';
-import { books as mockBooks, customers as mockCustomers, sales as mockSales, expenses as mockExpenses, receivables as mockReceivables, payables as mockPayables } from './data';
-
 
 // Helper to convert Firestore docs to our types
 function docToBook(d: any): Book {
@@ -673,68 +671,40 @@ export async function getBalanceSheetData() {
 }
 
 
-// --- Database Seeding ---
-export async function seedDatabase() {
+// --- Database Seeding/Resetting ---
+export async function resetDatabase() {
     if (!db) return;
-    console.log("Starting database seed...");
+    console.log("Starting database reset...");
     
     const batch = writeBatch(db);
 
-    // Clear existing data
     const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
     for (const coll of collections) {
       const snapshot = await getDocs(collection(db, coll));
       snapshot.docs.forEach(doc => batch.delete(doc.ref));
     }
-    console.log("Cleared existing data...");
+    console.log("Cleared all collections...");
 
-
-    // Seed Books
-    mockBooks.forEach(book => {
-        const docRef = doc(collection(db, 'books'));
-        batch.set(docRef, book);
-    });
-
-    // Seed Customers
-    mockCustomers.forEach(customer => {
-        const docRef = doc(collection(db, 'customers'));
-        batch.set(docRef, customer);
-    });
-
-    // Seed Sales
-    mockSales.forEach(sale => {
-        const docRef = doc(collection(db, 'sales'));
-        const saleData = { ...sale, date: Timestamp.fromDate(new Date(sale.date)) };
-        batch.set(docRef, saleData);
-    });
-
-    // Seed Expenses
-    mockExpenses.forEach(expense => {
-        const docRef = doc(collection(db, 'expenses'));
-        const expenseData = { ...expense, date: Timestamp.fromDate(new Date(expense.date)) };
-        batch.set(docRef, expenseData);
-    });
-
-    // Seed Transactions
-    const allTransactions = [
-        ...mockReceivables.map(t => ({ ...t, type: 'Receivable' as const })),
-        ...mockPayables.map(t => ({ ...t, type: 'Payable' as const }))
-    ];
-
-    allTransactions.forEach(transaction => {
-        const docRef = doc(collection(db, 'transactions'));
-        const transactionData = { ...transaction, dueDate: Timestamp.fromDate(new Date(transaction.dueDate)) };
-        batch.set(docRef, transactionData);
-    });
-
-    // Seed metadata
+    // Re-initialize metadata counter
     const metadataRef = doc(db, 'metadata', 'counters');
     batch.set(metadataRef, { lastPurchaseNumber: 0 });
 
-    await batch.commit();
-    console.log("Database seeded successfully!");
+    // Add back the essential "Walk-in Customer"
+    const walkInCustomer: Omit<Customer, 'id'> = {
+        name: 'Walk-in Customer',
+        phone: 'N/A',
+        address: 'N/A',
+        openingBalance: 0,
+    };
+    const customerRef = doc(collection(db, 'customers'));
+    batch.set(customerRef, walkInCustomer);
+    
+    console.log("Reset purchase counter and added walk-in customer.");
 
-    // Revalidate all paths that might have changed
+    await batch.commit();
+    console.log("Database reset successfully!");
+
+    // Revalidate all paths to reflect the empty state
     revalidatePath('/dashboard');
     revalidatePath('/books');
     revalidatePath('/customers');
