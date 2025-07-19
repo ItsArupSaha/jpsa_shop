@@ -1,9 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User } from 'firebase/auth';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User, getAuth } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { app, db } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +14,9 @@ interface AuthContextType {
 }
 
 const AuthContext = React.createContext<AuthContextType | null>(null);
+
+// Initialize auth inside the provider for client-side context safety
+const auth = getAuth(app);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
