@@ -7,6 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
@@ -29,6 +34,60 @@ export default function BalanceSheet() {
       style: 'currency',
       currency: 'USD',
     });
+  };
+
+  const handleDownloadPdf = () => {
+    if (!data) return;
+    const doc = new jsPDF();
+    const dateString = format(new Date(), 'PPP');
+
+    doc.setFontSize(18);
+    doc.text('Balance Sheet', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`As of ${dateString}`, 14, 29);
+
+    // Assets
+    autoTable(doc, {
+      startY: 40,
+      head: [['Assets', '']],
+      body: [
+        ['Cash', formatCurrency(data.cash)],
+        ['Bank', formatCurrency(data.bank)],
+        ['Accounts Receivable', formatCurrency(data.receivables)],
+        ['Stock Value', formatCurrency(data.stockValue)],
+        ['Office Assets', formatCurrency(data.officeAssetsValue)],
+      ],
+      foot: [
+        [{ content: 'Total Assets', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.totalAssets), styles: { fontStyle: 'bold' } }],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: '#306754', fontStyle: 'bold' },
+      footStyles: { fillColor: '#F5F5DC', textColor: '#000000', fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' } },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || 100;
+
+    // Liabilities & Equity
+    autoTable(doc, {
+      startY: finalY + 15,
+      head: [['Liabilities & Equity', '']],
+      body: [
+        ['Accounts Payable', formatCurrency(data.payables)],
+        [{ content: 'Total Liabilities', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables), styles: { fontStyle: 'bold' } }],
+        ['Owner\'s Equity', formatCurrency(data.equity)],
+      ],
+      foot: [
+         [{ content: 'Total Liabilities + Equity', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables + data.equity), styles: { fontStyle: 'bold' } }],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: '#306754', fontStyle: 'bold' },
+      footStyles: { fillColor: '#F5F5DC', textColor: '#000000', fontStyle: 'bold' },
+      columnStyles: { 1: { halign: 'right' } },
+    });
+    
+    doc.save(`Balance-Sheet-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const renderSkeleton = () => (
@@ -55,9 +114,15 @@ export default function BalanceSheet() {
 
   return (
     <Card className="animate-in fade-in-50">
-      <CardHeader>
-        <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
-        <CardDescription>A financial snapshot of your business's assets, liabilities, and equity.</CardDescription>
+      <CardHeader className="flex flex-row justify-between items-start">
+        <div>
+          <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
+          <CardDescription>A financial snapshot of your business's assets, liabilities, and equity.</CardDescription>
+        </div>
+        <Button onClick={handleDownloadPdf} disabled={isLoading || !data} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Download PDF
+        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? renderSkeleton() : data && (
