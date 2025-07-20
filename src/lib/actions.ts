@@ -728,14 +728,6 @@ export async function resetDatabase() {
   const metadataRef = doc(db, 'metadata', 'counters');
   seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });
 
-  const walkInCustomerData = {
-    name: 'Walk-in Customer',
-    phone: 'N/A',
-    address: 'N/A',
-    openingBalance: 0,
-  };
-  seedBatch.set(doc(collection(db, 'customers')), walkInCustomerData);
-
   await seedBatch.commit();
   console.log('Database reset and seeded with initial data.');
 
