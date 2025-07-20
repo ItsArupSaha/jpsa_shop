@@ -5,8 +5,8 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet } from 'lucide-react';
-import { getCustomers, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
+import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { getCustomers, getCustomersPaginated, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -55,18 +55,32 @@ type CustomerFormValues = z.infer<typeof customerSchema>;
 
 export default function CustomerManagement() {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  React.useEffect(() => {
-    async function loadCustomers() {
-      const initialCustomers = await getCustomers();
+  const loadInitialCustomers = React.useCallback(async () => {
+      const { customers: initialCustomers, hasMore: initialHasMore } = await getCustomersPaginated({ pageLimit: 15 });
       setCustomers(initialCustomers);
-    }
-    loadCustomers();
+      setHasMore(initialHasMore);
   }, []);
+
+  React.useEffect(() => {
+    loadInitialCustomers();
+  }, [loadInitialCustomers]);
+
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastCustomerId = customers[customers.length - 1]?.id;
+    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 15, lastVisibleId: lastCustomerId });
+    setCustomers(prev => [...prev, ...newCustomers]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -94,8 +108,7 @@ export default function CustomerManagement() {
   const handleDelete = (id: string) => {
     startTransition(async () => {
         await deleteCustomer(id);
-        const updatedCustomers = await getCustomers();
-        setCustomers(updatedCustomers);
+        await loadInitialCustomers();
         toast({ title: "Customer Deleted", description: "The customer has been removed." });
     });
   }
@@ -109,15 +122,15 @@ export default function CustomerManagement() {
             await addCustomer(data);
             toast({ title: "Customer Added", description: "The new customer has been added." });
         }
-        const updatedCustomers = await getCustomers();
-        setCustomers(updatedCustomers);
+        await loadInitialCustomers();
         setIsDialogOpen(false);
         setEditingCustomer(null);
     });
   };
 
-  const handleDownloadPdf = () => {
-    if (!customers.length) return;
+  const handleDownloadPdf = async () => {
+    const allCustomers = await getCustomers();
+    if (!allCustomers.length) return;
     
     const doc = new jsPDF();
     doc.text(`Customer List`, 14, 15);
@@ -125,16 +138,17 @@ export default function CustomerManagement() {
     autoTable(doc, {
       startY: 20,
       head: [['Name', 'Phone', 'Address']],
-      body: customers.map(c => [c.name, c.phone, c.address]),
+      body: allCustomers.map(c => [c.name, c.phone, c.address]),
     });
     
     doc.save(`customer-list.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    if (!customers.length) return;
+  const handleDownloadCsv = async () => {
+    const allCustomers = await getCustomers();
+    if (!allCustomers.length) return;
     
-    const csvData = customers.map(c => ({
+    const csvData = allCustomers.map(c => ({
       Name: c.name,
       Phone: c.phone,
       WhatsApp: c.whatsapp || '',
@@ -170,10 +184,10 @@ export default function CustomerManagement() {
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={customers.length === 0}>
+              <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
                 <FileText className="mr-2 h-4 w-4" /> Download PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} disabled={customers.length === 0}>
+              <Button variant="outline" size="sm" onClick={handleDownloadCsv}>
                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
               </Button>
             </div>
@@ -216,6 +230,13 @@ export default function CustomerManagement() {
             </TableBody>
           </Table>
         </div>
+        {hasMore && (
+          <div className="flex justify-center mt-4">
+            <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+            </Button>
+          </div>
+        )}
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

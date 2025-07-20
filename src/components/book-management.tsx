@@ -5,8 +5,8 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
-import { getBooks, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
+import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { getBooks, getBooksPaginated, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
@@ -65,6 +65,8 @@ interface ClosingStock extends Book {
 
 export default function BookManagement() {
   const [books, setBooks] = React.useState<Book[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
   const [editingBook, setEditingBook] = React.useState<Book | null>(null);
@@ -74,14 +76,25 @@ export default function BookManagement() {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const loadBooks = React.useCallback(async () => {
-    const initialBooks = await getBooks();
+  const loadInitialBooks = React.useCallback(async () => {
+    const { books: initialBooks, hasMore: initialHasMore } = await getBooksPaginated({ pageLimit: 15 });
     setBooks(initialBooks);
+    setHasMore(initialHasMore);
   }, []);
 
   React.useEffect(() => {
-    loadBooks();
-  }, [loadBooks]);
+    loadInitialBooks();
+  }, [loadInitialBooks]);
+
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastBookId = books[books.length - 1]?.id;
+    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 15, lastVisibleId: lastBookId });
+    setBooks(prev => [...prev, ...newBooks]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
 
   const form = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema),
@@ -109,7 +122,7 @@ export default function BookManagement() {
   const handleDelete = (id: string) => {
     startTransition(async () => {
       await deleteBook(id);
-      await loadBooks();
+      await loadInitialBooks();
       toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
     });
   }
@@ -123,7 +136,7 @@ export default function BookManagement() {
         await addBook(data);
         toast({ title: "Book Added", description: "The new book is now in your inventory." });
       }
-      await loadBooks();
+      await loadInitialBooks();
       setIsDialogOpen(false);
       setEditingBook(null);
     });
@@ -136,11 +149,12 @@ export default function BookManagement() {
     }
     
     setIsCalculating(true);
-    const sales = await getSales();
+    // Fetch all books and sales for this calculation, ignoring component state
+    const [allBooks, allSales] = await Promise.all([getBooks(), getSales()]);
     
-    const salesAfterDate = sales.filter(s => new Date(s.date) > closingStockDate);
+    const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
 
-    const calculatedData = books.map(book => {
+    const calculatedData = allBooks.map(book => {
       const quantitySoldAfter = salesAfterDate.reduce((total, sale) => {
         const item = sale.items.find(i => i.bookId === book.id);
         return total + (item ? item.quantity : 0);
@@ -318,6 +332,13 @@ export default function BookManagement() {
             </TableBody>
           </Table>
         </div>
+        {hasMore && (
+          <div className="flex justify-center mt-4">
+            <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+            </Button>
+          </div>
+        )}
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

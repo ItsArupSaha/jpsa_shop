@@ -81,6 +81,36 @@ export async function getBooks(): Promise<Book[]> {
   return snapshot.docs.map(docToBook);
 }
 
+export async function getBooksPaginated({ pageLimit = 15, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
+  if (!db) return { books: [], hasMore: false };
+
+  let q = query(
+      collection(db, 'books'),
+      orderBy('title'),
+      limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, 'books', lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
+  }
+
+  const snapshot = await getDocs(q);
+  const books = snapshot.docs.map(docToBook);
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(collection(db, 'books'), orderBy('title'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+
+  return { books, hasMore };
+}
+
 export async function addBook(data: Omit<Book, 'id'>) {
   if (!db) return;
   await addDoc(collection(db, 'books'), data);
@@ -109,6 +139,37 @@ export async function getCustomers(): Promise<Customer[]> {
   const snapshot = await getDocs(query(collection(db, 'customers'), orderBy('name')));
   return snapshot.docs.map(docToCustomer);
 }
+
+export async function getCustomersPaginated({ pageLimit = 15, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
+    if (!db) return { customers: [], hasMore: false };
+
+    let q = query(
+        collection(db, 'customers'),
+        orderBy('name'),
+        limit(pageLimit)
+    );
+
+    if (lastVisibleId) {
+        const lastVisibleDoc = await getDoc(doc(db, 'customers', lastVisibleId));
+        if (lastVisibleDoc.exists()) {
+            q = query(q, startAfter(lastVisibleDoc));
+        }
+    }
+
+    const snapshot = await getDocs(q);
+    const customers = snapshot.docs.map(docToCustomer);
+
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    let hasMore = false;
+    if (lastDoc) {
+        const nextQuery = query(collection(db, 'customers'), orderBy('name'), startAfter(lastDoc), limit(1));
+        const nextSnapshot = await getDocs(nextQuery);
+        hasMore = !nextSnapshot.empty;
+    }
+
+    return { customers, hasMore };
+}
+
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
     if (!db) return null;
