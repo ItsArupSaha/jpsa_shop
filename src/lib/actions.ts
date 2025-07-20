@@ -722,17 +722,8 @@ export async function resetDatabase() {
 
     const metadataRef = doc(db, 'metadata', 'counters');
     batch.set(metadataRef, { lastPurchaseNumber: 0 });
-
-    const walkInCustomer: Omit<Customer, 'id'> = {
-        name: 'Walk-in Customer',
-        phone: 'N/A',
-        address: 'N/A',
-        openingBalance: 0,
-    };
-    const customerRef = doc(collection(db, 'customers'));
-    batch.set(customerRef, walkInCustomer);
     
-    console.log("Reset purchase counter and added walk-in customer.");
+    console.log("Reset purchase counter.");
 
     await batch.commit();
     console.log(`Database reset successfully!`);
