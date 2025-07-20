@@ -17,6 +17,7 @@ import {
   orderBy,
   collectionGroup,
   limit,
+  startAfter,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
@@ -186,6 +187,37 @@ export async function getRecentSales(count: number = 50): Promise<Sale[]> {
     const q = query(collection(db, 'sales'), orderBy('date', 'desc'), limit(count));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docToSale);
+}
+
+export async function getSalesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
+  if (!db) return { sales: [], hasMore: false };
+
+  let q = query(
+      collection(db, 'sales'),
+      orderBy('date', 'desc'),
+      limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, 'sales', lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
+  }
+
+  const snapshot = await getDocs(q);
+  const sales = snapshot.docs.map(docToSale);
+  
+  // Check if there are more documents
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(collection(db, 'sales'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+
+  return { sales, hasMore };
 }
 
 

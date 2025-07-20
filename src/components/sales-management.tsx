@@ -5,12 +5,12 @@ import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getSales, getBooks, getCustomers, addSale, getRecentSales } from '@/lib/actions';
+import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -75,23 +75,39 @@ export default function SalesManagement() {
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [hasMoreSales, setHasMoreSales] = React.useState(true);
 
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
-  React.useEffect(() => {
-    async function loadData() {
-      const [initialSales, initialBooks, initialCustomers] = await Promise.all([
-        getRecentSales(),
-        getBooks(),
-        getCustomers(),
-      ]);
-      setSales(initialSales);
-      setBooks(initialBooks);
-      setCustomers(initialCustomers);
-    }
-    loadData();
+  const loadInitialData = React.useCallback(async () => {
+    const [initialSalesResult, initialBooks, initialCustomers] = await Promise.all([
+      getSalesPaginated({ pageLimit: 10 }),
+      getBooks(),
+      getCustomers(),
+    ]);
+    setSales(initialSalesResult.sales);
+    setHasMoreSales(initialSalesResult.hasMore);
+    setBooks(initialBooks);
+    setCustomers(initialCustomers);
   }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+
+  const handleLoadMore = async () => {
+    if (!hasMoreSales || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastSaleId = sales[sales.length - 1]?.id;
+    const { sales: newSales, hasMore } = await getSalesPaginated({ pageLimit: 10, lastVisibleId: lastSaleId });
+    setSales(prev => [...prev, ...newSales]);
+    setHasMoreSales(hasMore);
+    setIsLoadingMore(false);
+  };
+
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -165,8 +181,9 @@ export default function SalesManagement() {
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-        const [updatedSales, updatedBooks] = await Promise.all([getRecentSales(), getBooks()]);
-        setSales(updatedSales);
+        // Instead of refetching all, just add the new sale to the top.
+        setSales(prev => [result.sale!, ...prev]);
+        const updatedBooks = await getBooks();
         setBooks(updatedBooks);
         setCompletedSale(result.sale);
       } else {
@@ -368,6 +385,13 @@ export default function SalesManagement() {
               </TableBody>
             </Table>
           </div>
+          {hasMoreSales && (
+            <div className="flex justify-center mt-4">
+              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
