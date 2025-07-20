@@ -5,9 +5,9 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getDonations, addDonation } from '@/lib/actions';
+import { getDonations, addDonation, getDonationsPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -40,19 +40,28 @@ type DonationFormValues = z.infer<typeof donationSchema>;
 
 interface DonationsClientProps {
     initialDonations: Donation[];
+    initialHasMore: boolean;
 }
 
-export function DonationsClient({ initialDonations }: DonationsClientProps) {
+export function DonationsClient({ initialDonations, initialHasMore }: DonationsClientProps) {
   const [donations, setDonations] = React.useState<Donation[]>(initialDonations);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  React.useEffect(() => {
-    setDonations(initialDonations);
-  }, [initialDonations]);
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastDonationId = donations[donations.length - 1]?.id;
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 10, lastVisibleId: lastDonationId });
+    setDonations(prev => [...prev, ...newDonations]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
 
   const form = useForm<DonationFormValues>({
     resolver: zodResolver(donationSchema),
@@ -71,15 +80,14 @@ export function DonationsClient({ initialDonations }: DonationsClientProps) {
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-        await addDonation(data);
-        const updatedDonations = await getDonations();
-        setDonations(updatedDonations);
+        const newDonation = await addDonation(data);
+        setDonations(prev => [newDonation, ...prev]);
         toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
         setIsDialogOpen(false);
     });
   };
 
-  const getFilteredDonations = () => {
+  const getFilteredDonations = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -88,18 +96,20 @@ export function DonationsClient({ initialDonations }: DonationsClientProps) {
         return null;
     }
     
+    // For reports, we fetch all donations
+    const allDonations = await getDonations();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return donations.filter(donation => {
+    return allDonations.filter(donation => {
       const donationDate = new Date(donation.date);
       return donationDate >= from && donationDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredDonations = getFilteredDonations();
+  const handleDownloadPdf = async () => {
+    const filteredDonations = await getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -132,8 +142,8 @@ export function DonationsClient({ initialDonations }: DonationsClientProps) {
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredDonations = getFilteredDonations();
+  const handleDownloadCsv = async () => {
+    const filteredDonations = await getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -228,6 +238,13 @@ export function DonationsClient({ initialDonations }: DonationsClientProps) {
           </TableBody>
         </Table>
       </div>
+      {hasMore && (
+        <div className="flex justify-center mt-4">
+          <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+            {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+          </Button>
+        </div>
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">

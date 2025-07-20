@@ -113,9 +113,10 @@ export async function getBooksPaginated({ pageLimit = 15, lastVisibleId }: { pag
 
 export async function addBook(data: Omit<Book, 'id'>) {
   if (!db) return;
-  await addDoc(collection(db, 'books'), data);
+  const newDocRef = await addDoc(collection(db, 'books'), data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
+  return { id: newDocRef.id, ...data };
 }
 
 export async function updateBook(id: string, data: Omit<Book, 'id'>) {
@@ -217,8 +218,9 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
 
 export async function addCustomer(data: Omit<Customer, 'id'>) {
   if (!db) return;
-  await addDoc(collection(db, 'customers'), data);
+  const newDocRef = await addDoc(collection(db, 'customers'), data);
   revalidatePath('/customers');
+  return { id: newDocRef.id, ...data };
 }
 
 export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
@@ -240,13 +242,6 @@ export async function deleteCustomer(id: string) {
 export async function getSales(): Promise<Sale[]> {
     if (!db) return [];
     const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
-    return snapshot.docs.map(docToSale);
-}
-
-export async function getRecentSales(count: number = 50): Promise<Sale[]> {
-    if (!db) return [];
-    const q = query(collection(db, 'sales'), orderBy('date', 'desc'), limit(count));
-    const snapshot = await getDocs(q);
     return snapshot.docs.map(docToSale);
 }
 
@@ -485,10 +480,6 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
           for (const item of data.items) {
               if (item.category === 'Book') {
                   const q = query(booksCollectionRef, where("title", "==", item.itemName));
-                  // This get needs to happen outside transaction, but we can't.
-                  // This is a limitation. We'll query before the transaction.
-                  // For now, we will assume this might not be perfectly atomic.
-                  // A better implementation would use a different data model.
                   const bookSnapshot = await getDocs(q); 
 
                   if (!bookSnapshot.empty) {
@@ -552,7 +543,7 @@ export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmo
               transaction.set(doc(collection(db, 'transactions')), payableData);
           }
 
-          return { success: true };
+          return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate.toISOString() } };
       });
 
       revalidatePath('/purchases');
@@ -576,6 +567,36 @@ export async function getExpenses(): Promise<Expense[]> {
     return snapshot.docs.map(docToExpense);
 }
 
+export async function getExpensesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
+  if (!db) return { expenses: [], hasMore: false };
+
+  let q = query(
+      collection(db, 'expenses'),
+      orderBy('date', 'desc'),
+      limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, 'expenses', lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
+  }
+
+  const snapshot = await getDocs(q);
+  const expenses = snapshot.docs.map(docToExpense);
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(collection(db, 'expenses'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+
+  return { expenses, hasMore };
+}
+
 export async function getExpensesForMonth(year: number, month: number): Promise<Expense[]> {
     if (!db) return [];
     const startDate = new Date(year, month, 1);
@@ -590,16 +611,17 @@ export async function getExpensesForMonth(year: number, month: number): Promise<
     return snapshot.docs.map(docToExpense);
 }
 
-export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Date }) {
-    if (!db) return;
+export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
+    if (!db) throw new Error("Database not connected");
     const expenseData = {
         ...data,
         date: Timestamp.fromDate(data.date),
     };
-    await addDoc(collection(db, 'expenses'), expenseData);
+    const newDocRef = await addDoc(collection(db, 'expenses'), expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
+    return { ...data, id: newDocRef.id, date: data.date.toISOString() };
 }
 
 export async function deleteExpense(id: string) {
@@ -617,6 +639,37 @@ export async function getDonations(): Promise<Donation[]> {
   return snapshot.docs.map(docToDonation);
 }
 
+export async function getDonationsPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
+  if (!db) return { donations: [], hasMore: false };
+
+  let q = query(
+      collection(db, 'donations'),
+      orderBy('date', 'desc'),
+      limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, 'donations', lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
+  }
+
+  const snapshot = await getDocs(q);
+  const donations = snapshot.docs.map(docToDonation);
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(collection(db, 'donations'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+
+  return { donations, hasMore };
+}
+
+
 export async function getDonationsForMonth(year: number, month: number): Promise<Donation[]> {
     if (!db) return [];
     const startDate = new Date(year, month, 1);
@@ -631,15 +684,16 @@ export async function getDonationsForMonth(year: number, month: number): Promise
     return snapshot.docs.map(docToDonation);
 }
 
-export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: Date }) {
-  if (!db) return;
+export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: Date }): Promise<Donation> {
+  if (!db) throw new Error("Database not connected.");
   const donationData = {
       ...data,
       date: Timestamp.fromDate(data.date),
   };
-  await addDoc(collection(db, 'donations'), donationData);
+  const newDocRef = await addDoc(collection(db, 'donations'), donationData);
   revalidatePath('/donations');
   revalidatePath('/balance-sheet');
+  return { ...data, id: newDocRef.id, date: data.date.toISOString() };
 }
 
 

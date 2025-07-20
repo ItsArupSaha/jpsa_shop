@@ -5,9 +5,9 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getExpenses, addExpense, deleteExpense } from '@/lib/actions';
+import { getExpenses, addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -38,19 +38,28 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 interface ExpensesClientProps {
     initialExpenses: Expense[];
+    initialHasMore: boolean;
 }
 
-export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
+export function ExpensesClient({ initialExpenses, initialHasMore }: ExpensesClientProps) {
   const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  React.useEffect(() => {
-    setExpenses(initialExpenses);
-  }, [initialExpenses]);
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastExpenseId = expenses[expenses.length - 1]?.id;
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 10, lastVisibleId: lastExpenseId });
+    setExpenses(prev => [...prev, ...newExpenses]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -69,23 +78,21 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
   const handleDelete = (id: string) => {
     startTransition(async () => {
         await deleteExpense(id);
-        const updatedExpenses = await getExpenses();
-        setExpenses(updatedExpenses);
+        setExpenses(prev => prev.filter(e => e.id !== id));
         toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
   };
 
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
-        await addExpense(data);
-        const updatedExpenses = await getExpenses();
-        setExpenses(updatedExpenses);
+        const newExpense = await addExpense(data);
+        setExpenses(prev => [newExpense, ...prev]);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
         setIsAddDialogOpen(false);
     });
   };
   
-  const getFilteredExpenses = () => {
+  const getFilteredExpenses = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -94,18 +101,20 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
         return null;
     }
     
+    // For reports, we need all expenses
+    const allExpenses = await getExpenses();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return expenses.filter(expense => {
+    return allExpenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       return expenseDate >= from && expenseDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadPdf = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -137,8 +146,8 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadCsv = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -251,6 +260,13 @@ export function ExpensesClient({ initialExpenses }: ExpensesClientProps) {
           </TableBody>
         </Table>
       </div>
+      {hasMore && (
+        <div className="flex justify-center mt-4">
+          <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+            {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+          </Button>
+        </div>
+      )}
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
