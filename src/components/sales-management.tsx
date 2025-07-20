@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getSales, getBooks, getCustomers, addSale } from '@/lib/actions';
+import { getSales, getBooks, getCustomers, addSale, getRecentSales } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -82,7 +82,7 @@ export default function SalesManagement() {
   React.useEffect(() => {
     async function loadData() {
       const [initialSales, initialBooks, initialCustomers] = await Promise.all([
-        getSales(),
+        getRecentSales(),
         getBooks(),
         getCustomers(),
       ]);
@@ -165,7 +165,7 @@ export default function SalesManagement() {
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-        const [updatedSales, updatedBooks] = await Promise.all([getSales(), getBooks()]);
+        const [updatedSales, updatedBooks] = await Promise.all([getRecentSales(), getBooks()]);
         setSales(updatedSales);
         setBooks(updatedBooks);
         setCompletedSale(result.sale);
@@ -175,7 +175,7 @@ export default function SalesManagement() {
     });
   };
 
-  const getFilteredSales = () => {
+  const getFilteredSales = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -184,18 +184,20 @@ export default function SalesManagement() {
         return null;
     }
     
+    // For reports, we need all sales, not just recent ones
+    const allSales = await getSales();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return sales.filter(sale => {
+    return allSales.filter(sale => {
       const saleDate = new Date(sale.date);
       return saleDate >= from && saleDate <= to;
     });
   }
   
-  const handleDownloadPdf = () => {
-    const filteredSales = getFilteredSales();
+  const handleDownloadPdf = async () => {
+    const filteredSales = await getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {
@@ -222,8 +224,8 @@ export default function SalesManagement() {
     doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredSales = getFilteredSales();
+  const handleDownloadCsv = async () => {
+    const filteredSales = await getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {

@@ -16,6 +16,7 @@ import {
   getDoc,
   orderBy,
   collectionGroup,
+  limit,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
@@ -179,6 +180,14 @@ export async function getSales(): Promise<Sale[]> {
     const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
+
+export async function getRecentSales(count: number = 50): Promise<Sale[]> {
+    if (!db) return [];
+    const q = query(collection(db, 'sales'), orderBy('date', 'desc'), limit(count));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToSale);
+}
+
 
 export async function getSalesForCustomer(customerId: string): Promise<Sale[]> {
   if (!db) return [];
