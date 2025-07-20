@@ -708,34 +708,38 @@ export async function getBalanceSheetData() {
 
 // --- Database Seeding/Resetting ---
 export async function resetDatabase() {
-    if (!db) return;
-    console.log(`Starting database reset...`);
-    
-    const batch = writeBatch(db);
+  if (!db) return;
+  console.log('Starting database reset...');
 
-    const collections = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
-    for (const coll of collections) {
-      const snapshot = await getDocs(collection(db, coll));
-      snapshot.docs.forEach(doc => batch.delete(doc.ref));
-    }
-    console.log(`Cleared all collections...`);
+  const batch = writeBatch(db);
 
-    const metadataRef = doc(db, 'metadata', 'counters');
-    batch.set(metadataRef, { lastPurchaseNumber: 0 });
-    
-    console.log("Reset purchase counter.");
+  const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
+  for (const coll of collectionsToDelete) {
+    const snapshot = await getDocs(collection(db, coll));
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+  }
+  
+  await batch.commit();
+  console.log('All collections cleared.');
+  
+  // Re-run batch for seeding
+  const seedBatch = writeBatch(db);
 
-    await batch.commit();
-    console.log(`Database reset successfully!`);
+  const metadataRef = doc(db, 'metadata', 'counters');
+  seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/books');
-    revalidatePath('/customers');
-    revalidatePath('/sales');
-    revalidatePath('/expenses');
-    revalidatePath('/donations');
-    revalidatePath('/receivables');
-    revalidatePath('/payables');
-    revalidatePath('/purchases');
-    revalidatePath('/balance-sheet');
+  const walkInCustomerData = {
+    name: 'Walk-in Customer',
+    phone: 'N/A',
+    address: 'N/A',
+    openingBalance: 0,
+  };
+  seedBatch.set(doc(collection(db, 'customers')), walkInCustomerData);
+
+  await seedBatch.commit();
+  console.log('Database reset and seeded with initial data.');
+
+  // Revalidate all paths
+  const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
+  paths.forEach(path => revalidatePath(path));
 }
