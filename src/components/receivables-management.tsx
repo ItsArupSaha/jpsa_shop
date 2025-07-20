@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { DollarSign, FileSpreadsheet, FileText } from 'lucide-react';
+import { DollarSign, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 import ReceivePaymentDialog from './receive-payment-dialog';
 import Link from 'next/link';
 
@@ -15,16 +15,41 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
 
 interface ReceivablesManagementProps {
     initialCustomersWithDue: CustomerWithDue[];
+    initialHasMore: boolean;
 }
 
-export default function ReceivablesManagement({ initialCustomersWithDue }: ReceivablesManagementProps) {
+export default function ReceivablesManagement({ initialCustomersWithDue, initialHasMore }: ReceivablesManagementProps) {
+  const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomersWithDue);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const { toast } = useToast();
+  
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastCustomer = customers[customers.length - 1];
+    
+    // We need to pass the last customer's ID and their due balance to get the next page correctly
+    const lastVisible = {
+        id: lastCustomer.id,
+        dueBalance: lastCustomer.dueBalance,
+    };
 
-  const handleDownload = (formatType: 'pdf' | 'csv') => {
-    if (initialCustomersWithDue.length === 0) {
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 15, lastVisible });
+    setCustomers(prev => [...prev, ...newCustomers]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
+
+  const handleDownload = async (formatType: 'pdf' | 'csv') => {
+    // For reports, we fetch all customers with due balance
+    const allCustomersWithDue = await getCustomersWithDueBalance();
+
+    if (allCustomersWithDue.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -34,7 +59,7 @@ export default function ReceivablesManagement({ initialCustomersWithDue }: Recei
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = initialCustomersWithDue.map(c => ({
+    const body = allCustomersWithDue.map(c => ({
         Customer: c.name,
         Phone: c.phone,
         'Due Amount': `$${c.dueBalance.toFixed(2)}`,
@@ -98,7 +123,7 @@ export default function ReceivablesManagement({ initialCustomersWithDue }: Recei
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {initialCustomersWithDue.length > 0 ? initialCustomersWithDue.map((customer) => (
+                {customers.length > 0 ? customers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                         <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
@@ -118,6 +143,13 @@ export default function ReceivablesManagement({ initialCustomersWithDue }: Recei
               </TableBody>
             </Table>
           </div>
+          {hasMore && (
+            <div className="flex justify-center mt-4">
+              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
   );

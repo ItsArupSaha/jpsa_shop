@@ -212,7 +212,24 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
         return { ...customer, dueBalance };
     });
 
-    return customersWithBalances.filter(c => c.dueBalance > 0.01);
+    // Sort by due balance descending
+    return customersWithBalances.filter(c => c.dueBalance > 0.01).sort((a,b) => b.dueBalance - a.dueBalance);
+}
+
+export async function getCustomersWithDueBalancePaginated({ pageLimit = 15, lastVisible }: { pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
+  if (!db) return { customersWithDue: [], hasMore: false };
+
+  const allCustomersWithDue = await getCustomersWithDueBalance();
+  
+  let startIndex = 0;
+  if (lastVisible) {
+      startIndex = allCustomersWithDue.findIndex(c => c.id === lastVisible.id) + 1;
+  }
+
+  const paginatedCustomers = allCustomersWithDue.slice(startIndex, startIndex + pageLimit);
+  const hasMore = startIndex + pageLimit < allCustomersWithDue.length;
+
+  return { customersWithDue: paginatedCustomers, hasMore };
 }
 
 
@@ -707,6 +724,43 @@ export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<T
     return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
+export async function getTransactionsPaginated({ type, pageLimit = 15, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
+  if (!db) return { transactions: [], hasMore: false };
+  let q = query(
+    collection(db, 'transactions'), 
+    where('type', '==', type), 
+    where('status', '==', 'Pending'),
+    orderBy('dueDate', 'desc'),
+    limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+    const lastVisibleDoc = await getDoc(doc(db, 'transactions', lastVisibleId));
+    if (lastVisibleDoc.exists()) {
+        q = query(q, startAfter(lastVisibleDoc));
+    }
+  }
+  const snapshot = await getDocs(q);
+  const transactions = snapshot.docs.map(docToTransaction);
+
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if (lastDoc) {
+    const nextQuery = query(
+        collection(db, 'transactions'), 
+        where('type', '==', type), 
+        where('status', '==', 'Pending'),
+        orderBy('dueDate', 'desc'),
+        startAfter(lastDoc), 
+        limit(1)
+    );
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+  
+  return { transactions, hasMore };
+}
+
 export async function getTransactionsForCustomer(customerId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
   if (!db) return [];
   const q = query(
@@ -719,20 +773,21 @@ export async function getTransactionsForCustomer(customerId: string, type: 'Rece
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }) {
-    if (!db) return;
+export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
+    if (!db) throw new Error("Database not connected");
     const transactionData = {
         ...data,
-        status: 'Pending',
+        status: 'Pending' as const,
         dueDate: Timestamp.fromDate(data.dueDate),
     };
-    await addDoc(collection(db, 'transactions'), transactionData);
+    const newDocRef = await addDoc(collection(db, 'transactions'), transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
     if (data.customerId) {
       revalidatePath(`/customers/${data.customerId}`);
     }
+    return { ...transactionData, id: newDocRef.id, dueDate: data.dueDate.toISOString() };
 }
 
 export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {

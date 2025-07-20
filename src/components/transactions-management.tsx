@@ -5,9 +5,9 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getTransactions, addTransaction } from '@/lib/actions';
+import { getTransactionsPaginated, addTransaction, getTransactions } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -40,24 +40,28 @@ interface TransactionsManagementProps {
   description: string;
   type: 'Payable';
   initialTransactions: Transaction[];
+  initialHasMore: boolean;
 }
 
-export default function TransactionsManagement({ title, description, type, initialTransactions }: TransactionsManagementProps) {
+export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore }: TransactionsManagementProps) {
   const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const fetchData = React.useCallback(async () => {
-    const freshTransactions = await getTransactions(type);
-    setTransactions(freshTransactions);
-  }, [type]);
-
-  React.useEffect(() => {
-    setTransactions(initialTransactions);
-  }, [initialTransactions]);
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const lastTransactionId = transactions[transactions.length - 1]?.id;
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 15, lastVisibleId: lastTransactionId });
+    setTransactions(prev => [...prev, ...newTransactions]);
+    setHasMore(newHasMore);
+    setIsLoadingMore(false);
+  };
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -74,29 +78,30 @@ export default function TransactionsManagement({ title, description, type, initi
 
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
-        await addTransaction({ ...data, type });
-        await fetchData();
+        const newTransaction = await addTransaction({ ...data, type });
+        setTransactions(prev => [newTransaction, ...prev]);
         toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
         setIsDialogOpen(false);
     });
   };
 
-  const getFilteredTransactions = () => {
+  const getFilteredTransactions = async () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
+    const allTrans = await getTransactions(type); // Fetch all for report
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return transactions.filter(t => {
+    return allTrans.filter(t => {
       const tDate = new Date(t.dueDate);
       return tDate >= from && tDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredTransactions = getFilteredTransactions();
+  const handleDownloadPdf = async () => {
+    const filteredTransactions = await getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -117,8 +122,8 @@ export default function TransactionsManagement({ title, description, type, initi
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredTransactions = getFilteredTransactions();
+  const handleDownloadCsv = async () => {
+    const filteredTransactions = await getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -207,6 +212,13 @@ export default function TransactionsManagement({ title, description, type, initi
               </TableBody>
             </Table>
           </div>
+          {hasMore && (
+            <div className="flex justify-center mt-4">
+              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

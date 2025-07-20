@@ -1,15 +1,16 @@
 import TransactionsManagement from '@/components/transactions-management';
-import { getTransactions } from '@/lib/actions';
+import { getTransactionsPaginated } from '@/lib/actions';
 
 export default async function PayablesPage() {
-  const initialTransactions = await getTransactions('Payable');
+  const { transactions, hasMore } = await getTransactionsPaginated({ type: 'Payable', pageLimit: 15 });
 
   return (
     <TransactionsManagement
       title="Track Payables"
       description="Manage amounts the bookstore owes."
       type="Payable"
-      initialTransactions={initialTransactions}
+      initialTransactions={transactions}
+      initialHasMore={hasMore}
     />
   );
 }
