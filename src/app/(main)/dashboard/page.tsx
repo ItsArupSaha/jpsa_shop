@@ -2,7 +2,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
 import { getBooks, getSalesForMonth, getExpensesForMonth, getCustomersWithDueBalance } from '@/lib/actions';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
-import { ResetDatabaseButton } from '@/components/reset-database-button';
 
 export default async function DashboardPage() {
   const now = new Date();
@@ -50,7 +49,6 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6 animate-in fade-in-50">
       <div className="flex justify-between items-start">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
-        <ResetDatabaseButton />
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
