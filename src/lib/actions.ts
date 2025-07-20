@@ -358,6 +358,36 @@ export async function getPurchases(): Promise<Purchase[]> {
     return snapshot.docs.map(docToPurchase);
 }
 
+export async function getPurchasesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
+  if (!db) return { purchases: [], hasMore: false };
+
+  let q = query(
+      collection(db, 'purchases'),
+      orderBy('date', 'desc'),
+      limit(pageLimit)
+  );
+
+  if (lastVisibleId) {
+      const lastVisibleDoc = await getDoc(doc(db, 'purchases', lastVisibleId));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
+  }
+
+  const snapshot = await getDocs(q);
+  const purchases = snapshot.docs.map(docToPurchase);
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(collection(db, 'purchases'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+
+  return { purchases, hasMore };
+}
+
 export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: Date }) {
   if (!db) return { success: false, error: 'Database not connected' };
 
