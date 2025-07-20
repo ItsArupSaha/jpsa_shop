@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getCustomersWithDueBalance } from '@/lib/actions';
 import { DollarSign, FileSpreadsheet, FileText } from 'lucide-react';
 import ReceivePaymentDialog from './receive-payment-dialog';
 import Link from 'next/link';
@@ -22,16 +21,10 @@ interface ReceivablesManagementProps {
 }
 
 export default function ReceivablesManagement({ initialCustomersWithDue }: ReceivablesManagementProps) {
-  const [customersWithDue, setCustomersWithDue] = React.useState(initialCustomersWithDue);
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    // This effect can be used to re-fetch data if needed, for now it just syncs with the prop.
-    setCustomersWithDue(initialCustomersWithDue);
-  }, [initialCustomersWithDue]);
-
   const handleDownload = (formatType: 'pdf' | 'csv') => {
-    if (customersWithDue.length === 0) {
+    if (initialCustomersWithDue.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -41,7 +34,7 @@ export default function ReceivablesManagement({ initialCustomersWithDue }: Recei
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = customersWithDue.map(c => ({
+    const body = initialCustomersWithDue.map(c => ({
         Customer: c.name,
         Phone: c.phone,
         'Due Amount': `$${c.dueBalance.toFixed(2)}`,
@@ -105,7 +98,7 @@ export default function ReceivablesManagement({ initialCustomersWithDue }: Recei
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customersWithDue.length > 0 ? customersWithDue.map((customer) => (
+                {initialCustomersWithDue.length > 0 ? initialCustomersWithDue.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                         <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">

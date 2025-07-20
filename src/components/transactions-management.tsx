@@ -39,10 +39,11 @@ interface TransactionsManagementProps {
   title: string;
   description: string;
   type: 'Payable';
+  initialTransactions: Transaction[];
 }
 
-export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
-  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+export default function TransactionsManagement({ title, description, type, initialTransactions }: TransactionsManagementProps) {
+  const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -50,13 +51,13 @@ export default function TransactionsManagement({ title, description, type }: Tra
   const [isPending, startTransition] = React.useTransition();
 
   const fetchData = React.useCallback(async () => {
-    const initialTransactions = await getTransactions(type);
-    setTransactions(initialTransactions);
+    const freshTransactions = await getTransactions(type);
+    setTransactions(freshTransactions);
   }, [type]);
 
   React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setTransactions(initialTransactions);
+  }, [initialTransactions]);
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
