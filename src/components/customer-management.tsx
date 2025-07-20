@@ -53,9 +53,14 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-export default function CustomerManagement() {
-  const [customers, setCustomers] = React.useState<Customer[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
+interface CustomerManagementProps {
+  initialCustomers: Customer[];
+  initialHasMore: boolean;
+}
+
+export default function CustomerManagement({ initialCustomers, initialHasMore }: CustomerManagementProps) {
+  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
@@ -63,14 +68,10 @@ export default function CustomerManagement() {
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialCustomers = React.useCallback(async () => {
-      const { customers: initialCustomers, hasMore: initialHasMore } = await getCustomersPaginated({ pageLimit: 15 });
-      setCustomers(initialCustomers);
-      setHasMore(initialHasMore);
+      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 15 });
+      setCustomers(refreshedCustomers);
+      setHasMore(refreshedHasMore);
   }, []);
-
-  React.useEffect(() => {
-    loadInitialCustomers();
-  }, [loadInitialCustomers]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
