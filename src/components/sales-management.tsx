@@ -65,10 +65,17 @@ const saleFormSchema = z.object({
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
-export default function SalesManagement() {
-  const [sales, setSales] = React.useState<Sale[]>([]);
-  const [books, setBooks] = React.useState<Book[]>([]);
-  const [customers, setCustomers] = React.useState<Customer[]>([]);
+interface SalesManagementProps {
+    initialSales: Sale[];
+    initialHasMore: boolean;
+    initialBooks: Book[];
+    initialCustomers: Customer[];
+}
+
+export default function SalesManagement({ initialSales, initialHasMore, initialBooks, initialCustomers }: SalesManagementProps) {
+  const [sales, setSales] = React.useState<Sale[]>(initialSales);
+  const [books, setBooks] = React.useState<Book[]>(initialBooks);
+  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -76,27 +83,10 @@ export default function SalesManagement() {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMoreSales, setHasMoreSales] = React.useState(true);
+  const [hasMoreSales, setHasMoreSales] = React.useState(initialHasMore);
 
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
-
-  const loadInitialData = React.useCallback(async () => {
-    const [initialSalesResult, initialBooks, initialCustomers] = await Promise.all([
-      getSalesPaginated({ pageLimit: 10 }),
-      getBooks(),
-      getCustomers(),
-    ]);
-    setSales(initialSalesResult.sales);
-    setHasMoreSales(initialSalesResult.hasMore);
-    setBooks(initialBooks);
-    setCustomers(initialCustomers);
-  }, []);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
 
   const handleLoadMore = async () => {
     if (!hasMoreSales || isLoadingMore) return;
