@@ -12,8 +12,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import type { Sale, Expense, Book, Donation } from '@/lib/types';
-import { getSales, getExpenses, getBooks, getDonations, getBalanceSheetData } from '@/lib/actions';
+import type { Book } from '@/lib/types';
+import { getBooks, getBalanceSheetData, getSalesForMonth, getExpensesForMonth, getDonationsForMonth } from '@/lib/actions';
 import ReportPreview from './report-preview';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -25,10 +25,7 @@ const reportSchema = z.object({
 type ReportFormValues = z.infer<typeof reportSchema>;
 
 interface ReportDataSource {
-  sales: Sale[];
-  expenses: Expense[];
   books: Book[];
-  donations: Donation[];
   balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
@@ -45,14 +42,11 @@ export default function ReportGenerator() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [sales, expenses, books, donations, balanceSheet] = await Promise.all([
-          getSales(),
-          getExpenses(),
+        const [books, balanceSheet] = await Promise.all([
           getBooks(),
-          getDonations(),
           getBalanceSheetData(),
         ]);
-        setDataSource({ sales, expenses, books, donations, balanceSheet });
+        setDataSource({ books, balanceSheet });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -82,20 +76,11 @@ export default function ReportGenerator() {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const salesForMonth = dataSource.sales.filter(s => {
-        const saleDate = new Date(s.date);
-        return saleDate.getMonth() === selectedMonth && saleDate.getFullYear() === selectedYear;
-      });
-
-      const expensesForMonth = dataSource.expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return expenseDate.getMonth() === selectedMonth && expenseDate.getFullYear() === selectedYear;
-      });
-
-      const donationsForMonth = dataSource.donations.filter(d => {
-        const donationDate = new Date(d.date);
-        return donationDate.getMonth() === selectedMonth && donationDate.getFullYear() === selectedYear;
-      });
+      const [salesForMonth, expensesForMonth, donationsForMonth] = await Promise.all([
+        getSalesForMonth(selectedYear, selectedMonth),
+        getExpensesForMonth(selectedYear, selectedMonth),
+        getDonationsForMonth(selectedYear, selectedMonth)
+      ]);
       
       const input = {
         salesData: JSON.stringify(salesForMonth),

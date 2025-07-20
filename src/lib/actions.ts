@@ -485,6 +485,20 @@ export async function getDonations(): Promise<Donation[]> {
   return snapshot.docs.map(docToDonation);
 }
 
+export async function getDonationsForMonth(year: number, month: number): Promise<Donation[]> {
+    if (!db) return [];
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const q = query(
+        collection(db, 'donations'),
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate)),
+        orderBy('date', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToDonation);
+}
+
 export async function addDonation(data: Omit<Donation, 'id' | 'date'> & { date: Date }) {
   if (!db) return;
   const donationData = {
