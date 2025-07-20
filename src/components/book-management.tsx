@@ -63,9 +63,14 @@ interface ClosingStock extends Book {
   closingStock: number;
 }
 
-export default function BookManagement() {
-  const [books, setBooks] = React.useState<Book[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
+interface BookManagementProps {
+  initialBooks: Book[];
+  initialHasMore: boolean;
+}
+
+export default function BookManagement({ initialBooks, initialHasMore }: BookManagementProps) {
+  const [books, setBooks] = React.useState<Book[]>(initialBooks);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
@@ -76,15 +81,11 @@ export default function BookManagement() {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const loadInitialBooks = React.useCallback(async () => {
-    const { books: initialBooks, hasMore: initialHasMore } = await getBooksPaginated({ pageLimit: 15 });
-    setBooks(initialBooks);
-    setHasMore(initialHasMore);
+  const loadInitialData = React.useCallback(async () => {
+    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 15 });
+    setBooks(newBooks);
+    setHasMore(newHasMore);
   }, []);
-
-  React.useEffect(() => {
-    loadInitialBooks();
-  }, [loadInitialBooks]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -122,7 +123,7 @@ export default function BookManagement() {
   const handleDelete = (id: string) => {
     startTransition(async () => {
       await deleteBook(id);
-      await loadInitialBooks();
+      await loadInitialData();
       toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
     });
   }
@@ -136,7 +137,7 @@ export default function BookManagement() {
         await addBook(data);
         toast({ title: "Book Added", description: "The new book is now in your inventory." });
       }
-      await loadInitialBooks();
+      await loadInitialData();
       setIsDialogOpen(false);
       setEditingBook(null);
     });
