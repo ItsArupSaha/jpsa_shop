@@ -65,25 +65,26 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
-export default function PurchaseManagement() {
-  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+interface PurchaseManagementProps {
+  initialPurchases: Purchase[];
+  initialHasMore: boolean;
+}
+
+export default function PurchaseManagement({ initialPurchases, initialHasMore }: PurchaseManagementProps) {
+  const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMore, setHasMore] = React.useState(true);
 
   const loadInitialData = React.useCallback(async () => {
-    const { purchases: initialPurchases, hasMore: initialHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
-    setPurchases(initialPurchases);
-    setHasMore(initialHasMore);
+    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
+    setPurchases(newPurchases);
+    setHasMore(newHasMore);
   }, []);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
