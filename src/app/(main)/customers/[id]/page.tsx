@@ -1,6 +1,6 @@
 
 import * as React from 'react';
-import { getCustomerById, getSales, getBooks, getTransactions } from '@/lib/actions';
+import { getCustomerById, getSalesForCustomer, getBooks, getTransactionsForCustomer } from '@/lib/actions';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,21 +14,23 @@ import { DollarSign } from 'lucide-react';
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
-  const [customer, allSales, books, allTransactions] = await Promise.all([
-    getCustomerById(customerId),
-    getSales(),
-    getBooks(),
-    getTransactions('Receivable'),
-  ]);
+  
+  const customer = await getCustomerById(customerId);
 
   if (!customer) {
     notFound();
   }
+
+  // Use the new optimized functions
+  const [customerSales, books, customerTransactions] = await Promise.all([
+    getSalesForCustomer(customerId),
+    getBooks(),
+    getTransactionsForCustomer(customerId, 'Receivable'),
+  ]);
   
-  const customerSales = allSales.filter(sale => sale.customerId === customerId);
   // Filter out receivables that were automatically generated from a 'Due' or 'Split' sale, as the sale itself represents the debit.
-  const customerReceivables = allTransactions.filter(t => 
-    t.customerId === customerId && !t.description.startsWith('Due from Sale')
+  const customerReceivables = customerTransactions.filter(t => 
+    !t.description.startsWith('Due from Sale')
   );
 
   const totalDebit = customerSales
@@ -39,8 +41,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       return sum;
     }, customer.openingBalance);
 
-  const totalCredit = allTransactions
-    .filter(t => t.customerId === customerId && t.status === 'Paid' && t.description.includes('Payment from customer'))
+  const totalCredit = customerTransactions
+    .filter(t => t.status === 'Paid' && t.description.includes('Payment from customer'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const currentBalance = totalDebit - totalCredit;

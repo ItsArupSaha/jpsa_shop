@@ -180,6 +180,17 @@ export async function getSales(): Promise<Sale[]> {
     return snapshot.docs.map(docToSale);
 }
 
+export async function getSalesForCustomer(customerId: string): Promise<Sale[]> {
+  if (!db) return [];
+  const q = query(
+      collection(db, 'sales'),
+      where('customerId', '==', customerId),
+      orderBy('date', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docToSale);
+}
+
 export async function getSalesForMonth(year: number, month: number): Promise<Sale[]> {
     if (!db) return [];
     const startDate = new Date(year, month, 1);
@@ -494,6 +505,18 @@ export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<T
     const transactions = snapshot.docs.map(docToTransaction);
     // Sort in application code to avoid needing a composite index
     return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+}
+
+export async function getTransactionsForCustomer(customerId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
+  if (!db) return [];
+  const q = query(
+      collection(db, 'transactions'),
+      where('type', '==', type),
+      where('customerId', '==', customerId)
+  );
+  const snapshot = await getDocs(q);
+  const transactions = snapshot.docs.map(docToTransaction);
+  return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
 export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }) {
