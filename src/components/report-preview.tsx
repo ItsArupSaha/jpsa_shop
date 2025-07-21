@@ -1,15 +1,13 @@
 
 'use client';
 
-import * as React from 'react';
-import type { ReportAnalysis } from '@/ai/flows/generate-monthly-report';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
-import { Download } from 'lucide-react';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import type { ReportAnalysis } from '@/lib/report-generator';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download } from 'lucide-react';
 
 interface ReportPreviewProps {
   reportData: ReportAnalysis;

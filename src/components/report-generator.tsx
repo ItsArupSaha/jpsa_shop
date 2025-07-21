@@ -1,21 +1,21 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { generateMonthlyReport, type ReportAnalysis } from '@/ai/flows/generate-monthly-report';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
-import type { Book } from '@/lib/types';
-import { getBooks, getBalanceSheetData, getSalesForMonth, getExpensesForMonth, getDonationsForMonth } from '@/lib/actions';
-import ReportPreview from './report-preview';
+import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { getBalanceSheetData, getBooks, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
+import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
+import type { Book } from '@/lib/types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import ReportPreview from './report-preview';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -83,20 +83,20 @@ export default function ReportGenerator() {
       ]);
       
       const input = {
-        salesData: JSON.stringify(salesForMonth),
-        expensesData: JSON.stringify(expensesForMonth),
-        donationsData: JSON.stringify(donationsForMonth),
-        booksData: JSON.stringify(dataSource.books),
-        balanceData: JSON.stringify({
+        salesData: salesForMonth,
+        expensesData: expensesForMonth,
+        donationsData: donationsForMonth,
+        booksData: dataSource.books,
+        balanceData: {
             cash: dataSource.balanceSheet.cash,
             bank: dataSource.balanceSheet.bank,
             stockValue: dataSource.balanceSheet.stockValue,
-        }),
+        },
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
       };
 
-      const result = await generateMonthlyReport(input);
+      const result = generateMonthlyReport(input);
       
       if (result) {
         setReportData(result);

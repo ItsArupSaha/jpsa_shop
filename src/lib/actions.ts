@@ -2,27 +2,28 @@
 'use server';
 
 import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  writeBatch,
-  Timestamp,
-  runTransaction,
-  getDoc,
-  orderBy,
-  collectionGroup,
-  limit,
-  startAfter,
+    Timestamp,
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    orderBy,
+    query,
+    runTransaction,
+    startAfter,
+    updateDoc,
+    where,
+    writeBatch
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
-import { db } from './firebase';
-import type { Book, Customer, Sale, Expense, Transaction, SaleItem, CustomerWithDue, Purchase, PurchaseItem, Metadata, Donation } from './types';
+import type { Firestore } from 'firebase/firestore';
+import { db as importedDb } from './firebase';
+import type { Book, Customer, CustomerWithDue, Donation, Expense, Metadata, Purchase, Sale, SaleItem, Transaction } from './types';
+const db: Firestore | undefined = importedDb;
 
 // Helper to convert Firestore docs to our types
 function docToBook(d: any): Book {
@@ -403,8 +404,8 @@ export async function addSale(
   
         const saleForClient: Sale = {
           id: newSaleRef.id,
-          date: saleDate.toISOString(),
           ...saleDataToSave,
+          date: saleDate.toISOString(), // ensure date is a string
         };
   
         return { success: true, sale: saleForClient };
