@@ -762,7 +762,11 @@ export async function getTransactionsPaginated({ type, pageLimit = 15, lastVisib
   return { transactions, hasMore };
 }
 
-export async function getTransactionsForCustomer(customerId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
+export async function getTransactionsForCustomer(
+  customerId: string, 
+  type: 'Receivable' | 'Payable', 
+  options: { excludeSaleDues?: boolean } = {}
+): Promise<Transaction[]> {
   if (!db) return [];
   const q = query(
       collection(db, 'transactions'),
@@ -770,7 +774,12 @@ export async function getTransactionsForCustomer(customerId: string, type: 'Rece
       where('customerId', '==', customerId)
   );
   const snapshot = await getDocs(q);
-  const transactions = snapshot.docs.map(docToTransaction);
+  let transactions = snapshot.docs.map(docToTransaction);
+
+  if (options.excludeSaleDues) {
+    transactions = transactions.filter(t => !t.description.startsWith('Due from Sale'));
+  }
+
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 

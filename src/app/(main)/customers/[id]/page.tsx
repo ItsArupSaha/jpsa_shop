@@ -22,16 +22,11 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   }
 
   // Use the new optimized functions
-  const [customerSales, books, customerTransactions] = await Promise.all([
+  const [customerSales, books, customerReceivables] = await Promise.all([
     getSalesForCustomer(customerId),
     getBooks(),
-    getTransactionsForCustomer(customerId, 'Receivable'),
+    getTransactionsForCustomer(customerId, 'Receivable', { excludeSaleDues: true }),
   ]);
-  
-  // Filter out receivables that were automatically generated from a 'Due' or 'Split' sale, as the sale itself represents the debit.
-  const customerReceivables = customerTransactions.filter(t => 
-    !t.description.startsWith('Due from Sale')
-  );
 
   const totalDebit = customerSales
     .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
@@ -41,7 +36,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       return sum;
     }, customer.openingBalance);
 
-  const totalCredit = customerTransactions
+  const totalCredit = (await getTransactionsForCustomer(customerId, 'Receivable'))
     .filter(t => t.status === 'Paid' && t.description.includes('Payment from customer'))
     .reduce((sum, t) => sum + t.amount, 0);
 
