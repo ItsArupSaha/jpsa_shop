@@ -1,13 +1,7 @@
-import type { Donation } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DonationsClient } from './donations-client';
 
-interface DonationsManagementProps {
-  initialDonations: Donation[];
-  initialHasMore: boolean;
-}
-
-export default function DonationsManagement({ initialDonations, initialHasMore }: DonationsManagementProps) {
+export default function DonationsManagement() {
 
   return (
     <Card className="animate-in fade-in-50">
@@ -17,7 +11,7 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
             <CardTitle className="font-headline text-2xl">Donations</CardTitle>
             <CardDescription>Record and view all donations received.</CardDescription>
           </div>
-          <DonationsClient initialDonations={initialDonations} initialHasMore={initialHasMore} />
+          <DonationsClient />
         </div>
       </CardHeader>
       <CardContent>

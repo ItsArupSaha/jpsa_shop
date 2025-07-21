@@ -25,7 +25,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -39,19 +39,30 @@ interface TransactionsManagementProps {
   title: string;
   description: string;
   type: 'Payable';
-  initialTransactions: Transaction[];
-  initialHasMore: boolean;
 }
 
-export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore }: TransactionsManagementProps) {
-  const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5 });
+    setTransactions(newTransactions);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, [type]);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -198,7 +209,15 @@ export default function TransactionsManagement({ title, description, type, initi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? transactions.map((transaction) => (
+                {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : transactions.length > 0 ? transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>

@@ -1,13 +1,7 @@
-import type { Expense } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExpensesClient } from './expenses-client';
 
-interface ExpensesManagementProps {
-  initialExpenses: Expense[];
-  initialHasMore: boolean;
-}
-
-export default function ExpensesManagement({ initialExpenses, initialHasMore }: ExpensesManagementProps) {
+export default function ExpensesManagement() {
 
   return (
     <Card className="animate-in fade-in-50">
@@ -17,7 +11,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
             <CardTitle className="font-headline text-2xl">Track Expenses</CardTitle>
             <CardDescription>Record and manage all bookstore expenses.</CardDescription>
           </div>
-          <ExpensesClient initialExpenses={initialExpenses} initialHasMore={initialHasMore} />
+          <ExpensesClient />
         </div>
       </CardHeader>
       <CardContent>

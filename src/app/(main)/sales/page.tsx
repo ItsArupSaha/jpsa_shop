@@ -1,18 +1,16 @@
 
 import SalesManagement from '@/components/sales-management';
-import { getSalesPaginated, getBooks, getCustomers } from '@/lib/actions';
+import { getBooks, getCustomers } from '@/lib/actions';
 
+// We can still pre-load static or less frequently changing data on the server
 export default async function SalesPage() {
-  const [salesResult, books, customers] = await Promise.all([
-    getSalesPaginated({ pageLimit: 5 }),
+  const [books, customers] = await Promise.all([
     getBooks(),
     getCustomers(),
   ]);
 
   return (
     <SalesManagement
-      initialSales={salesResult.sales}
-      initialHasMore={salesResult.hasMore}
       initialBooks={books}
       initialCustomers={customers}
     />

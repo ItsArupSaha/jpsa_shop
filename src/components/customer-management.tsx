@@ -42,6 +42,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from './ui/textarea';
+import { Skeleton } from './ui/skeleton';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -53,14 +54,10 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-interface CustomerManagementProps {
-  initialCustomers: Customer[];
-  initialHasMore: boolean;
-}
-
-export default function CustomerManagement({ initialCustomers, initialHasMore }: CustomerManagementProps) {
-  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function CustomerManagement() {
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
@@ -68,10 +65,16 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialCustomers = React.useCallback(async () => {
+      setIsInitialLoading(true);
       const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 5 });
       setCustomers(refreshedCustomers);
       setHasMore(refreshedHasMore);
+      setIsInitialLoading(false);
   }, []);
+
+  React.useEffect(() => {
+    loadInitialCustomers();
+  }, [loadInitialCustomers]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -208,26 +211,38 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell className="font-medium">
-                    <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
-                      {customer.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{customer.phone}</TableCell>
-                  <TableCell>{customer.address}</TableCell>
-                  <TableCell className="text-right">${customer.openingBalance.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                     <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} disabled={isPending}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                customers.map((customer) => (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                        {customer.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{customer.phone}</TableCell>
+                    <TableCell>{customer.address}</TableCell>
+                    <TableCell className="text-right">${customer.openingBalance.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                       <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} disabled={isPending}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>

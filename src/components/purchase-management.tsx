@@ -29,6 +29,7 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from './ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Skeleton } from './ui/skeleton';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -65,14 +66,10 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
-interface PurchaseManagementProps {
-  initialPurchases: Purchase[];
-  initialHasMore: boolean;
-}
-
-export default function PurchaseManagement({ initialPurchases, initialHasMore }: PurchaseManagementProps) {
-  const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function PurchaseManagement() {
+  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -81,10 +78,16 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
   const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
     const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 5 });
     setPurchases(newPurchases);
     setHasMore(newHasMore);
+    setIsInitialLoading(false);
   }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -160,7 +163,6 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
-    // For reports, we need all purchases, not just recent ones
     const allPurchases = await getPurchases();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
@@ -284,7 +286,18 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchases.length > 0 ? purchases.map((purchase) => (
+                {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : purchases.length > 0 ? purchases.map((purchase) => (
                   <TableRow key={purchase.id}>
                     <TableCell>{format(new Date(purchase.date), 'PPP')}</TableCell>
                     <TableCell className="font-mono">{purchase.purchaseId}</TableCell>

@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 const donationSchema = z.object({
   donorName: z.string().min(1, 'Donor name is required'),
@@ -38,20 +39,28 @@ const donationSchema = z.object({
 
 type DonationFormValues = z.infer<typeof donationSchema>;
 
-interface DonationsClientProps {
-    initialDonations: Donation[];
-    initialHasMore: boolean;
-}
-
-export function DonationsClient({ initialDonations, initialHasMore }: DonationsClientProps) {
-  const [donations, setDonations] = React.useState<Donation[]>(initialDonations);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export function DonationsClient() {
+  const [donations, setDonations] = React.useState<Donation[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5 });
+    setDonations(newDonations);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -96,7 +105,6 @@ export function DonationsClient({ initialDonations, initialHasMore }: DonationsC
         return null;
     }
     
-    // For reports, we fetch all donations
     const allDonations = await getDonations();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
@@ -222,7 +230,17 @@ export function DonationsClient({ initialDonations, initialHasMore }: DonationsC
             </TableRow>
           </TableHeader>
           <TableBody>
-            {donations.length > 0 ? donations.map((donation) => (
+             {isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : donations.length > 0 ? donations.map((donation) => (
               <TableRow key={donation.id}>
                 <TableCell>{format(new Date(donation.date), 'PPP')}</TableCell>
                 <TableCell className="font-medium">{donation.donorName}</TableCell>

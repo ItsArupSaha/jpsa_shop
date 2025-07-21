@@ -16,18 +16,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
+import { Skeleton } from './ui/skeleton';
 
-interface ReceivablesManagementProps {
-    initialCustomersWithDue: CustomerWithDue[];
-    initialHasMore: boolean;
-}
-
-export default function ReceivablesManagement({ initialCustomersWithDue, initialHasMore }: ReceivablesManagementProps) {
-  const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomersWithDue);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function ReceivablesManagement() {
+  const [customers, setCustomers] = React.useState<CustomerWithDue[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const { toast } = useToast();
   
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { customersWithDue, hasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5 });
+    setCustomers(customersWithDue);
+    setHasMore(hasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
@@ -123,7 +132,15 @@ export default function ReceivablesManagement({ initialCustomersWithDue, initial
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.length > 0 ? customers.map((customer) => (
+                 {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : customers.length > 0 ? customers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                         <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">

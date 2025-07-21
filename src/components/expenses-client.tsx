@@ -26,6 +26,7 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from './ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Skeleton } from './ui/skeleton';
 
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -36,20 +37,29 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-interface ExpensesClientProps {
-    initialExpenses: Expense[];
-    initialHasMore: boolean;
-}
-
-export function ExpensesClient({ initialExpenses, initialHasMore }: ExpensesClientProps) {
-  const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export function ExpensesClient() {
+  const [expenses, setExpenses] = React.useState<Expense[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5 });
+    setExpenses(newExpenses);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -240,7 +250,17 @@ export function ExpensesClient({ initialExpenses, initialHasMore }: ExpensesClie
             </TableRow>
           </TableHeader>
           <TableBody>
-            {expenses.length > 0 ? expenses.map((expense) => (
+             {isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : expenses.length > 0 ? expenses.map((expense) => (
               <TableRow key={expense.id}>
                 <TableCell className="font-medium">{expense.description}</TableCell>
                 <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>

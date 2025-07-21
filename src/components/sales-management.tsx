@@ -31,6 +31,7 @@ import type { DateRange } from 'react-day-picker';
 import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
 import { DownloadSaleMemo } from './download-sale-memo';
+import { Skeleton } from './ui/skeleton';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -66,14 +67,12 @@ const saleFormSchema = z.object({
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
 interface SalesManagementProps {
-    initialSales: Sale[];
-    initialHasMore: boolean;
     initialBooks: Book[];
     initialCustomers: Customer[];
 }
 
-export default function SalesManagement({ initialSales, initialHasMore, initialBooks, initialCustomers }: SalesManagementProps) {
-  const [sales, setSales] = React.useState<Sale[]>(initialSales);
+export default function SalesManagement({ initialBooks, initialCustomers }: SalesManagementProps) {
+  const [sales, setSales] = React.useState<Sale[]>([]);
   const [books, setBooks] = React.useState<Book[]>(initialBooks);
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -82,19 +81,33 @@ export default function SalesManagement({ initialSales, initialHasMore, initialB
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMoreSales, setHasMoreSales] = React.useState(initialHasMore);
+  const [hasMore, setHasMore] = React.useState(true);
+
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5 });
+    setSales(newSales);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
 
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   const handleLoadMore = async () => {
-    if (!hasMoreSales || isLoadingMore) return;
+    if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
-    const { sales: newSales, hasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
+    const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
     setSales(prev => [...prev, ...newSales]);
-    setHasMoreSales(hasMore);
+    setHasMore(newHasMore);
     setIsLoadingMore(false);
   };
 
@@ -336,7 +349,18 @@ export default function SalesManagement({ initialSales, initialHasMore, initialB
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length > 0 ? sales.map((sale) => {
+                {isInitialLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`skeleton-${i}`}>
+                            <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                        </TableRow>
+                    ))
+                ) : sales.length > 0 ? sales.map((sale) => {
                   const customer = customers.find(c => c.id === sale.customerId);
                   return (
                     <TableRow key={sale.id}>
@@ -375,7 +399,7 @@ export default function SalesManagement({ initialSales, initialHasMore, initialB
               </TableBody>
             </Table>
           </div>
-          {hasMoreSales && (
+          {hasMore && (
             <div className="flex justify-center mt-4">
               <Button onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
