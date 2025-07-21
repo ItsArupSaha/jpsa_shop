@@ -39,7 +39,7 @@ export default function ReceivablesManagement({ initialCustomersWithDue, initial
         dueBalance: lastCustomer.dueBalance,
     };
 
-    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 15, lastVisible });
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5, lastVisible });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

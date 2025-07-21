@@ -68,7 +68,7 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialCustomers = React.useCallback(async () => {
-      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 15 });
+      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 5 });
       setCustomers(refreshedCustomers);
       setHasMore(refreshedHasMore);
   }, []);
@@ -77,7 +77,7 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomerId = customers[customers.length - 1]?.id;
-    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 15, lastVisibleId: lastCustomerId });
+    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 5, lastVisibleId: lastCustomerId });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

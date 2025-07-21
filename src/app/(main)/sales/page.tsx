@@ -4,7 +4,7 @@ import { getSalesPaginated, getBooks, getCustomers } from '@/lib/actions';
 
 export default async function SalesPage() {
   const [salesResult, books, customers] = await Promise.all([
-    getSalesPaginated({ pageLimit: 10 }),
+    getSalesPaginated({ pageLimit: 5 }),
     getBooks(),
     getCustomers(),
   ]);

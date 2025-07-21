@@ -81,7 +81,7 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
   const loadInitialData = React.useCallback(async () => {
-    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
+    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 5 });
     setPurchases(newPurchases);
     setHasMore(newHasMore);
   }, []);
@@ -90,7 +90,7 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastPurchaseId = purchases[purchases.length - 1]?.id;
-    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10, lastVisibleId: lastPurchaseId });
+    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 5, lastVisibleId: lastPurchaseId });
     setPurchases(prev => [...prev, ...newPurchases]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

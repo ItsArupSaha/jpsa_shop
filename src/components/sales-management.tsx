@@ -92,7 +92,7 @@ export default function SalesManagement({ initialSales, initialHasMore, initialB
     if (!hasMoreSales || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
-    const { sales: newSales, hasMore } = await getSalesPaginated({ pageLimit: 10, lastVisibleId: lastSaleId });
+    const { sales: newSales, hasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
     setSales(prev => [...prev, ...newSales]);
     setHasMoreSales(hasMore);
     setIsLoadingMore(false);

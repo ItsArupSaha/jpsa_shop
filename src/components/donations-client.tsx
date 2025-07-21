@@ -57,7 +57,7 @@ export function DonationsClient({ initialDonations, initialHasMore }: DonationsC
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastDonationId = donations[donations.length - 1]?.id;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 10, lastVisibleId: lastDonationId });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5, lastVisibleId: lastDonationId });
     setDonations(prev => [...prev, ...newDonations]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

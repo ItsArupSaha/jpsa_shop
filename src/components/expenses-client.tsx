@@ -55,7 +55,7 @@ export function ExpensesClient({ initialExpenses, initialHasMore }: ExpensesClie
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 10, lastVisibleId: lastExpenseId });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5, lastVisibleId: lastExpenseId });
     setExpenses(prev => [...prev, ...newExpenses]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

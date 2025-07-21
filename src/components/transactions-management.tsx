@@ -57,7 +57,7 @@ export default function TransactionsManagement({ title, description, type, initi
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastTransactionId = transactions[transactions.length - 1]?.id;
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 15, lastVisibleId: lastTransactionId });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5, lastVisibleId: lastTransactionId });
     setTransactions(prev => [...prev, ...newTransactions]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

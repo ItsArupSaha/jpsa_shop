@@ -2,7 +2,7 @@ import TransactionsManagement from '@/components/transactions-management';
 import { getTransactionsPaginated } from '@/lib/actions';
 
 export default async function PayablesPage() {
-  const { transactions, hasMore } = await getTransactionsPaginated({ type: 'Payable', pageLimit: 15 });
+  const { transactions, hasMore } = await getTransactionsPaginated({ type: 'Payable', pageLimit: 5 });
 
   return (
     <TransactionsManagement

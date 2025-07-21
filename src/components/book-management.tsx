@@ -82,7 +82,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialData = React.useCallback(async () => {
-    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 15 });
+    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
     setBooks(newBooks);
     setHasMore(newHasMore);
   }, []);
@@ -91,7 +91,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastBookId = books[books.length - 1]?.id;
-    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 15, lastVisibleId: lastBookId });
+    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5, lastVisibleId: lastBookId });
     setBooks(prev => [...prev, ...newBooks]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
