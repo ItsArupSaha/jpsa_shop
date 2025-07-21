@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ResetDatabaseButton } from '@/components/reset-database-button';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -80,7 +81,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               ))}
             </SidebarMenu>
           </SidebarContent>
-           <SidebarFooter className="p-4 border-t">
+           <SidebarFooter className="p-4 border-t flex flex-col gap-4">
+             <ResetDatabaseButton />
             <div className="flex items-center gap-3">
               <Avatar>
                 <AvatarImage src="https://placehold.co/40x40" alt="User" data-ai-hint="person" />
