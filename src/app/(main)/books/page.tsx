@@ -1,7 +1,5 @@
 import BookManagement from '@/components/book-management';
-import { getBooksPaginated } from '@/lib/actions';
 
-export default async function BooksPage() {
-  const { books, hasMore } = await getBooksPaginated({ pageLimit: 5 });
-  return <BookManagement initialBooks={books} initialHasMore={hasMore} />;
+export default function BooksPage() {
+  return <BookManagement />;
 }

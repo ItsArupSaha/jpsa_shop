@@ -45,6 +45,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar';
+import { Skeleton } from './ui/skeleton';
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -63,14 +64,10 @@ interface ClosingStock extends Book {
   closingStock: number;
 }
 
-interface BookManagementProps {
-  initialBooks: Book[];
-  initialHasMore: boolean;
-}
-
-export default function BookManagement({ initialBooks, initialHasMore }: BookManagementProps) {
-  const [books, setBooks] = React.useState<Book[]>(initialBooks);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function BookManagement() {
+  const [books, setBooks] = React.useState<Book[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
@@ -82,10 +79,17 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
     const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
     setBooks(newBooks);
     setHasMore(newHasMore);
+    setIsInitialLoading(false);
   }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -314,22 +318,34 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
               </TableRow>
             </TableHeader>
             <TableBody>
-              {books.map((book) => (
-                <TableRow key={book.id}>
-                  <TableCell className="font-medium">{book.title}</TableCell>
-                  <TableCell>{book.author}</TableCell>
-                  <TableCell className="text-right">${book.sellingPrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{book.stock}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                     <Button variant="ghost" size="icon" onClick={() => handleDelete(book.id)} disabled={isPending}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                books.map((book) => (
+                  <TableRow key={book.id}>
+                    <TableCell className="font-medium">{book.title}</TableCell>
+                    <TableCell>{book.author}</TableCell>
+                    <TableCell className="text-right">${book.sellingPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{book.stock}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                       <Button variant="ghost" size="icon" onClick={() => handleDelete(book.id)} disabled={isPending}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
