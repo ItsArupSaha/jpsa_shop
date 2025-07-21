@@ -23,6 +23,7 @@ import { revalidatePath } from 'next/cache';
 import type { Firestore } from 'firebase/firestore';
 import { db as importedDb } from './firebase';
 import type { Book, Customer, CustomerWithDue, Donation, Expense, Metadata, Purchase, Sale, SaleItem, Transaction } from './types';
+import { DUMMY_BOOKS, DUMMY_CUSTOMERS } from './data';
 const db: Firestore | undefined = importedDb;
 
 // Helper to convert Firestore docs to our types
@@ -768,17 +769,22 @@ export async function getTransactionsForCustomer(
   options: { excludeSaleDues?: boolean } = {}
 ): Promise<Transaction[]> {
   if (!db) return [];
-  const q = query(
-      collection(db, 'transactions'),
-      where('type', '==', type),
-      where('customerId', '==', customerId)
-  );
-  const snapshot = await getDocs(q);
-  let transactions = snapshot.docs.map(docToTransaction);
+  let qConstraints = [
+    where('type', '==', type),
+    where('customerId', '==', customerId)
+  ];
 
   if (options.excludeSaleDues) {
-    transactions = transactions.filter(t => !t.description.startsWith('Due from Sale'));
+    qConstraints.push(where('description', '<', 'Due from Sale'), where('description', '>', 'Due from Sale'));
   }
+  
+  const q = query(
+      collection(db, 'transactions'),
+      ...qConstraints
+  );
+
+  const snapshot = await getDocs(q);
+  let transactions = snapshot.docs.map(docToTransaction);
 
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
@@ -989,6 +995,27 @@ export async function resetDatabase() {
   
   // Re-run batch for seeding
   const seedBatch = writeBatch(db);
+
+  // Seed Books
+  DUMMY_BOOKS.forEach(book => {
+    const bookRef = doc(collection(db, 'books'));
+    seedBatch.set(bookRef, book);
+  });
+
+  // Seed Customers
+  DUMMY_CUSTOMERS.forEach(customer => {
+    const customerRef = doc(collection(db, 'customers'));
+    seedBatch.set(customerRef, customer);
+  });
+  
+  // Seed a "Walk-in Customer"
+  seedBatch.set(doc(collection(db, 'customers')), {
+    name: 'Walk-in Customer',
+    phone: 'N/A',
+    address: 'N/A',
+    openingBalance: 0,
+  });
+
 
   const metadataRef = doc(db, 'metadata', 'counters');
   seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });

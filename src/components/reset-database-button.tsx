@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { resetDatabase } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, DatabaseZap } from 'lucide-react';
 
 export function ResetDatabaseButton() {
   const [isPending, startTransition] = React.useTransition();
@@ -26,9 +26,11 @@ export function ResetDatabaseButton() {
     startTransition(async () => {
       await resetDatabase();
       toast({
-        title: 'Database Reset',
-        description: 'All data has been cleared successfully.',
+        title: 'Database Reset & Seeded',
+        description: 'All data has been cleared and replaced with dummy data.',
       });
+      // Force a hard reload to ensure all states are fresh
+      window.location.reload();
     });
   };
 
@@ -36,14 +38,14 @@ export function ResetDatabaseButton() {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="destructive" size="sm">
-          Reset Database
+          <DatabaseZap className="mr-2 h-4 w-4" /> Reset Database
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete all your books, customers, sales, and other records from the database.
+            This action cannot be undone. This will permanently delete all current data and replace it with a set of dummy data for testing.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
