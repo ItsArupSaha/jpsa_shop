@@ -1,6 +1,8 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
-import { getBooks, getDashboardStats } from '@/lib/actions';
+import { getBooks } from '@/lib/db/books';
+import { getDashboardStats } from '@/lib/db/dashboard';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
 
 export default async function DashboardPage() {
