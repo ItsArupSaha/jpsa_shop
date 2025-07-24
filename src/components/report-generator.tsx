@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -141,7 +140,7 @@ export default function ReportGenerator() {
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -189,7 +188,7 @@ export default function ReportGenerator() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="flex justify-start">
+            <CardFooter>
               <Button type="submit" disabled={isLoading || isGenerating}>
                 {(isLoading || isGenerating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLoading ? 'Loading Data...' : isGenerating ? 'Generating...' : 'Generate Report'}
