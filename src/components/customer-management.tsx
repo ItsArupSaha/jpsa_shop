@@ -66,11 +66,21 @@ export default function CustomerManagement() {
 
   const loadInitialCustomers = React.useCallback(async () => {
       setIsInitialLoading(true);
-      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated();
-      setCustomers(refreshedCustomers);
-      setHasMore(refreshedHasMore);
-      setIsInitialLoading(false);
-  }, []);
+      try {
+        const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 5 });
+        setCustomers(refreshedCustomers);
+        setHasMore(refreshedHasMore);
+      } catch (error) {
+        console.error("Failed to load customers:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load customer data. Please try again later.",
+        });
+      } finally {
+        setIsInitialLoading(false);
+      }
+  }, [toast]);
 
   React.useEffect(() => {
     loadInitialCustomers();
@@ -80,10 +90,20 @@ export default function CustomerManagement() {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomerId = customers[customers.length - 1]?.id;
-    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ lastVisibleId: lastCustomerId });
-    setCustomers(prev => [...prev, ...newCustomers]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
+    try {
+        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 5, lastVisibleId: lastCustomerId });
+        setCustomers(prev => [...prev, ...newCustomers]);
+        setHasMore(newHasMore);
+    } catch (error) {
+        console.error("Failed to load more customers:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load more customers.",
+        });
+    } finally {
+        setIsLoadingMore(false);
+    }
   };
 
   const form = useForm<CustomerFormValues>({
@@ -111,24 +131,32 @@ export default function CustomerManagement() {
   
   const handleDelete = (id: string) => {
     startTransition(async () => {
-        await deleteCustomer(id);
-        await loadInitialCustomers();
-        toast({ title: "Customer Deleted", description: "The customer has been removed." });
+        try {
+            await deleteCustomer(id);
+            await loadInitialCustomers();
+            toast({ title: "Customer Deleted", description: "The customer has been removed." });
+        } catch(e) {
+             toast({ variant: "destructive", title: "Error", description: "Could not delete customer." });
+        }
     });
   }
 
   const onSubmit = (data: CustomerFormValues) => {
     startTransition(async () => {
-        if (editingCustomer) {
-            await updateCustomer(editingCustomer.id, data);
-            toast({ title: "Customer Updated", description: "The customer details have been saved." });
-        } else {
-            await addCustomer(data);
-            toast({ title: "Customer Added", description: "The new customer has been added." });
+        try {
+            if (editingCustomer) {
+                await updateCustomer(editingCustomer.id, data);
+                toast({ title: "Customer Updated", description: "The customer details have been saved." });
+            } else {
+                await addCustomer(data);
+                toast({ title: "Customer Added", description: "The new customer has been added." });
+            }
+            await loadInitialCustomers();
+            setIsDialogOpen(false);
+            setEditingCustomer(null);
+        } catch(e) {
+            toast({ variant: "destructive", title: "Error", description: "Could not save customer." });
         }
-        await loadInitialCustomers();
-        setIsDialogOpen(false);
-        setEditingCustomer(null);
     });
   };
 
