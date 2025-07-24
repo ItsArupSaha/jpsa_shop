@@ -96,7 +96,7 @@ export async function getCustomersWithDueBalancePaginated({ pageLimit = 5, lastV
 }
 
 
-export async function addCustomer(data: Omit<Customer, 'id'>) {
+export async function addCustomer(data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db) return;
   const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
   const newDocRef = await addDoc(collection(db, 'customers'), dataWithDue);
@@ -104,7 +104,7 @@ export async function addCustomer(data: Omit<Customer, 'id'>) {
   return { id: newDocRef.id, ...dataWithDue };
 }
 
-export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
+export async function updateCustomer(id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db) return;
   const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
   await updateDoc(doc(db, 'customers', id), dataWithDue);
