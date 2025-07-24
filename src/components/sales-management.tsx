@@ -66,15 +66,10 @@ const saleFormSchema = z.object({
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
-interface SalesManagementProps {
-    initialBooks: Book[];
-    initialCustomers: Customer[];
-}
-
-export default function SalesManagement({ initialBooks, initialCustomers }: SalesManagementProps) {
+export default function SalesManagement() {
   const [sales, setSales] = React.useState<Sale[]>([]);
-  const [books, setBooks] = React.useState<Book[]>(initialBooks);
-  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+  const [books, setBooks] = React.useState<Book[]>([]);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -87,11 +82,27 @@ export default function SalesManagement({ initialBooks, initialCustomers }: Sale
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5 });
-    setSales(newSales);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, []);
+    try {
+        const [{ sales: newSales, hasMore: newHasMore }, booksData, customersData] = await Promise.all([
+            getSalesPaginated({ pageLimit: 5 }),
+            getBooks(),
+            getCustomers(),
+        ]);
+        setSales(newSales);
+        setHasMore(newHasMore);
+        setBooks(booksData);
+        setCustomers(customersData);
+    } catch (error) {
+        console.error("Failed to load initial sales data:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load data. Please try again later.",
+        });
+    } finally {
+        setIsInitialLoading(false);
+    }
+}, [toast]);
 
   React.useEffect(() => {
     loadInitialData();
@@ -105,10 +116,19 @@ export default function SalesManagement({ initialBooks, initialCustomers }: Sale
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
-    const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
-    setSales(prev => [...prev, ...newSales]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
+    try {
+        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
+        setSales(prev => [...prev, ...newSales]);
+        setHasMore(newHasMore);
+    } catch(e) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load more sales.",
+        });
+    } finally {
+        setIsLoadingMore(false);
+    }
   };
 
 
