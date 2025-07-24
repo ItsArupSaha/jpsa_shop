@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -454,13 +454,15 @@ export default function SalesManagement() {
                                 <SelectValue placeholder="Select a customer" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                              {customers.map(customer => (
-                                <SelectItem key={customer.id} value={customer.id}>
-                                  {customer.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+                            <SelectPortal>
+                              <SelectContent>
+                                {customers.map(customer => (
+                                  <SelectItem key={customer.id} value={customer.id}>
+                                    {customer.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </SelectPortal>
                           </Select>
                           <FormMessage />
                         </FormItem>
@@ -489,13 +491,15 @@ export default function SalesManagement() {
                                         <SelectValue placeholder="Select a book" />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent>
-                                      {books.map(book => (
-                                        <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
-                                          {book.title}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
+                                    <SelectPortal>
+                                      <SelectContent>
+                                        {books.map(book => (
+                                          <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
+                                            {book.title}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </SelectPortal>
                                   </Select>
                                   <FormMessage />
                                 </FormItem>
@@ -559,11 +563,13 @@ export default function SalesManagement() {
                                         <SelectValue placeholder="Type" />
                                       </SelectTrigger>
                                     </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value="none">None</SelectItem>
-                                      <SelectItem value="percentage">%</SelectItem>
-                                      <SelectItem value="amount">$</SelectItem>
-                                    </SelectContent>
+                                    <SelectPortal>
+                                      <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="percentage">%</SelectItem>
+                                        <SelectItem value="amount">$</SelectItem>
+                                      </SelectContent>
+                                    </SelectPortal>
                                   </Select>
                                 </FormItem>
                               )}
@@ -666,3 +672,5 @@ export default function SalesManagement() {
     </>
   );
 }
+
+    
