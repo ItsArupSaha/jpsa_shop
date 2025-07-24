@@ -80,11 +80,21 @@ export default function BookManagement() {
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
-    setBooks(newBooks);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, []);
+    try {
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
+        setBooks(newBooks);
+        setHasMore(newHasMore);
+    } catch (error) {
+        console.error("Failed to load books:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load book data. Please try again later.",
+        });
+    } finally {
+        setIsInitialLoading(false);
+    }
+}, [toast]);
 
   React.useEffect(() => {
     loadInitialData();
@@ -95,10 +105,20 @@ export default function BookManagement() {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastBookId = books[books.length - 1]?.id;
-    const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5, lastVisibleId: lastBookId });
-    setBooks(prev => [...prev, ...newBooks]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
+    try {
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5, lastVisibleId: lastBookId });
+        setBooks(prev => [...prev, ...newBooks]);
+        setHasMore(newHasMore);
+    } catch (error) {
+        console.error("Failed to load more books:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load more books.",
+        });
+    } finally {
+        setIsLoadingMore(false);
+    }
   };
 
   const form = useForm<BookFormValues>({
@@ -126,24 +146,32 @@ export default function BookManagement() {
   
   const handleDelete = (id: string) => {
     startTransition(async () => {
-      await deleteBook(id);
-      await loadInitialData();
-      toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
+      try {
+        await deleteBook(id);
+        await loadInitialData(); // Reload data to reflect deletion
+        toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
+      } catch (error) {
+         toast({ variant: "destructive", title: "Error", description: "Could not delete the book." });
+      }
     });
   }
 
   const onSubmit = (data: BookFormValues) => {
     startTransition(async () => {
-      if (editingBook) {
-        await updateBook(editingBook.id, data);
-        toast({ title: "Book Updated", description: "The book details have been saved." });
-      } else {
-        await addBook(data);
-        toast({ title: "Book Added", description: "The new book is now in your inventory." });
+      try {
+        if (editingBook) {
+          await updateBook(editingBook.id, data);
+          toast({ title: "Book Updated", description: "The book details have been saved." });
+        } else {
+          await addBook(data);
+          toast({ title: "Book Added", description: "The new book is now in your inventory." });
+        }
+        await loadInitialData(); // Reload to show the changes
+        setIsDialogOpen(false);
+        setEditingBook(null);
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to save the book." });
       }
-      await loadInitialData();
-      setIsDialogOpen(false);
-      setEditingBook(null);
     });
   };
   
@@ -154,26 +182,31 @@ export default function BookManagement() {
     }
     
     setIsCalculating(true);
-    // Fetch all books and sales for this calculation, ignoring component state
-    const [allBooks, allSales] = await Promise.all([getBooks(), getSales()]);
-    
-    const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
+    try {
+        // Fetch all books and sales for this calculation, ignoring component state
+        const [allBooks, allSales] = await Promise.all([getBooks(), getSales()]);
+        
+        const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
 
-    const calculatedData = allBooks.map(book => {
-      const quantitySoldAfter = salesAfterDate.reduce((total, sale) => {
-        const item = sale.items.find(i => i.bookId === book.id);
-        return total + (item ? item.quantity : 0);
-      }, 0);
-      
-      return {
-        ...book,
-        closingStock: book.stock + quantitySoldAfter
-      }
-    });
+        const calculatedData = allBooks.map(book => {
+        const quantitySoldAfter = salesAfterDate.reduce((total, sale) => {
+            const item = sale.items.find(i => i.bookId === book.id);
+            return total + (item ? item.quantity : 0);
+        }, 0);
+        
+        return {
+            ...book,
+            closingStock: book.stock + quantitySoldAfter
+        }
+        });
 
-    setClosingStockData(calculatedData);
-    setIsCalculating(false);
-    setIsStockDialogOpen(false);
+        setClosingStockData(calculatedData);
+    } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });
+    } finally {
+        setIsCalculating(false);
+        setIsStockDialogOpen(false);
+    }
   }
 
   const handleDownloadPdf = () => {
