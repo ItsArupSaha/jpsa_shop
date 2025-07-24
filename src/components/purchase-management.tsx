@@ -79,11 +79,16 @@ export default function PurchaseManagement() {
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 5 });
-    setPurchases(newPurchases);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, []);
+    try {
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
+      setPurchases(newPurchases);
+      setHasMore(newHasMore);
+    } catch (error) {
+       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [toast]);
 
   React.useEffect(() => {
     loadInitialData();
@@ -93,10 +98,15 @@ export default function PurchaseManagement() {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastPurchaseId = purchases[purchases.length - 1]?.id;
-    const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 5, lastVisibleId: lastPurchaseId });
-    setPurchases(prev => [...prev, ...newPurchases]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
+    try {
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10, lastVisibleId: lastPurchaseId });
+      setPurchases(prev => [...prev, ...newPurchases]);
+      setHasMore(newHasMore);
+    } catch (error) {
+       toast({ variant: "destructive", title: "Error", description: "Failed to load more purchases." });
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
   const form = useForm<PurchaseFormValues>({
