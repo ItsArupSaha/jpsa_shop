@@ -672,5 +672,3 @@ export default function SalesManagement() {
     </>
   );
 }
-
-    
