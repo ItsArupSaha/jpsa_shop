@@ -16,6 +16,7 @@ export type Customer = {
   whatsapp?: string;
   address: string;
   openingBalance: number;
+  dueBalance: number;
 };
 
 export type CustomerWithDue = Customer & {

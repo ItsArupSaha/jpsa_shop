@@ -66,7 +66,7 @@ export default function CustomerManagement() {
 
   const loadInitialCustomers = React.useCallback(async () => {
       setIsInitialLoading(true);
-      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 5 });
+      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated();
       setCustomers(refreshedCustomers);
       setHasMore(refreshedHasMore);
       setIsInitialLoading(false);
@@ -80,7 +80,7 @@ export default function CustomerManagement() {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomerId = customers[customers.length - 1]?.id;
-    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 5, lastVisibleId: lastCustomerId });
+    const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ lastVisibleId: lastCustomerId });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -141,8 +141,8 @@ export default function CustomerManagement() {
     
     autoTable(doc, {
       startY: 20,
-      head: [['Name', 'Phone', 'Address']],
-      body: allCustomers.map(c => [c.name, c.phone, c.address]),
+      head: [['Name', 'Phone', 'Address', 'Due Balance']],
+      body: allCustomers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
     });
     
     doc.save(`customer-list.pdf`);
@@ -157,7 +157,7 @@ export default function CustomerManagement() {
       Phone: c.phone,
       WhatsApp: c.whatsapp || '',
       Address: c.address,
-      'Opening Balance': c.openingBalance,
+      'Due Balance': c.dueBalance || 0,
     }));
 
     const csv = Papa.unparse(csvData);
@@ -231,7 +231,7 @@ export default function CustomerManagement() {
                     </TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell>{customer.address}</TableCell>
-                    <TableCell className="text-right">${customer.openingBalance.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">${(customer.dueBalance || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
                         <Edit className="h-4 w-4" />

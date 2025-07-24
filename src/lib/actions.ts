@@ -83,7 +83,7 @@ export async function getBooks(): Promise<Book[]> {
   return snapshot.docs.map(docToBook);
 }
 
-export async function getBooksPaginated({ pageLimit = 15, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
+export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
   if (!db) return { books: [], hasMore: false };
 
   let q = query(
@@ -143,7 +143,7 @@ export async function getCustomers(): Promise<Customer[]> {
   return snapshot.docs.map(docToCustomer);
 }
 
-export async function getCustomersPaginated({ pageLimit = 15, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
+export async function getCustomersPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
     if (!db) return { customers: [], hasMore: false };
 
     let q = query(
@@ -218,7 +218,7 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
     return customersWithBalances.filter(c => c.dueBalance > 0.01).sort((a,b) => b.dueBalance - a.dueBalance);
 }
 
-export async function getCustomersWithDueBalancePaginated({ pageLimit = 15, lastVisible }: { pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
+export async function getCustomersWithDueBalancePaginated({ pageLimit = 5, lastVisible }: { pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
   if (!db) return { customersWithDue: [], hasMore: false };
 
   const allCustomersWithDue = await getCustomersWithDueBalance();
@@ -235,16 +235,18 @@ export async function getCustomersWithDueBalancePaginated({ pageLimit = 15, last
 }
 
 
-export async function addCustomer(data: Omit<Customer, 'id'>) {
+export async function addCustomer(data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db) return;
-  const newDocRef = await addDoc(collection(db, 'customers'), data);
+  const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
+  const newDocRef = await addDoc(collection(db, 'customers'), dataWithDue);
   revalidatePath('/customers');
-  return { id: newDocRef.id, ...data };
+  return { id: newDocRef.id, ...dataWithDue };
 }
 
-export async function updateCustomer(id: string, data: Omit<Customer, 'id'>) {
+export async function updateCustomer(id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db) return;
-  await updateDoc(doc(db, 'customers', id), data);
+  const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
+  await updateDoc(doc(db, 'customers', id), dataWithDue);
   revalidatePath('/customers');
   revalidatePath('/receivables');
   revalidatePath(`/customers/${id}`);
@@ -264,7 +266,7 @@ export async function getSales(): Promise<Sale[]> {
     return snapshot.docs.map(docToSale);
 }
 
-export async function getSalesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
+export async function getSalesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
   if (!db) return { sales: [], hasMore: false };
 
   let q = query(
@@ -283,7 +285,6 @@ export async function getSalesPaginated({ pageLimit = 10, lastVisibleId }: { pag
   const snapshot = await getDocs(q);
   const sales = snapshot.docs.map(docToSale);
   
-  // Check if there are more documents
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
@@ -390,6 +391,9 @@ export async function addSale(
           }
 
           if (dueAmount > 0) {
+              const currentDue = customerDoc.data()?.dueBalance || 0;
+              transaction.update(customerRef, { dueBalance: currentDue + dueAmount });
+
               const receivableData = {
                 description: `Due from Sale #${newSaleRef.id.slice(0, 6)}`,
                 amount: dueAmount,
@@ -433,7 +437,7 @@ export async function getPurchases(): Promise<Purchase[]> {
     return snapshot.docs.map(docToPurchase);
 }
 
-export async function getPurchasesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
+export async function getPurchasesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
   if (!db) return { purchases: [], hasMore: false };
 
   let q = query(
@@ -586,7 +590,7 @@ export async function getExpenses(): Promise<Expense[]> {
     return snapshot.docs.map(docToExpense);
 }
 
-export async function getExpensesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
+export async function getExpensesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
   if (!db) return { expenses: [], hasMore: false };
 
   let q = query(
@@ -658,7 +662,7 @@ export async function getDonations(): Promise<Donation[]> {
   return snapshot.docs.map(docToDonation);
 }
 
-export async function getDonationsPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
+export async function getDonationsPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
   if (!db) return { donations: [], hasMore: false };
 
   let q = query(
@@ -726,7 +730,7 @@ export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<T
     return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function getTransactionsPaginated({ type, pageLimit = 15, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
+export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
   if (!db) return { transactions: [], hasMore: false };
   let q = query(
     collection(db, 'transactions'), 
@@ -769,13 +773,15 @@ export async function getTransactionsForCustomer(
   options: { excludeSaleDues?: boolean } = {}
 ): Promise<Transaction[]> {
   if (!db) return [];
-  let qConstraints = [
+  let qConstraints: any[] = [
     where('type', '==', type),
     where('customerId', '==', customerId)
   ];
 
   if (options.excludeSaleDues) {
-    qConstraints.push(where('description', '<', 'Due from Sale'), where('description', '>', 'Due from Sale'));
+    // This is a workaround for Firestore's lack of 'not-starts-with'
+    // It assumes sale descriptions always start with "Due from Sale #"
+    qConstraints.push(where('description', '>=', 'Payment from customer'));
   }
   
   const q = query(
@@ -811,7 +817,17 @@ export async function addPayment(data: { customerId: string, amount: number, pay
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            let amountToSettle = data.amount;
+            const customerRef = doc(db, 'customers', data.customerId);
+            const customerDoc = await transaction.get(customerRef);
+
+            if (!customerDoc.exists()) {
+                throw new Error("Customer not found.");
+            }
+
+            const currentDue = customerDoc.data().dueBalance || 0;
+            const newDue = currentDue - data.amount;
+            
+            transaction.update(customerRef, { dueBalance: newDue < 0 ? 0 : newDue });
 
             const paymentTransactionData = {
                 description: `Payment from customer`,
@@ -825,6 +841,8 @@ export async function addPayment(data: { customerId: string, amount: number, pay
             const newTransactionRef = doc(collection(db, "transactions"));
             transaction.set(newTransactionRef, paymentTransactionData);
 
+            // Settle pending receivables if any
+            let amountToSettle = data.amount;
             const receivablesQuery = query(
                 collection(db, 'transactions'),
                 where('type', '==', 'Receivable'),
@@ -1005,7 +1023,8 @@ export async function resetDatabase() {
   // Seed Customers
   DUMMY_CUSTOMERS.forEach(customer => {
     const customerRef = doc(collection(db, 'customers'));
-    seedBatch.set(customerRef, customer);
+    const customerWithDue = { ...customer, dueBalance: customer.openingBalance };
+    seedBatch.set(customerRef, customerWithDue);
   });
   
   // Seed a "Walk-in Customer"
@@ -1014,6 +1033,7 @@ export async function resetDatabase() {
     phone: 'N/A',
     address: 'N/A',
     openingBalance: 0,
+    dueBalance: 0
   });
 
 

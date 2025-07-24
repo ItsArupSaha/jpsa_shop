@@ -15,36 +15,23 @@ import { DollarSign } from 'lucide-react';
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
   
-  const customer = await getCustomerById(customerId);
+  const customerData = await getCustomerById(customerId);
 
-  if (!customer) {
+  if (!customerData) {
     notFound();
   }
+  const customer = { ...customerData, dueBalance: customerData.dueBalance || customerData.openingBalance };
 
-  // Use the new optimized functions
-  const [customerSales, books, customerReceivables] = await Promise.all([
+
+  const [customerSales, books, customerPayments] = await Promise.all([
     getSalesForCustomer(customerId),
     getBooks(),
     getTransactionsForCustomer(customerId, 'Receivable', { excludeSaleDues: true }),
   ]);
-
-  const totalDebit = customerSales
-    .filter(s => s.paymentMethod === 'Due' || s.paymentMethod === 'Split')
-    .reduce((sum, sale) => {
-      if (sale.paymentMethod === 'Due') return sum + sale.total;
-      if (sale.paymentMethod === 'Split') return sum + (sale.total - (sale.amountPaid || 0));
-      return sum;
-    }, customer.openingBalance);
-
-  const totalCredit = (await getTransactionsForCustomer(customerId, 'Receivable'))
-    .filter(t => t.status === 'Paid' && t.description.includes('Payment from customer'))
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const currentBalance = totalDebit - totalCredit;
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
-  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerReceivables];
+  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments];
   combinedHistory.sort((a, b) => {
     const dateA = new Date('date' in a ? a.date : a.dueDate);
     const dateB = new Date('date' in b ? b.date : b.dueDate);
@@ -63,8 +50,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             </CardDescription>
             <div className="mt-4">
                 <span className="text-sm">Current Balance:</span>
-                <p className={`font-bold text-2xl ${currentBalance > 0 ? 'text-destructive' : 'text-primary'}`}>
-                    ${currentBalance.toFixed(2)}
+                <p className={`font-bold text-2xl ${customer.dueBalance > 0 ? 'text-destructive' : 'text-primary'}`}>
+                    ${customer.dueBalance.toFixed(2)}
                 </p>
             </div>
           </div>
