@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { getCustomers, getCustomersPaginated, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
+import { getCustomersPaginated, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -160,27 +160,25 @@ export default function CustomerManagement() {
     });
   };
 
-  const handleDownloadPdf = async () => {
-    const allCustomers = await getCustomers();
-    if (!allCustomers.length) return;
+  const handleDownloadPdf = () => {
+    if (!customers.length) return;
     
     const doc = new jsPDF();
-    doc.text(`Customer List`, 14, 15);
+    doc.text(`Customer List (Visible)`, 14, 15);
     
     autoTable(doc, {
       startY: 20,
       head: [['Name', 'Phone', 'Address', 'Due Balance']],
-      body: allCustomers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
+      body: customers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
     });
     
     doc.save(`customer-list.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const allCustomers = await getCustomers();
-    if (!allCustomers.length) return;
+  const handleDownloadCsv = () => {
+    if (!customers.length) return;
     
-    const csvData = allCustomers.map(c => ({
+    const csvData = customers.map(c => ({
       Name: c.name,
       Phone: c.phone,
       WhatsApp: c.whatsapp || '',

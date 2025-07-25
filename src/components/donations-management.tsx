@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getDonations, addDonation, getDonationsPaginated } from '@/lib/actions';
+import { addDonation, getDonationsPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -96,7 +97,7 @@ export default function DonationsManagement() {
     });
   };
 
-  const getFilteredDonations = async () => {
+  const getFilteredDonations = () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -105,19 +106,18 @@ export default function DonationsManagement() {
         return null;
     }
     
-    const allDonations = await getDonations();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return allDonations.filter(donation => {
+    return donations.filter(donation => {
       const donationDate = new Date(donation.date);
       return donationDate >= from && donationDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredDonations = await getFilteredDonations();
+  const handleDownloadPdf = () => {
+    const filteredDonations = getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -150,8 +150,8 @@ export default function DonationsManagement() {
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredDonations = await getFilteredDonations();
+  const handleDownloadCsv = () => {
+    const filteredDonations = getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {

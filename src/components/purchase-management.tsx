@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getPurchasesPaginated, addPurchase, getPurchases } from '@/lib/actions';
+import { getPurchasesPaginated, addPurchase } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
 
 import type { Purchase } from '@/lib/types';
@@ -168,23 +168,23 @@ export default function PurchaseManagement() {
     });
   };
 
-  const getFilteredPurchases = async () => {
+  const getFilteredPurchases = () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
-    const allPurchases = await getPurchases();
+    
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return allPurchases.filter(p => {
+    return purchases.filter(p => {
       const pDate = new Date(p.date);
       return pDate >= from && pDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredPurchases = await getFilteredPurchases();
+  const handleDownloadPdf = () => {
+    const filteredPurchases = getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
@@ -207,8 +207,8 @@ export default function PurchaseManagement() {
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredPurchases = await getFilteredPurchases();
+  const handleDownloadCsv = () => {
+    const filteredPurchases = getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });

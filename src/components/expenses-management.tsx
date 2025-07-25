@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getExpenses, addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -103,7 +103,7 @@ export default function ExpensesManagement() {
     });
   };
   
-  const getFilteredExpenses = async () => {
+  const getFilteredExpenses = () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -112,20 +112,18 @@ export default function ExpensesManagement() {
         return null;
     }
     
-    // For reports, we need all expenses
-    const allExpenses = await getExpenses();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return allExpenses.filter(expense => {
+    return expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       return expenseDate >= from && expenseDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredExpenses = await getFilteredExpenses();
+  const handleDownloadPdf = () => {
+    const filteredExpenses = getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -157,8 +155,8 @@ export default function ExpensesManagement() {
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredExpenses = await getFilteredExpenses();
+  const handleDownloadCsv = () => {
+    const filteredExpenses = getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
