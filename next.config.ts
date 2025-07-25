@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -16,6 +17,11 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+    ],
+  },
+  devIndicators: {
+    allowedDevOrigins: [
+      'https://*.cluster-htdgsbmflbdmov5xrjithceibm.cloudworkstations.dev',
     ],
   },
 };
