@@ -38,7 +38,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
     collection(db, 'transactions'), 
     where('type', '==', type), 
     where('status', '==', 'Pending'),
-    orderBy('dueDate', 'desc'),
+    // orderBy('dueDate', 'desc'), // Removing order to prevent needing a composite index
     limit(pageLimit)
   );
 
@@ -49,7 +49,9 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
     }
   }
   const snapshot = await getDocs(q);
-  const transactions = snapshot.docs.map(docToTransaction);
+  const transactions = snapshot.docs.map(docToTransaction)
+    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+
 
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
@@ -58,7 +60,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
         collection(db, 'transactions'), 
         where('type', '==', type), 
         where('status', '==', 'Pending'),
-        orderBy('dueDate', 'desc'),
+        // orderBy('dueDate', 'desc'),
         startAfter(lastDoc), 
         limit(1)
     );
