@@ -8,7 +8,6 @@ import * as z from 'zod';
 import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { getBooksPaginated, addBook, updateBook, deleteBook, calculateClosingStock } from '@/lib/actions';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -190,7 +189,7 @@ export default function BookManagement() {
     }
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadClosingStockPdf = () => {
     if (!closingStockData.length || !closingStockDate) return;
     
     const doc = new jsPDF();
@@ -207,7 +206,7 @@ export default function BookManagement() {
     doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
+  const handleDownloadClosingStockCsv = () => {
     if (!closingStockData.length || !closingStockDate) return;
     
     const csvData = closingStockData.map(book => ({
@@ -307,10 +306,10 @@ export default function BookManagement() {
               </Table>
             </div>
              <div className="flex items-center gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+              <Button variant="outline" size="sm" onClick={handleDownloadClosingStockPdf}>
                 <FileText className="mr-2 h-4 w-4" /> Download PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv}>
+              <Button variant="outline" size="sm" onClick={handleDownloadClosingStockCsv}>
                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
               </Button>
               <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setClosingStockData([])}>Clear Results</Button>
