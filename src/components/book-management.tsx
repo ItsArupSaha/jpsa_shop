@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { getBooks, getBooksPaginated, addBook, updateBook, deleteBook, getSales } from '@/lib/actions';
+import { getBooksPaginated, addBook, updateBook, deleteBook, calculateClosingStock } from '@/lib/actions';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
@@ -14,7 +14,7 @@ import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
 
 
-import type { Book, Sale } from '@/lib/types';
+import type { Book, ClosingStock } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -60,9 +60,6 @@ const bookSchema = z.object({
 
 type BookFormValues = z.infer<typeof bookSchema>;
 
-interface ClosingStock extends Book {
-  closingStock: number;
-}
 
 export default function BookManagement() {
   const [books, setBooks] = React.useState<Book[]>([]);
@@ -183,23 +180,7 @@ export default function BookManagement() {
     
     setIsCalculating(true);
     try {
-        // Fetch all books and sales for this calculation, ignoring component state
-        const [allBooks, allSales] = await Promise.all([getBooks(), getSales()]);
-        
-        const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
-
-        const calculatedData = allBooks.map(book => {
-        const quantitySoldAfter = salesAfterDate.reduce((total, sale) => {
-            const item = sale.items.find(i => i.bookId === book.id);
-            return total + (item ? item.quantity : 0);
-        }, 0);
-        
-        return {
-            ...book,
-            closingStock: book.stock + quantitySoldAfter
-        }
-        });
-
+        const calculatedData = await calculateClosingStock(closingStockDate);
         setClosingStockData(calculatedData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });

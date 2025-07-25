@@ -32,6 +32,10 @@ export type Book = {
   stock: number;
 };
 
+export type ClosingStock = Book & {
+  closingStock: number;
+};
+
 export type SaleItem = {
     bookId: string;
     quantity: number;
