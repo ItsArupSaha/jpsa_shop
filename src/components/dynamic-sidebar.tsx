@@ -4,13 +4,13 @@
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Sidebar, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
+import { SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
 import MainNav from '@/components/main-nav';
 import { ResetDatabaseButton } from '@/components/reset-database-button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useSidebar } from '@/components/ui/sidebar';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { useSidebar } from '@/hooks/use-sidebar';
 
-const SidebarComponent = dynamic(() => import('@/components/client-sidebar'), {
+const ClientSidebar = dynamic(() => import('@/components/client-sidebar'), {
   ssr: false,
   loading: () => (
     <div className="hidden md:block w-64 p-4 border-r">
@@ -41,7 +41,7 @@ export default function DynamicSidebar({ children }: { children: React.ReactNode
   const { state } = useSidebar();
   
   return (
-    <SidebarComponent>
+    <ClientSidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
           {children}
@@ -65,6 +65,6 @@ export default function DynamicSidebar({ children }: { children: React.ReactNode
           )}
         </div>
       </SidebarFooter>
-    </SidebarComponent>
+    </ClientSidebar>
   );
 }

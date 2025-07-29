@@ -2,9 +2,7 @@
 import * as React from 'react';
 import { Book } from 'lucide-react';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ResetDatabaseButton } from '@/components/reset-database-button';
-import MainNav, { MainNavHeader } from '@/components/main-nav';
+import { MainNavHeader } from '@/components/main-nav';
 import DynamicSidebar from '@/components/dynamic-sidebar';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {

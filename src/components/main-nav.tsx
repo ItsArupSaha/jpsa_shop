@@ -24,6 +24,7 @@ import {
   SidebarContent,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { useSidebar } from '@/hooks/use-sidebar';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -57,9 +58,10 @@ export function MainNavHeader() {
 
 export default function MainNav() {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
   
   return (
-    <SidebarContent className="p-4">
+    <SidebarContent className="p-4" onClick={() => setOpenMobile(false)}>
       <SidebarMenu>
         {navItems.map((item) => (
           <SidebarMenuItem key={item.href}>

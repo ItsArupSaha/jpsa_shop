@@ -29,7 +29,6 @@ const ReportPreview = dynamic(() => import('./report-preview'), {
   ),
 });
 
-
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
   year: z.string({ required_error: 'Please select a year.' }),
@@ -68,6 +67,8 @@ async function generateReportData(year: number, month: number) {
       const totalExpenses = expensesForMonth.reduce((sum, expense) => sum + expense.amount, 0);
       const totalDonations = donationsForMonth.reduce((sum, donation) => sum + donation.amount, 0);
 
+      const netProfitOrLoss = grossProfit - totalExpenses + totalDonations;
+
       return {
           openingBalances: {
             cash: balanceSheet.cash,
@@ -81,11 +82,10 @@ async function generateReportData(year: number, month: number) {
             totalDonations,
           },
           netResult: {
-            netProfitOrLoss: grossProfit - totalExpenses + totalDonations,
-          }
+            netProfitOrLoss,
+          },
       }
 }
-
 
 export default function ReportGenerator() {
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -96,6 +96,10 @@ export default function ReportGenerator() {
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
+    defaultValues: {
+      month: String(new Date().getMonth()),
+      year: String(new Date().getFullYear()),
+    }
   });
 
   const onSubmit = async (formData: ReportFormValues) => {
@@ -147,7 +151,6 @@ export default function ReportGenerator() {
           <CardTitle className="font-headline text-2xl">Monthly Report Generator</CardTitle>
           <CardDescription>
             Select a month and year to generate an automated profit-loss report.
-            The AI will analyze the data and provide a summary with key metrics.
           </CardDescription>
         </CardHeader>
         <Form {...form}>
