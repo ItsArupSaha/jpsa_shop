@@ -31,7 +31,6 @@ import type { DateRange } from 'react-day-picker';
 import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
 import { DownloadSaleMemo } from './download-sale-memo';
-import { Skeleton } from './ui/skeleton';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -71,9 +70,10 @@ interface SalesManagementProps {
     initialHasMore: boolean;
     books: Book[];
     customers: Customer[];
+    userId: string;
 }
 
-export default function SalesManagement({ initialSales, initialHasMore, books: initialBooks, customers: initialCustomers }: SalesManagementProps) {
+export default function SalesManagement({ initialSales, initialHasMore, books: initialBooks, customers: initialCustomers, userId }: SalesManagementProps) {
   const [sales, setSales] = React.useState<Sale[]>(initialSales);
   const [books, setBooks] = React.useState<Book[]>(initialBooks);
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
@@ -94,7 +94,7 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
     try {
-        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 10, lastVisibleId: lastSaleId });
+        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: 10, lastVisibleId: lastSaleId });
         setSales(prev => [...prev, ...newSales]);
         setHasMore(newHasMore);
     } catch(e) {
@@ -177,12 +177,12 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
-      const result = await addSale(data);
+      const result = await addSale(userId, data);
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
         setSales(prev => [result.sale!, ...prev]);
-        const updatedBooks = await getBooks();
+        const updatedBooks = await getBooks(userId);
         setBooks(updatedBooks);
         setCompletedSale(result.sale);
       } else {
