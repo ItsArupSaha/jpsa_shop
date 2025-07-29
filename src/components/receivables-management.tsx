@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
+import { getCustomersWithDueBalancePaginated } from '@/lib/actions';
 import { Skeleton } from './ui/skeleton';
 
 interface ReceivablesManagementProps {
@@ -26,7 +26,6 @@ interface ReceivablesManagementProps {
 export default function ReceivablesManagement({ initialCustomers, initialHasMore }: ReceivablesManagementProps) {
   const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomers);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const { toast } = useToast();
   
@@ -46,11 +45,8 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
     setIsLoadingMore(false);
   };
 
-  const handleDownload = async (formatType: 'pdf' | 'csv') => {
-    // For reports, we fetch all customers with due balance
-    const allCustomersWithDue = await getCustomersWithDueBalance();
-
-    if (allCustomersWithDue.length === 0) {
+  const handleDownload = (formatType: 'pdf' | 'csv') => {
+    if (customers.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -60,7 +56,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = allCustomersWithDue.map(c => ({
+    const body = customers.map(c => ({
         Customer: c.name,
         Phone: c.phone,
         'Due Amount': `$${c.dueBalance.toFixed(2)}`,
@@ -68,7 +64,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
-      doc.text('Pending Receivables Report', 14, 15);
+      doc.text('Pending Receivables Report (Visible Data)', 14, 15);
       doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 22);
       autoTable(doc, {
         startY: 30,
@@ -124,15 +120,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
                 </TableRow>
               </TableHeader>
               <TableBody>
-                 {isInitialLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
-                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : customers.length > 0 ? customers.map((customer) => (
+                 {customers.length > 0 ? customers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                         <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">

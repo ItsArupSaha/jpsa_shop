@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addExpense, deleteExpense, getExpensesPaginated, getExpenses } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -46,7 +46,6 @@ interface ExpensesManagementProps {
 export default function ExpensesManagement({ initialExpenses, initialHasMore }: ExpensesManagementProps) {
   const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -95,7 +94,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
     });
   };
   
-  const getFilteredExpenses = async () => {
+  const getFilteredExpenses = () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -104,20 +103,18 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
         return null;
     }
     
-    // Fetch all for the report
-    const allExpenses = await getExpenses();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return allExpenses.filter(expense => {
+    return expenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       return expenseDate >= from && expenseDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredExpenses = await getFilteredExpenses();
+  const handleDownloadPdf = () => {
+    const filteredExpenses = getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -149,8 +146,8 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredExpenses = await getFilteredExpenses();
+  const handleDownloadCsv = () => {
+    const filteredExpenses = getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -251,17 +248,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isInitialLoading ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={`skeleton-${i}`}>
-                          <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                        </TableRow>
-                      ))
-                    ) : expenses.length > 0 ? expenses.map((expense) => (
+                  {expenses.length > 0 ? expenses.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">{expense.description}</TableCell>
                       <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>

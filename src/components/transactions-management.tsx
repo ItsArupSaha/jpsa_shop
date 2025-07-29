@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getTransactionsPaginated, addTransaction, getTransactions } from '@/lib/actions';
+import { getTransactionsPaginated, addTransaction } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -46,7 +46,6 @@ interface TransactionsManagementProps {
 export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore }: TransactionsManagementProps) {
   const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -86,23 +85,23 @@ export default function TransactionsManagement({ title, description, type, initi
     });
   };
 
-  const getFilteredTransactions = async () => {
+  const getFilteredTransactions = () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
-    const allTrans = await getTransactions(type); // Fetch all for report
+    
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return allTrans.filter(t => {
+    return transactions.filter(t => {
       const tDate = new Date(t.dueDate);
       return tDate >= from && tDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredTransactions = await getFilteredTransactions();
+  const handleDownloadPdf = () => {
+    const filteredTransactions = getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -123,8 +122,8 @@ export default function TransactionsManagement({ title, description, type, initi
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredTransactions = await getFilteredTransactions();
+  const handleDownloadCsv = () => {
+    const filteredTransactions = getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -199,15 +198,7 @@ export default function TransactionsManagement({ title, description, type, initi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isInitialLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
-                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : transactions.length > 0 ? transactions.map((transaction) => (
+                {transactions.length > 0 ? transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>

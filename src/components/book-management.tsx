@@ -67,7 +67,6 @@ interface BookManagementProps {
 export default function BookManagement({ initialBooks, initialHasMore }: BookManagementProps) {
   const [books, setBooks] = React.useState<Book[]>(initialBooks);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false); // No initial loading on client
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
@@ -313,17 +312,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isInitialLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={`skeleton-${i}`}>
-                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : books.map((book) => (
+              {books.map((book) => (
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>

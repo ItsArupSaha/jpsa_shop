@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
+import { getSalesPaginated, getBooks, addSale } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,6 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
 
@@ -192,7 +191,7 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
     });
   };
 
-  const getFilteredSales = async () => {
+  const getFilteredSales = () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -201,20 +200,18 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
         return null;
     }
     
-    // Fetch all for report
-    const allSales = await getSales();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return allSales.filter(sale => {
+    return sales.filter(sale => {
       const saleDate = new Date(sale.date);
       return saleDate >= from && saleDate <= to;
     });
   }
   
-  const handleDownloadPdf = async () => {
-    const filteredSales = await getFilteredSales();
+  const handleDownloadPdf = () => {
+    const filteredSales = getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {
@@ -241,8 +238,8 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
     doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredSales = await getFilteredSales();
+  const handleDownloadCsv = () => {
+    const filteredSales = getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {
@@ -346,18 +343,7 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isInitialLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={`skeleton-${i}`}>
-                            <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                        </TableRow>
-                    ))
-                ) : sales.length > 0 ? sales.map((sale) => {
+                {sales.length > 0 ? sales.map((sale) => {
                   const customer = customers.find(c => c.id === sale.customerId);
                   return (
                     <TableRow key={sale.id}>

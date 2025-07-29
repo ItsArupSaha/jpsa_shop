@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getPurchasesPaginated, addPurchase, getPurchases } from '@/lib/actions';
+import { getPurchasesPaginated, addPurchase } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
 
 import type { Purchase } from '@/lib/types';
@@ -74,7 +74,6 @@ interface PurchaseManagementProps {
 export default function PurchaseManagement({ initialPurchases, initialHasMore }: PurchaseManagementProps) {
   const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -156,25 +155,23 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
     });
   };
 
-  const getFilteredPurchases = async () => {
+  const getFilteredPurchases = () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
     
-    // Fetch all for reports
-    const allPurchases = await getPurchases();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return allPurchases.filter(p => {
+    return purchases.filter(p => {
       const pDate = new Date(p.date);
       return pDate >= from && pDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredPurchases = await getFilteredPurchases();
+  const handleDownloadPdf = () => {
+    const filteredPurchases = getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
@@ -197,8 +194,8 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredPurchases = await getFilteredPurchases();
+  const handleDownloadCsv = () => {
+    const filteredPurchases = getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
@@ -286,18 +283,7 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isInitialLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : purchases.length > 0 ? purchases.map((purchase) => (
+                {purchases.length > 0 ? purchases.map((purchase) => (
                   <TableRow key={purchase.id}>
                     <TableCell>{format(new Date(purchase.date), 'PPP')}</TableCell>
                     <TableCell className="font-mono">{purchase.purchaseId}</TableCell>

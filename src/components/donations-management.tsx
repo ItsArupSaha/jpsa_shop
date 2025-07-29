@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addDonation, getDonationsPaginated, getDonations } from '@/lib/actions';
+import { addDonation, getDonationsPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -48,7 +48,6 @@ interface DonationsManagementProps {
 export default function DonationsManagement({ initialDonations, initialHasMore }: DonationsManagementProps) {
   const [donations, setDonations] = React.useState<Donation[]>(initialDonations);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -90,7 +89,7 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
     });
   };
 
-  const getFilteredDonations = async () => {
+  const getFilteredDonations = () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -99,20 +98,18 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
         return null;
     }
     
-    // Fetch all for the report
-    const allDonations = await getDonations();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return allDonations.filter(donation => {
+    return donations.filter(donation => {
       const donationDate = new Date(donation.date);
       return donationDate >= from && donationDate <= to;
     });
   }
 
-  const handleDownloadPdf = async () => {
-    const filteredDonations = await getFilteredDonations();
+  const handleDownloadPdf = () => {
+    const filteredDonations = getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -145,8 +142,8 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
-    const filteredDonations = await getFilteredDonations();
+  const handleDownloadCsv = () => {
+    const filteredDonations = getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -233,17 +230,7 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
               </TableRow>
             </TableHeader>
             <TableBody>
-               {isInitialLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
-                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : donations.length > 0 ? donations.map((donation) => (
+               {donations.length > 0 ? donations.map((donation) => (
                 <TableRow key={donation.id}>
                   <TableCell>{format(new Date(donation.date), 'PPP')}</TableCell>
                   <TableCell className="font-medium">{donation.donorName}</TableCell>
