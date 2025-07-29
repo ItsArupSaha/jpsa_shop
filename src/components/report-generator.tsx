@@ -8,13 +8,27 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getBalanceSheetData, getBooks, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
-import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import ReportPreview from './report-preview';
+import dynamic from 'next/dynamic';
+
+const ReportPreview = dynamic(() => import('./report-preview'), {
+  ssr: false,
+  loading: () => (
+     <div className="max-w-4xl mx-auto animate-pulse">
+        <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
+        <CardContent className="space-y-4">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+        </CardContent>
+    </div>
+  ),
+});
+
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -22,10 +36,60 @@ const reportSchema = z.object({
 });
 
 type ReportFormValues = z.infer<typeof reportSchema>;
+type ReportData = Awaited<ReturnType<typeof generateReportData>>;
+
+async function generateReportData(year: number, month: number) {
+    const [
+        salesForMonth, 
+        expensesForMonth, 
+        donationsForMonth, 
+        books, 
+        balanceSheet
+      ] = await Promise.all([
+        getSalesForMonth(year, month),
+        getExpensesForMonth(year, month),
+        getDonationsForMonth(year, month),
+        getBooks(),
+        getBalanceSheetData(),
+      ]);
+
+      const totalSales = salesForMonth.reduce((sum, sale) => sum + sale.total, 0);
+      const grossProfit = salesForMonth.reduce((totalProfit, sale) => {
+        const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
+          const book = books.find(b => b.id === item.bookId);
+          if (book) {
+            return currentSaleProfit + (item.price - book.productionPrice) * item.quantity;
+          }
+          return currentSaleProfit;
+        }, 0);
+        return totalProfit + saleProfit;
+      }, 0);
+
+      const totalExpenses = expensesForMonth.reduce((sum, expense) => sum + expense.amount, 0);
+      const totalDonations = donationsForMonth.reduce((sum, donation) => sum + donation.amount, 0);
+
+      return {
+          openingBalances: {
+            cash: balanceSheet.cash,
+            bank: balanceSheet.bank,
+            stockValue: balanceSheet.stockValue,
+          },
+          monthlyActivity: {
+            totalSales,
+            grossProfit,
+            totalExpenses,
+            totalDonations,
+          },
+          netResult: {
+            netProfitOrLoss: grossProfit - totalExpenses + totalDonations,
+          }
+      }
+}
+
 
 export default function ReportGenerator() {
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [reportData, setReportData] = React.useState<ReportAnalysis | null>(null);
+  const [reportData, setReportData] = React.useState<ReportData | null>(null);
   const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
 
   const { toast } = useToast();
@@ -43,35 +107,7 @@ export default function ReportGenerator() {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const [
-        salesForMonth, 
-        expensesForMonth, 
-        donationsForMonth, 
-        books, 
-        balanceSheet
-      ] = await Promise.all([
-        getSalesForMonth(selectedYear, selectedMonth),
-        getExpensesForMonth(selectedYear, selectedMonth),
-        getDonationsForMonth(selectedYear, selectedMonth),
-        getBooks(),
-        getBalanceSheetData(),
-      ]);
-      
-      const input = {
-        salesData: salesForMonth,
-        expensesData: expensesForMonth,
-        donationsData: donationsForMonth,
-        booksData: books,
-        balanceData: {
-            cash: balanceSheet.cash,
-            bank: balanceSheet.bank,
-            stockValue: balanceSheet.stockValue,
-        },
-        month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
-        year: formData.year,
-      };
-
-      const result = generateMonthlyReport(input);
+      const result = await generateReportData(selectedYear, selectedMonth);
       
       if (result) {
         setReportData(result);

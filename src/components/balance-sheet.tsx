@@ -32,6 +32,11 @@ export default function BalanceSheet() {
     }
   }, []);
 
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString(undefined, {
       style: 'currency',
