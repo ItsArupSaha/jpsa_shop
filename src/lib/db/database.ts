@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, doc, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, updateDoc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import { DUMMY_BOOKS, DUMMY_CUSTOMERS } from '../data';
@@ -16,8 +16,13 @@ export async function resetDatabase(userId: string) {
 
   const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
   for (const coll of collectionsToDelete) {
-    const snapshot = await getDocs(collection(userRef, coll));
-    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    try {
+      const snapshot = await getDocs(collection(userRef, coll));
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    } catch (error) {
+      // It's okay if a collection doesn't exist, especially for a new user.
+      console.log(`Collection ${coll} not found for user ${userId}, skipping delete.`);
+    }
   }
   
   await batch.commit();
@@ -54,6 +59,7 @@ export async function resetDatabase(userId: string) {
   seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });
 
   await seedBatch.commit();
+  await updateDoc(userSeedRef, { isApproved: true });
   console.log(`Database for user ${userId} reset and seeded with initial data.`);
 
   // Revalidate all paths
@@ -81,6 +87,9 @@ export async function initializeNewUser(userId: string) {
   // Initialize metadata counters
   const metadataRef = doc(userRef, 'metadata', 'counters');
   batch.set(metadataRef, { lastPurchaseNumber: 0 });
+
+  // Finally, approve the user
+  batch.update(userRef, { isApproved: true });
 
   await batch.commit();
   console.log(`Empty bookstore initialized for user ${userId}.`);

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -21,7 +20,11 @@ export default function AppWithAuthProvider({ children }: { children: React.Reac
         }
     }, [user, loading, isPublicRoute, router]);
 
-    if (loading && !isPublicRoute) {
+    // Show loading state if auth is loading, OR if the user object exists but is not yet approved
+    // This gives `initializeNewUser` time to complete for new users.
+    const showLoadingScreen = loading || (user && !user.isApproved && !isPublicRoute);
+
+    if (showLoadingScreen) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <Book className="h-8 w-8 animate-spin text-primary" />

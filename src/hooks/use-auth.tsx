@@ -2,13 +2,14 @@
 'use client';
 
 import * as React from 'react';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User as FirebaseAuthUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { initializeNewUser } from '@/lib/db/database';
+import type { AuthUser } from '@/lib/types';
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -17,7 +18,7 @@ interface AuthContextType {
 const AuthContext = React.createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(null);
+  const [user, setUser] = React.useState<AuthUser | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -26,27 +27,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         return;
     }
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUser(user);
-        const userRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(userRef);
 
-        if (!docSnap.exists()) {
-          // New user, create their document and initialize their data
-          await setDoc(userRef, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            createdAt: serverTimestamp(),
-          });
-          await initializeNewUser(user.uid);
-        }
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseAuthUser | null) => {
+      if (firebaseUser) {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        
+        // Listen for changes on the user doc, especially for the isApproved flag
+        const unsubUserDoc = onSnapshot(userRef, async (userDocSnap) => {
+            if (userDocSnap.exists()) {
+                setUser(userDocSnap.data() as AuthUser);
+                setLoading(false);
+            } else {
+                 // New user, create their document and initialize their data
+                const newUser: AuthUser = {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email,
+                    displayName: firebaseUser.displayName,
+                    photoURL: firebaseUser.photoURL,
+                    isApproved: false, // Start as not approved
+                    createdAt: serverTimestamp(),
+                };
+                await setDoc(userRef, newUser);
+                await initializeNewUser(firebaseUser.uid);
+                // The onSnapshot will automatically update the user state once isApproved becomes true
+            }
+        });
+
+        return () => unsubUserDoc();
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
