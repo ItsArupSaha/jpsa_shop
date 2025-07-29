@@ -59,11 +59,15 @@ const bookSchema = z.object({
 
 type BookFormValues = z.infer<typeof bookSchema>;
 
+interface BookManagementProps {
+  initialBooks: Book[];
+  initialHasMore: boolean;
+}
 
-export default function BookManagement() {
-  const [books, setBooks] = React.useState<Book[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+export default function BookManagement({ initialBooks, initialHasMore }: BookManagementProps) {
+  const [books, setBooks] = React.useState<Book[]>(initialBooks);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false); // No initial loading on client
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
@@ -74,35 +78,12 @@ export default function BookManagement() {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
-        setBooks(newBooks);
-        setHasMore(newHasMore);
-    } catch (error) {
-        console.error("Failed to load books:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load book data. Please try again later.",
-        });
-    } finally {
-        setIsInitialLoading(false);
-    }
-}, [toast]);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
-
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastBookId = books[books.length - 1]?.id;
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5, lastVisibleId: lastBookId });
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 10, lastVisibleId: lastBookId });
         setBooks(prev => [...prev, ...newBooks]);
         setHasMore(newHasMore);
     } catch (error) {
@@ -144,7 +125,7 @@ export default function BookManagement() {
     startTransition(async () => {
       try {
         await deleteBook(id);
-        await loadInitialData(); // Reload data to reflect deletion
+        setBooks(prev => prev.filter(b => b.id !== id));
         toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
       } catch (error) {
          toast({ variant: "destructive", title: "Error", description: "Could not delete the book." });
@@ -157,12 +138,13 @@ export default function BookManagement() {
       try {
         if (editingBook) {
           await updateBook(editingBook.id, data);
+          setBooks(prev => prev.map(b => b.id === editingBook.id ? { ...b, ...data } : b));
           toast({ title: "Book Updated", description: "The book details have been saved." });
         } else {
-          await addBook(data);
+          const newBook = await addBook(data);
+          setBooks(prev => [newBook, ...prev]);
           toast({ title: "Book Added", description: "The new book is now in your inventory." });
         }
-        await loadInitialData(); // Reload to show the changes
         setIsDialogOpen(false);
         setEditingBook(null);
       } catch (error) {
@@ -341,8 +323,7 @@ export default function BookManagement() {
                     <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : (
-                books.map((book) => (
+              ) : books.map((book) => (
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
@@ -357,8 +338,7 @@ export default function BookManagement() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ))}
             </TableBody>
           </Table>
         </div>

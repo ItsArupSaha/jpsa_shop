@@ -39,12 +39,14 @@ interface TransactionsManagementProps {
   title: string;
   description: string;
   type: 'Payable';
+  initialTransactions: Transaction[];
+  initialHasMore: boolean;
 }
 
-export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
-  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore }: TransactionsManagementProps) {
+  const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -52,23 +54,11 @@ export default function TransactionsManagement({ title, description, type }: Tra
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5 });
-    setTransactions(newTransactions);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, [type]);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastTransactionId = transactions[transactions.length - 1]?.id;
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5, lastVisibleId: lastTransactionId });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 10, lastVisibleId: lastTransactionId });
     setTransactions(prev => [...prev, ...newTransactions]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

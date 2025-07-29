@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getSalesPaginated, getBooks, getCustomers, addSale } from '@/lib/actions';
+import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -66,48 +66,26 @@ const saleFormSchema = z.object({
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
-export default function SalesManagement() {
-  const [sales, setSales] = React.useState<Sale[]>([]);
-  const [books, setBooks] = React.useState<Book[]>([]);
-  const [customers, setCustomers] = React.useState<Customer[]>([]);
+interface SalesManagementProps {
+    initialSales: Sale[];
+    initialHasMore: boolean;
+    books: Book[];
+    customers: Customer[];
+}
+
+export default function SalesManagement({ initialSales, initialHasMore, books: initialBooks, customers: initialCustomers }: SalesManagementProps) {
+  const [sales, setSales] = React.useState<Sale[]>(initialSales);
+  const [books, setBooks] = React.useState<Book[]>(initialBooks);
+  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMore, setHasMore] = React.useState(true);
-
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    try {
-        const [{ sales: newSales, hasMore: newHasMore }, booksData, customersData] = await Promise.all([
-            getSalesPaginated({ pageLimit: 5 }),
-            getBooks(),
-            getCustomers(),
-        ]);
-        setSales(newSales);
-        setHasMore(newHasMore);
-        setBooks(booksData);
-        setCustomers(customersData);
-    } catch (error) {
-        console.error("Failed to load initial sales data:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load data. Please try again later.",
-        });
-    } finally {
-        setIsInitialLoading(false);
-    }
-}, [toast]);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
 
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
@@ -117,7 +95,7 @@ export default function SalesManagement() {
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
     try {
-        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
+        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 10, lastVisibleId: lastSaleId });
         setSales(prev => [...prev, ...newSales]);
         setHasMore(newHasMore);
     } catch(e) {
@@ -204,7 +182,6 @@ export default function SalesManagement() {
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-        // Instead of refetching all, just add the new sale to the top.
         setSales(prev => [result.sale!, ...prev]);
         const updatedBooks = await getBooks();
         setBooks(updatedBooks);
@@ -215,7 +192,7 @@ export default function SalesManagement() {
     });
   };
 
-  const getFilteredSales = () => {
+  const getFilteredSales = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -224,18 +201,20 @@ export default function SalesManagement() {
         return null;
     }
     
+    // Fetch all for report
+    const allSales = await getSales();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return sales.filter(sale => {
+    return allSales.filter(sale => {
       const saleDate = new Date(sale.date);
       return saleDate >= from && saleDate <= to;
     });
   }
   
-  const handleDownloadPdf = () => {
-    const filteredSales = getFilteredSales();
+  const handleDownloadPdf = async () => {
+    const filteredSales = await getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {
@@ -262,8 +241,8 @@ export default function SalesManagement() {
     doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredSales = getFilteredSales();
+  const handleDownloadCsv = async () => {
+    const filteredSales = await getFilteredSales();
     if (!filteredSales) return;
 
     if (filteredSales.length === 0) {

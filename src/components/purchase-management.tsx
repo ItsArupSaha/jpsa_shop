@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getPurchasesPaginated, addPurchase } from '@/lib/actions';
+import { getPurchasesPaginated, addPurchase, getPurchases } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
 
 import type { Purchase } from '@/lib/types';
@@ -66,33 +66,21 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
-export default function PurchaseManagement() {
-  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+interface PurchaseManagementProps {
+    initialPurchases: Purchase[];
+    initialHasMore: boolean;
+}
+
+export default function PurchaseManagement({ initialPurchases, initialHasMore }: PurchaseManagementProps) {
+  const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
-      setPurchases(newPurchases);
-      setHasMore(newHasMore);
-    } catch (error) {
-       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
-    } finally {
-      setIsInitialLoading(false);
-    }
-  }, [toast]);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -158,9 +146,9 @@ export default function PurchaseManagement() {
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
       const result = await addPurchase(data);
-      if (result?.success) {
+      if (result?.success && result.purchase) {
         toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
-        loadInitialData();
+        setPurchases(prev => [result.purchase!, ...prev]);
         setIsDialogOpen(false);
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record purchase.' });
@@ -168,23 +156,25 @@ export default function PurchaseManagement() {
     });
   };
 
-  const getFilteredPurchases = () => {
+  const getFilteredPurchases = async () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
     
+    // Fetch all for reports
+    const allPurchases = await getPurchases();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return purchases.filter(p => {
+    return allPurchases.filter(p => {
       const pDate = new Date(p.date);
       return pDate >= from && pDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredPurchases = getFilteredPurchases();
+  const handleDownloadPdf = async () => {
+    const filteredPurchases = await getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
@@ -207,8 +197,8 @@ export default function PurchaseManagement() {
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredPurchases = getFilteredPurchases();
+  const handleDownloadCsv = async () => {
+    const filteredPurchases = await getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });

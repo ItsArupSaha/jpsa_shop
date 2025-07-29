@@ -26,7 +26,7 @@ export async function getDonations(): Promise<Donation[]> {
   return snapshot.docs.map(docToDonation);
 }
 
-export async function getDonationsPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
+export async function getDonationsPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
   if (!db) return { donations: [], hasMore: false };
 
   let q = query(

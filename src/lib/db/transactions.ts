@@ -32,13 +32,13 @@ export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<T
     return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
+export async function getTransactionsPaginated({ type, pageLimit = 10, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
   if (!db) return { transactions: [], hasMore: false };
   let q = query(
     collection(db, 'transactions'), 
     where('type', '==', type), 
     where('status', '==', 'Pending'),
-    // orderBy('dueDate', 'desc'), // Removing order to prevent needing a composite index
+    orderBy('dueDate', 'desc'),
     limit(pageLimit)
   );
 
@@ -49,9 +49,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
     }
   }
   const snapshot = await getDocs(q);
-  const transactions = snapshot.docs.map(docToTransaction)
-    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
-
+  const transactions = snapshot.docs.map(docToTransaction);
 
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
@@ -60,7 +58,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
         collection(db, 'transactions'), 
         where('type', '==', type), 
         where('status', '==', 'Pending'),
-        // orderBy('dueDate', 'desc'),
+        orderBy('dueDate', 'desc'),
         startAfter(lastDoc), 
         limit(1)
     );

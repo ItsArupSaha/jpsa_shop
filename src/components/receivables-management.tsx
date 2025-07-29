@@ -18,37 +18,29 @@ import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
 import { Skeleton } from './ui/skeleton';
 
-export default function ReceivablesManagement() {
-  const [customers, setCustomers] = React.useState<CustomerWithDue[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+interface ReceivablesManagementProps {
+  initialCustomers: CustomerWithDue[];
+  initialHasMore: boolean;
+}
+
+export default function ReceivablesManagement({ initialCustomers, initialHasMore }: ReceivablesManagementProps) {
+  const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomers);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const { toast } = useToast();
   
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    const { customersWithDue, hasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5 });
-    setCustomers(customersWithDue);
-    setHasMore(hasMore);
-    setIsInitialLoading(false);
-  }, []);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomer = customers[customers.length - 1];
     
-    // We need to pass the last customer's ID and their due balance to get the next page correctly
     const lastVisible = {
         id: lastCustomer.id,
         dueBalance: lastCustomer.dueBalance,
     };
 
-    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5, lastVisible });
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 10, lastVisible });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);

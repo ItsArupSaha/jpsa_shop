@@ -27,7 +27,7 @@ export async function getBooks(): Promise<Book[]> {
   return snapshot.docs.map(docToBook);
 }
 
-export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
+export async function getBooksPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
   if (!db) return { books: [], hasMore: false };
 
   let q = query(
@@ -58,7 +58,7 @@ export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { page
 }
 
 export async function addBook(data: Omit<Book, 'id'>) {
-  if (!db) return;
+  if (!db) throw new Error("Database not connected.");
   const newDocRef = await addDoc(collection(db, 'books'), data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');

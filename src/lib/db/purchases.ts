@@ -27,7 +27,7 @@ export async function getPurchases(): Promise<Purchase[]> {
     return snapshot.docs.map(docToPurchase);
 }
 
-export async function getPurchasesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
+export async function getPurchasesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
   if (!db) return { purchases: [], hasMore: false };
 
   let q = query(
@@ -57,7 +57,7 @@ export async function getPurchasesPaginated({ pageLimit = 5, lastVisibleId }: { 
   return { purchases, hasMore };
 }
 
-export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: Date }) {
+export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId' | 'dueDate'> & { dueDate: Date }) {
   if (!db) return { success: false, error: 'Database not connected' };
 
   try {

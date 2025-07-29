@@ -27,7 +27,7 @@ export async function getCustomers(): Promise<Customer[]> {
   return snapshot.docs.map(docToCustomer);
 }
 
-export async function getCustomersPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
+export async function getCustomersPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
     if (!db) return { customers: [], hasMore: false };
 
     let q = query(
@@ -79,7 +79,7 @@ export async function getCustomersWithDueBalance(): Promise<CustomerWithDue[]> {
     return snapshot.docs.map(d => ({ ...docToCustomer(d), dueBalance: d.data().dueBalance } as CustomerWithDue));
 }
 
-export async function getCustomersWithDueBalancePaginated({ pageLimit = 5, lastVisible }: { pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
+export async function getCustomersWithDueBalancePaginated({ pageLimit = 10, lastVisible }: { pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
   if (!db) return { customersWithDue: [], hasMore: false };
 
   const allCustomersWithDue = await getCustomersWithDueBalance();
@@ -97,11 +97,11 @@ export async function getCustomersWithDueBalancePaginated({ pageLimit = 5, lastV
 
 
 export async function addCustomer(data: Omit<Customer, 'id' | 'dueBalance'>) {
-  if (!db) return;
+  if (!db) throw new Error("Database not connected.");
   const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
   const newDocRef = await addDoc(collection(db, 'customers'), dataWithDue);
   revalidatePath('/customers');
-  return { id: newDocRef.id, ...dataWithDue };
+  return { id: newDocRef.id, ...dataWithDue, dueBalance: dataWithDue.dueBalance };
 }
 
 export async function updateCustomer(id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {

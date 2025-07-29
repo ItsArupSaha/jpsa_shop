@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpensesPaginated, getExpenses } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -38,10 +38,15 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-export default function ExpensesManagement() {
-  const [expenses, setExpenses] = React.useState<Expense[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
-  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
+interface ExpensesManagementProps {
+    initialExpenses: Expense[];
+    initialHasMore: boolean;
+}
+
+export default function ExpensesManagement({ initialExpenses, initialHasMore }: ExpensesManagementProps) {
+  const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
+  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(false);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -49,24 +54,11 @@ export default function ExpensesManagement() {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
-  const loadInitialData = React.useCallback(async () => {
-    setIsInitialLoading(true);
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5 });
-    setExpenses(newExpenses);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, []);
-
-  React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
-
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5, lastVisibleId: lastExpenseId });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 10, lastVisibleId: lastExpenseId });
     setExpenses(prev => [...prev, ...newExpenses]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -103,7 +95,7 @@ export default function ExpensesManagement() {
     });
   };
   
-  const getFilteredExpenses = () => {
+  const getFilteredExpenses = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -112,18 +104,20 @@ export default function ExpensesManagement() {
         return null;
     }
     
+    // Fetch all for the report
+    const allExpenses = await getExpenses();
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return expenses.filter(expense => {
+    return allExpenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       return expenseDate >= from && expenseDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadPdf = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -155,8 +149,8 @@ export default function ExpensesManagement() {
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadCsv = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {

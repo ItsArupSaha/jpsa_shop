@@ -27,7 +27,7 @@ export async function getExpenses(): Promise<Expense[]> {
     return snapshot.docs.map(docToExpense);
 }
 
-export async function getExpensesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
+export async function getExpensesPaginated({ pageLimit = 10, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
   if (!db) return { expenses: [], hasMore: false };
 
   let q = query(
