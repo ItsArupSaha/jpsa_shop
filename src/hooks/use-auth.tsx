@@ -74,7 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, loading, signInWithGoogle, signOut };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+        {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useAuth = (): AuthContextType => {
