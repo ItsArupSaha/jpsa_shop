@@ -16,14 +16,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalancePaginated } from '@/lib/actions';
-import { Skeleton } from './ui/skeleton';
 
 interface ReceivablesManagementProps {
   initialCustomers: CustomerWithDue[];
   initialHasMore: boolean;
+  userId: string;
 }
 
-export default function ReceivablesManagement({ initialCustomers, initialHasMore }: ReceivablesManagementProps) {
+export default function ReceivablesManagement({ initialCustomers, initialHasMore, userId }: ReceivablesManagementProps) {
   const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomers);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -39,7 +39,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
         dueBalance: lastCustomer.dueBalance,
     };
 
-    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 10, lastVisible });
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ userId, pageLimit: 10, lastVisible });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -93,7 +93,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
               <CardDescription>A list of all customers with an outstanding balance.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
-                <ReceivePaymentDialog>
+                <ReceivePaymentDialog userId={userId}>
                     <Button>
                         <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
                     </Button>

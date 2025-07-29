@@ -40,9 +40,10 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 interface ExpensesManagementProps {
     initialExpenses: Expense[];
     initialHasMore: boolean;
+    userId: string;
 }
 
-export default function ExpensesManagement({ initialExpenses, initialHasMore }: ExpensesManagementProps) {
+export default function ExpensesManagement({ initialExpenses, initialHasMore, userId }: ExpensesManagementProps) {
   const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -56,7 +57,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 10, lastVisibleId: lastExpenseId });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 10, lastVisibleId: lastExpenseId });
     setExpenses(prev => [...prev, ...newExpenses]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -78,7 +79,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
 
   const handleDelete = (id: string) => {
     startTransition(async () => {
-        await deleteExpense(id);
+        await deleteExpense(userId, id);
         setExpenses(prev => prev.filter(e => e.id !== id));
         toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
@@ -86,7 +87,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore }: 
 
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
-        const newExpense = await addExpense(data);
+        const newExpense = await addExpense(userId, data);
         setExpenses(prev => [newExpense, ...prev]);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
         setIsAddDialogOpen(false);

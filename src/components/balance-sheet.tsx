@@ -15,14 +15,14 @@ import { format } from 'date-fns';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
-export default function BalanceSheet() {
+export default function BalanceSheet({ userId }: { userId: string }) {
   const [data, setData] = React.useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const balanceSheetData = await getBalanceSheetData();
+      const balanceSheetData = await getBalanceSheetData(userId);
       setData(balanceSheetData);
     } catch (error) {
         // Handle error appropriately
@@ -30,7 +30,7 @@ export default function BalanceSheet() {
     } finally {
         setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
     loadData();

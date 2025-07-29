@@ -14,6 +14,7 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import dynamic from 'next/dynamic';
+import type { ReportAnalysis } from '@/lib/report-generator';
 
 const ReportPreview = dynamic(() => import('./report-preview'), {
   ssr: false,
@@ -35,9 +36,8 @@ const reportSchema = z.object({
 });
 
 type ReportFormValues = z.infer<typeof reportSchema>;
-type ReportData = Awaited<ReturnType<typeof generateReportData>>;
 
-async function generateReportData(year: number, month: number) {
+async function generateReportData(userId: string, year: number, month: number) {
     const [
         salesForMonth, 
         expensesForMonth, 
@@ -45,11 +45,11 @@ async function generateReportData(year: number, month: number) {
         books, 
         balanceSheet
       ] = await Promise.all([
-        getSalesForMonth(year, month),
-        getExpensesForMonth(year, month),
-        getDonationsForMonth(year, month),
-        getBooks(),
-        getBalanceSheetData(),
+        getSalesForMonth(userId, year, month),
+        getExpensesForMonth(userId, year, month),
+        getDonationsForMonth(userId, year, month),
+        getBooks(userId),
+        getBalanceSheetData(userId),
       ]);
 
       const totalSales = salesForMonth.reduce((sum, sale) => sum + sale.total, 0);
@@ -84,12 +84,12 @@ async function generateReportData(year: number, month: number) {
           netResult: {
             netProfitOrLoss,
           },
-      }
+      } as ReportAnalysis
 }
 
-export default function ReportGenerator() {
+export default function ReportGenerator({ userId }: { userId: string}) {
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [reportData, setReportData] = React.useState<ReportData | null>(null);
+  const [reportData, setReportData] = React.useState<ReportAnalysis | null>(null);
   const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
 
   const { toast } = useToast();
@@ -111,7 +111,7 @@ export default function ReportGenerator() {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const result = await generateReportData(selectedYear, selectedMonth);
+      const result = await generateReportData(userId, selectedYear, selectedMonth);
       
       if (result) {
         setReportData(result);

@@ -42,9 +42,10 @@ type DonationFormValues = z.infer<typeof donationSchema>;
 interface DonationsManagementProps {
     initialDonations: Donation[];
     initialHasMore: boolean;
+    userId: string;
 }
 
-export default function DonationsManagement({ initialDonations, initialHasMore }: DonationsManagementProps) {
+export default function DonationsManagement({ initialDonations, initialHasMore, userId }: DonationsManagementProps) {
   const [donations, setDonations] = React.useState<Donation[]>(initialDonations);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -58,7 +59,7 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastDonationId = donations[donations.length - 1]?.id;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 10, lastVisibleId: lastDonationId });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 10, lastVisibleId: lastDonationId });
     setDonations(prev => [...prev, ...newDonations]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -81,7 +82,7 @@ export default function DonationsManagement({ initialDonations, initialHasMore }
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-        const newDonation = await addDonation(data);
+        const newDonation = await addDonation(userId, data);
         setDonations(prev => [newDonation, ...prev]);
         toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
         setIsDialogOpen(false);

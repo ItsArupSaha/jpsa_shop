@@ -42,7 +42,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from './ui/textarea';
-import { Skeleton } from './ui/skeleton';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -57,9 +56,10 @@ type CustomerFormValues = z.infer<typeof customerSchema>;
 interface CustomerManagementProps {
   initialCustomers: Customer[];
   initialHasMore: boolean;
+  userId: string;
 }
 
-export default function CustomerManagement({ initialCustomers, initialHasMore }: CustomerManagementProps) {
+export default function CustomerManagement({ initialCustomers, initialHasMore, userId }: CustomerManagementProps) {
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -73,7 +73,7 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
     setIsLoadingMore(true);
     const lastCustomerId = customers[customers.length - 1]?.id;
     try {
-        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 10, lastVisibleId: lastCustomerId });
+        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 10, lastVisibleId: lastCustomerId });
         setCustomers(prev => [...prev, ...newCustomers]);
         setHasMore(newHasMore);
     } catch (error) {
@@ -114,7 +114,7 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
   const handleDelete = (id: string) => {
     startTransition(async () => {
         try {
-            await deleteCustomer(id);
+            await deleteCustomer(userId, id);
             setCustomers(prev => prev.filter(c => c.id !== id));
             toast({ title: "Customer Deleted", description: "The customer has been removed." });
         } catch(e) {
@@ -127,11 +127,11 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
     startTransition(async () => {
         try {
             if (editingCustomer) {
-                await updateCustomer(editingCustomer.id, data);
+                await updateCustomer(userId, editingCustomer.id, data);
                 setCustomers(prev => prev.map(c => c.id === editingCustomer.id ? { ...c, ...data, dueBalance: data.openingBalance || 0 } : c));
                 toast({ title: "Customer Updated", description: "The customer details have been saved." });
             } else {
-                const newCustomer = await addCustomer(data);
+                const newCustomer = await addCustomer(userId, data);
                 setCustomers(prev => [newCustomer, ...prev]);
                 toast({ title: "Customer Added", description: "The new customer has been added." });
             }
@@ -220,7 +220,8 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
+              {customers.length > 0 ? (
+                customers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                       <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
@@ -239,7 +240,14 @@ export default function CustomerManagement({ initialCustomers, initialHasMore }:
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No customers found. Add your first customer to get started.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

@@ -25,7 +25,6 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Skeleton } from './ui/skeleton';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -41,9 +40,10 @@ interface TransactionsManagementProps {
   type: 'Payable';
   initialTransactions: Transaction[];
   initialHasMore: boolean;
+  userId: string;
 }
 
-export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore }: TransactionsManagementProps) {
+export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore, userId }: TransactionsManagementProps) {
   const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -57,7 +57,7 @@ export default function TransactionsManagement({ title, description, type, initi
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastTransactionId = transactions[transactions.length - 1]?.id;
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 10, lastVisibleId: lastTransactionId });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ userId, type, pageLimit: 10, lastVisibleId: lastTransactionId });
     setTransactions(prev => [...prev, ...newTransactions]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -78,7 +78,7 @@ export default function TransactionsManagement({ title, description, type, initi
 
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
-        const newTransaction = await addTransaction({ ...data, type });
+        const newTransaction = await addTransaction(userId, { ...data, type });
         setTransactions(prev => [newTransaction, ...prev]);
         toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
         setIsDialogOpen(false);

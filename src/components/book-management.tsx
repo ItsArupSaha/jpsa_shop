@@ -44,7 +44,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar';
-import { Skeleton } from './ui/skeleton';
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -62,9 +61,10 @@ type BookFormValues = z.infer<typeof bookSchema>;
 interface BookManagementProps {
   initialBooks: Book[];
   initialHasMore: boolean;
+  userId: string;
 }
 
-export default function BookManagement({ initialBooks, initialHasMore }: BookManagementProps) {
+export default function BookManagement({ initialBooks, initialHasMore, userId }: BookManagementProps) {
   const [books, setBooks] = React.useState<Book[]>(initialBooks);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -82,7 +82,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
     setIsLoadingMore(true);
     const lastBookId = books[books.length - 1]?.id;
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 10, lastVisibleId: lastBookId });
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ userId, pageLimit: 10, lastVisibleId: lastBookId });
         setBooks(prev => [...prev, ...newBooks]);
         setHasMore(newHasMore);
     } catch (error) {
@@ -123,7 +123,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
   const handleDelete = (id: string) => {
     startTransition(async () => {
       try {
-        await deleteBook(id);
+        await deleteBook(userId, id);
         setBooks(prev => prev.filter(b => b.id !== id));
         toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
       } catch (error) {
@@ -136,11 +136,11 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
     startTransition(async () => {
       try {
         if (editingBook) {
-          await updateBook(editingBook.id, data);
+          await updateBook(userId, editingBook.id, data);
           setBooks(prev => prev.map(b => b.id === editingBook.id ? { ...b, ...data } : b));
           toast({ title: "Book Updated", description: "The book details have been saved." });
         } else {
-          const newBook = await addBook(data);
+          const newBook = await addBook(userId, data);
           setBooks(prev => [newBook, ...prev]);
           toast({ title: "Book Added", description: "The new book is now in your inventory." });
         }
@@ -160,7 +160,7 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
     
     setIsCalculating(true);
     try {
-        const calculatedData = await calculateClosingStock(closingStockDate);
+        const calculatedData = await calculateClosingStock(userId, closingStockDate);
         setClosingStockData(calculatedData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });
@@ -312,7 +312,8 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
               </TableRow>
             </TableHeader>
             <TableBody>
-              {books.map((book) => (
+              {books.length > 0 ? (
+                books.map((book) => (
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
@@ -327,7 +328,14 @@ export default function BookManagement({ initialBooks, initialHasMore }: BookMan
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No books found. Add your first book to get started!
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

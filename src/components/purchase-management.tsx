@@ -29,7 +29,6 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from './ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Skeleton } from './ui/skeleton';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -69,9 +68,10 @@ type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 interface PurchaseManagementProps {
     initialPurchases: Purchase[];
     initialHasMore: boolean;
+    userId: string;
 }
 
-export default function PurchaseManagement({ initialPurchases, initialHasMore }: PurchaseManagementProps) {
+export default function PurchaseManagement({ initialPurchases, initialHasMore, userId }: PurchaseManagementProps) {
   const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
   const [hasMore, setHasMore] = React.useState(initialHasMore);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -86,7 +86,7 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
     setIsLoadingMore(true);
     const lastPurchaseId = purchases[purchases.length - 1]?.id;
     try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10, lastVisibleId: lastPurchaseId });
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10, lastVisibleId: lastPurchaseId });
       setPurchases(prev => [...prev, ...newPurchases]);
       setHasMore(newHasMore);
     } catch (error) {
@@ -144,7 +144,7 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore }:
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
-      const result = await addPurchase(data);
+      const result = await addPurchase(userId, data);
       if (result?.success && result.purchase) {
         toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
         setPurchases(prev => [result.purchase!, ...prev]);
