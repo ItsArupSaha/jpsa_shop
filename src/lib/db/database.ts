@@ -11,42 +11,43 @@ export async function resetDatabase(userId: string) {
   if (!db || !userId) return;
   console.log(`Starting database reset for user ${userId}...`);
 
-  const batch = writeBatch(db);
   const userRef = doc(db, 'users', userId);
+  const deleteBatch = writeBatch(db);
 
+  // Correctly delete all documents from user's sub-collections
   const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
   for (const coll of collectionsToDelete) {
     try {
-      const snapshot = await getDocs(collection(userRef, coll));
-      snapshot.docs.forEach(doc => batch.delete(doc.ref));
+      const subCollectionRef = collection(userRef, coll);
+      const snapshot = await getDocs(subCollectionRef);
+      snapshot.docs.forEach(doc => deleteBatch.delete(doc.ref));
     } catch (error) {
-      // It's okay if a collection doesn't exist, especially for a new user.
+      // It's okay if a collection doesn't exist.
       console.log(`Collection ${coll} not found for user ${userId}, skipping delete.`);
     }
   }
   
-  await batch.commit();
-  console.log(`All collections for user ${userId} cleared.`);
+  await deleteBatch.commit();
+  console.log(`All sub-collections for user ${userId} cleared.`);
   
-  // Re-run batch for seeding
+  // Create a new batch for seeding data into the user's sub-collections
   const seedBatch = writeBatch(db);
-  const userSeedRef = doc(db, 'users', userId);
 
-  // Seed Books
+  // Seed Books into the user's 'books' sub-collection
   DUMMY_BOOKS.forEach(book => {
-    const bookRef = doc(collection(userSeedRef, 'books'));
+    const bookRef = doc(collection(userRef, 'books'));
     seedBatch.set(bookRef, book);
   });
 
-  // Seed Customers
+  // Seed Customers into the user's 'customers' sub-collection
   DUMMY_CUSTOMERS.forEach(customer => {
-    const customerRef = doc(collection(userSeedRef, 'customers'));
+    const customerRef = doc(collection(userRef, 'customers'));
     const customerWithDue = { ...customer, dueBalance: customer.openingBalance };
     seedBatch.set(customerRef, customerWithDue);
   });
   
-  // Seed a "Walk-in Customer"
-  const walkInCustomerRef = doc(collection(userSeedRef, 'customers'));
+  // Seed a "Walk-in Customer" into the user's 'customers' sub-collection
+  const walkInCustomerRef = doc(collection(userRef, 'customers'));
   seedBatch.set(walkInCustomerRef, {
     name: 'Walk-in Customer',
     phone: 'N/A',
@@ -55,14 +56,17 @@ export async function resetDatabase(userId: string) {
     dueBalance: 0,
   });
 
-  const metadataRef = doc(userSeedRef, 'metadata', 'counters');
+  // Seed metadata into the user's 'metadata' sub-collection
+  const metadataRef = doc(userRef, 'metadata', 'counters');
   seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });
 
   await seedBatch.commit();
-  await updateDoc(userSeedRef, { isApproved: true });
+
+  // Mark the user as approved now that seeding is complete
+  await updateDoc(userRef, { isApproved: true });
   console.log(`Database for user ${userId} reset and seeded with initial data.`);
 
-  // Revalidate all paths
+  // Revalidate all paths to reflect the new data
   const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
 }
