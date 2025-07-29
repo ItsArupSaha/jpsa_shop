@@ -4,7 +4,7 @@
 import { collection, getDocs, query, Timestamp, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { docToBook, docToExpense, docToSale } from './utils';
-import { getBooks } from './books';
+import type { Book, Sale, Expense } from '../types';
 import { getCustomersWithDueBalance } from './customers';
 
 export async function getDashboardStats(userId: string) {
@@ -22,32 +22,48 @@ export async function getDashboardStats(userId: string) {
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-    const salesQuery = query(
-        collection(userRef, 'sales'),
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-    );
+    let books: Book[] = [];
+    let salesThisMonth: Sale[] = [];
+    let expensesThisMonth: Expense[] = [];
 
-    const expensesQuery = query(
-        collection(userRef, 'expenses'),
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-    );
+    try {
+        const booksSnapshot = await getDocs(collection(userRef, 'books'));
+        if (!booksSnapshot.empty) {
+            books = booksSnapshot.docs.map(docToBook);
+        }
+    } catch (e) {
+        console.warn("Could not fetch books for dashboard, likely a new user. Defaulting to empty.", e);
+    }
+    
+    try {
+        const salesQuery = query(
+            collection(userRef, 'sales'),
+            where('date', '>=', Timestamp.fromDate(startDate)),
+            where('date', '<=', Timestamp.fromDate(endDate))
+        );
+        const salesSnapshot = await getDocs(salesQuery);
+        if (!salesSnapshot.empty) {
+            salesThisMonth = salesSnapshot.docs.map(docToSale);
+        }
+    } catch (e) {
+        console.warn("Could not fetch sales for dashboard, likely a new user. Defaulting to empty.", e);
+    }
 
-    const [
-        books,
-        salesSnapshot, 
-        expensesSnapshot, 
-        customersWithDue
-    ] = await Promise.all([
-        getBooks(userId),
-        getDocs(salesQuery),
-        getDocs(expensesQuery),
-        getCustomersWithDueBalance(userId)
-    ]);
-
-    const salesThisMonth = salesSnapshot.docs.map(docToSale);
-    const expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
+    try {
+        const expensesQuery = query(
+            collection(userRef, 'expenses'),
+            where('date', '>=', Timestamp.fromDate(startDate)),
+            where('date', '<=', Timestamp.fromDate(endDate))
+        );
+        const expensesSnapshot = await getDocs(expensesQuery);
+        if (!expensesSnapshot.empty) {
+            expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
+        }
+    } catch (e) {
+        console.warn("Could not fetch expenses for dashboard, likely a new user. Defaulting to empty.", e);
+    }
+    
+    const customersWithDue = await getCustomersWithDueBalance(userId);
 
     const totalBooksInStock = books.reduce((sum, book) => sum + book.stock, 0);
     const totalBookTitles = books.length;
