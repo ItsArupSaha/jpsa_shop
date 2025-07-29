@@ -1,29 +1,31 @@
 
 'use server';
 
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getBooks } from './books';
 import { getDonations } from './donations';
 import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
+import type { Transaction } from '../types';
 
-export async function getBalanceSheetData() {
-    if (!db) {
-        throw new Error("Database not connected");
-    }
+export async function getBalanceSheetData(userId: string) {
+    if (!db) throw new Error("Database not connected");
+    if (!userId) throw new Error("User not authenticated");
+
+    const userRef = doc(db, 'users', userId);
 
     const [books, sales, expenses, allTransactionsData, purchases, donations] = await Promise.all([
-        getBooks(),
-        getSales(),
-        getExpenses(),
-        getDocs(collection(db, 'transactions')),
-        getPurchases(),
-        getDonations(),
+        getBooks(userId),
+        getSales(userId),
+        getExpenses(userId),
+        getDocs(collection(userRef, 'transactions')),
+        getPurchases(userId),
+        getDonations(userId),
     ]);
 
-    const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+    const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
 
     let cash = 0;
     let bank = 0;
@@ -47,7 +49,7 @@ export async function getBalanceSheetData() {
         }
     });
 
-    allTransactions.forEach((t: any) => {
+    allTransactions.forEach((t) => {
         if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
             if (t.paymentMethod === 'Cash') {
                 cash += t.amount;
@@ -73,12 +75,12 @@ export async function getBalanceSheetData() {
         .reduce((sum, item) => sum + (item.cost * item.quantity), 0);
 
     const receivables = allTransactions
-        .filter((t: any) => t.type === 'Receivable' && t.status === 'Pending')
-        .reduce((sum: number, t: any) => sum + t.amount, 0);
+        .filter((t) => t.type === 'Receivable' && t.status === 'Pending')
+        .reduce((sum, t) => sum + t.amount, 0);
 
     const payables = allTransactions
-        .filter((t: any) => t.type === 'Payable' && t.status === 'Pending')
-        .reduce((sum: number, t: any) => sum + t.amount, 0);
+        .filter((t) => t.type === 'Payable' && t.status === 'Pending')
+        .reduce((sum, t) => sum + t.amount, 0);
 
     const totalAssets = cash + bank + receivables + stockValue + officeAssetsValue;
     const equity = totalAssets - payables;

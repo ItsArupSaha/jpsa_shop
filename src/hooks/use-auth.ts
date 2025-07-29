@@ -5,11 +5,11 @@ import * as React from 'react';
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { initializeNewUser } from '@/lib/db/database';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isApproved: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -19,32 +19,32 @@ const AuthContext = React.createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [isApproved, setIsApproved] = React.useState(false);
 
   React.useEffect(() => {
+    if (!auth || !db) {
+        console.warn("Firebase not initialized, auth will be disabled.");
+        setLoading(false);
+        return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
         const userRef = doc(db, 'users', user.uid);
         const docSnap = await getDoc(userRef);
 
-        if (docSnap.exists()) {
-          setIsApproved(docSnap.data().isApproved === true);
-        } else {
-          // New user, create their document
+        if (!docSnap.exists()) {
+          // New user, create their document and initialize their data
           await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName,
             photoURL: user.photoURL,
-            isApproved: false, // Default to not approved
             createdAt: serverTimestamp(),
           });
-          setIsApproved(false);
+          await initializeNewUser(user.uid);
         }
       } else {
         setUser(null);
-        setIsApproved(false);
       }
       setLoading(false);
     });
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!auth) return;
     try {
       await firebaseSignOut(auth);
     } catch (error) {
@@ -70,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = { user, loading, isApproved, signInWithGoogle, signOut };
+  const value = { user, loading, signInWithGoogle, signOut };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

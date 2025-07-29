@@ -1,16 +1,20 @@
 
 'use server';
 
-import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
+import { collection, getDocs, query, Timestamp, where, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { docToBook, docToExpense, docToSale } from './utils';
 import { getBooks } from './books';
 import { getCustomersWithDueBalance } from './customers';
 
-export async function getDashboardStats() {
+export async function getDashboardStats(userId: string) {
     if (!db) {
         throw new Error("Database not connected");
     }
+    if (!userId) {
+        throw new Error("User not authenticated");
+    }
+    const userRef = doc(db, 'users', userId);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -19,30 +23,29 @@ export async function getDashboardStats() {
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
     const salesQuery = query(
-        collection(db, 'sales'),
+        collection(userRef, 'sales'),
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
 
     const expensesQuery = query(
-        collection(db, 'expenses'),
+        collection(userRef, 'expenses'),
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
 
     const [
-        booksSnapshot, 
+        books,
         salesSnapshot, 
         expensesSnapshot, 
         customersWithDue
     ] = await Promise.all([
-        getDocs(query(collection(db, 'books'))),
+        getBooks(userId),
         getDocs(salesQuery),
         getDocs(expensesQuery),
-        getCustomersWithDueBalance()
+        getCustomersWithDueBalance(userId)
     ]);
 
-    const books = booksSnapshot.docs.map(docToBook);
     const salesThisMonth = salesSnapshot.docs.map(docToSale);
     const expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
 

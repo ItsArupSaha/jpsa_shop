@@ -3,12 +3,16 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
+import type { User } from 'firebase/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
 import MainNav from '@/components/main-nav';
 import { ResetDatabaseButton } from '@/components/reset-database-button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useSidebar } from '@/hooks/use-sidebar';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from './ui/button';
+import { LogOut } from 'lucide-react';
 
 const ClientSidebar = dynamic(() => import('@/components/client-sidebar'), {
   ssr: false,
@@ -37,9 +41,15 @@ const ClientSidebar = dynamic(() => import('@/components/client-sidebar'), {
   ),
 });
 
-export default function DynamicSidebar({ children }: { children: React.ReactNode }) {
+export default function DynamicSidebar({ children, user }: { children: React.ReactNode; user: User | null }) {
   const { state } = useSidebar();
+  const { signOut } = useAuth();
   
+  const getInitials = (name: string | null) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
   return (
     <ClientSidebar>
       <SidebarHeader className="p-4">
@@ -51,18 +61,23 @@ export default function DynamicSidebar({ children }: { children: React.ReactNode
       <MainNav />
 
       <SidebarFooter className="p-4 border-t flex flex-col gap-4">
-        <ResetDatabaseButton />
+        {user && <ResetDatabaseButton userId={user.uid} />}
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarImage src="https://placehold.co/40x40" alt="User" data-ai-hint="person" />
-            <AvatarFallback>SO</AvatarFallback>
+            <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="person" />
+            <AvatarFallback>{getInitials(user?.displayName || null)}</AvatarFallback>
           </Avatar>
-          {state === 'expanded' && (
+          {state === 'expanded' && user && (
             <div className="flex flex-col truncate">
-              <span className="font-semibold text-sm truncate">Store Owner</span>
-              <span className="text-xs text-muted-foreground truncate">admin@example.com</span>
+              <span className="font-semibold text-sm truncate">{user.displayName}</span>
+              <span className="text-xs text-muted-foreground truncate">{user.email}</span>
             </div>
           )}
+           {state === 'expanded' && (
+              <Button variant="ghost" size="icon" onClick={signOut} className="ml-auto">
+                <LogOut className="h-4 w-4" />
+              </Button>
+           )}
         </div>
       </SidebarFooter>
     </ClientSidebar>

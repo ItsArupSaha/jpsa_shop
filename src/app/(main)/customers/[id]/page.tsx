@@ -1,7 +1,7 @@
 
 import * as React from 'react';
 import { getCustomerById, getSalesForCustomer, getBooks, getTransactionsForCustomer } from '@/lib/actions';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
@@ -11,11 +11,17 @@ import type { Transaction, Sale } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DollarSign } from 'lucide-react';
+import { auth } from '@/lib/firebase';
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+  const user = auth?.currentUser;
+  if (!user) {
+    redirect('/login');
+  }
+
   const customerId = params.id;
   
-  const customerData = await getCustomerById(customerId);
+  const customerData = await getCustomerById(user.uid, customerId);
 
   if (!customerData) {
     notFound();
@@ -24,9 +30,9 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
 
 
   const [customerSales, books, customerPayments] = await Promise.all([
-    getSalesForCustomer(customerId),
-    getBooks(),
-    getTransactionsForCustomer(customerId, 'Receivable', { excludeSaleDues: true }),
+    getSalesForCustomer(user.uid, customerId),
+    getBooks(user.uid),
+    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: true }),
   ]);
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
@@ -56,7 +62,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             </div>
           </div>
           <div className="flex flex-col gap-2 items-end">
-            <ReceivePaymentDialog customerId={customer.id}>
+            <ReceivePaymentDialog customerId={customer.id} userId={user.uid}>
                 <Button>
                     <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
                 </Button>

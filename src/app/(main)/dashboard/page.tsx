@@ -1,15 +1,17 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
-import { getBooks } from '@/lib/db/books';
 import { getDashboardStats } from '@/lib/db/dashboard';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
+import { auth } from '@/lib/firebase';
+import { redirect } from 'next/navigation';
 
 export default async function DashboardPage() {
-  const [stats, books] = await Promise.all([
-    getDashboardStats(),
-    getBooks() 
-  ]);
+  const user = auth?.currentUser;
+  if (!user) {
+    redirect('/login');
+  }
+  const stats = await getDashboardStats(user.uid);
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in-50">

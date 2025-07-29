@@ -1,9 +1,15 @@
 
 import { getTransactionsPaginated } from '@/lib/actions';
 import TransactionsManagement from '@/components/transactions-management';
+import { auth } from '@/lib/firebase';
+import { redirect } from 'next/navigation';
 
 export default async function PayablesPage() {
-  const { transactions, hasMore } = await getTransactionsPaginated({ type: 'Payable', pageLimit: 10 });
+  const user = auth?.currentUser;
+  if (!user) {
+    redirect('/login');
+  }
+  const { transactions, hasMore } = await getTransactionsPaginated({ userId: user.uid, type: 'Payable', pageLimit: 10 });
 
   return (
     <TransactionsManagement
@@ -12,6 +18,7 @@ export default async function PayablesPage() {
       type="Payable"
       initialTransactions={transactions}
       initialHasMore={hasMore}
+      userId={user.uid}
     />
   );
 }
