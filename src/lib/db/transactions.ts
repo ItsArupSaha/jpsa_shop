@@ -25,11 +25,14 @@ import { docToTransaction } from './utils';
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
     if (!db) return [];
-    const q = query(collection(db, 'transactions'), where('type', '==', type), where('status', '==', 'Pending'));
+    const q = query(
+        collection(db, 'transactions'), 
+        where('type', '==', type), 
+        where('status', '==', 'Pending'),
+        orderBy('dueDate', 'desc')
+    );
     const snapshot = await getDocs(q);
-    const transactions = snapshot.docs.map(docToTransaction);
-    // Sort in application code to avoid needing a composite index
-    return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+    return snapshot.docs.map(docToTransaction);
 }
 
 export async function getTransactionsPaginated({ type, pageLimit = 10, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
@@ -50,7 +53,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 10, lastVisib
   }
   const snapshot = await getDocs(q);
   const transactions = snapshot.docs.map(docToTransaction);
-
+  
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if (lastDoc) {

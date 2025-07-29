@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getBalanceSheetData, getBooks, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
-import type { Book } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
@@ -23,50 +23,18 @@ const reportSchema = z.object({
 
 type ReportFormValues = z.infer<typeof reportSchema>;
 
-interface ReportDataSource {
-  books: Book[];
-  balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
-}
-
 export default function ReportGenerator() {
-  const [dataSource, setDataSource] = React.useState<ReportDataSource | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [reportData, setReportData] = React.useState<ReportAnalysis | null>(null);
   const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
 
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      try {
-        const [books, balanceSheet] = await Promise.all([
-          getBooks(),
-          getBalanceSheetData(),
-        ]);
-        setDataSource({ books, balanceSheet });
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Failed to load data",
-          description: "Could not fetch the necessary data for reports. Please try again later.",
-        });
-        console.error("Failed to load report data sources:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, [toast]);
-
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
   });
 
   const onSubmit = async (formData: ReportFormValues) => {
-    if (!dataSource) return;
-    
     setIsGenerating(true);
     setReportData(null);
     setFormValues(formData);
@@ -75,21 +43,29 @@ export default function ReportGenerator() {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const [salesForMonth, expensesForMonth, donationsForMonth] = await Promise.all([
+      const [
+        salesForMonth, 
+        expensesForMonth, 
+        donationsForMonth, 
+        books, 
+        balanceSheet
+      ] = await Promise.all([
         getSalesForMonth(selectedYear, selectedMonth),
         getExpensesForMonth(selectedYear, selectedMonth),
-        getDonationsForMonth(selectedYear, selectedMonth)
+        getDonationsForMonth(selectedYear, selectedMonth),
+        getBooks(),
+        getBalanceSheetData(),
       ]);
       
       const input = {
         salesData: salesForMonth,
         expensesData: expensesForMonth,
         donationsData: donationsForMonth,
-        booksData: dataSource.books,
+        booksData: books,
         balanceData: {
-            cash: dataSource.balanceSheet.cash,
-            bank: dataSource.balanceSheet.bank,
-            stockValue: dataSource.balanceSheet.stockValue,
+            cash: balanceSheet.cash,
+            bank: balanceSheet.bank,
+            stockValue: balanceSheet.stockValue,
         },
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
@@ -104,7 +80,7 @@ export default function ReportGenerator() {
           description: "Your monthly report preview is ready below.",
         });
       } else {
-        throw new Error("The AI model failed to return valid report data.");
+        throw new Error("The report generation failed to return valid data.");
       }
     } catch (error) {
       console.error(error);
@@ -189,9 +165,9 @@ export default function ReportGenerator() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isLoading || isGenerating}>
-                {(isLoading || isGenerating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Loading Data...' : isGenerating ? 'Generating...' : 'Generate Report'}
+              <Button type="submit" disabled={isGenerating}>
+                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isGenerating ? 'Generating...' : 'Generate Report'}
               </Button>
             </CardFooter>
           </form>
