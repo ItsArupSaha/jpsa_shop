@@ -56,7 +56,7 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
     doc.text('Payment:', 140, infoY + 10);
     
     doc.setFont('helvetica', 'normal');
-    doc.text(sale.id.slice(0, 8).toUpperCase(), 165, infoY);
+    doc.text(sale.saleId, 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
     doc.text(sale.paymentMethod, 165, infoY + 10);
 
@@ -103,7 +103,7 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
     doc.setFontSize(10);
     doc.text('Thank you for your business!', 105, finalY + 20, { align: 'center' });
 
-    doc.save(`memo-${sale.id.slice(0,6)}.pdf`);
+    doc.save(`memo-${sale.saleId}.pdf`);
   };
 
   const dueAmount = sale.total - (sale.amountPaid || 0);
@@ -126,7 +126,7 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
                         <p>{customer.address}</p>
                     </div>
                     <div className="text-right">
-                        <p><span className="font-semibold">Invoice #:</span> {sale.id.slice(0, 8).toUpperCase()}</p>
+                        <p><span className="font-semibold">Invoice #:</span> {sale.saleId}</p>
                         <p><span className="font-semibold">Date:</span> {format(new Date(sale.date), 'PPP')}</p>
                     </div>
                 </div>

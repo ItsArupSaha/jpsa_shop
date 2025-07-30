@@ -52,7 +52,7 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
     doc.text('Payment:', 140, infoY + 10);
     
     doc.setFont('helvetica', 'normal');
-    doc.text(sale.id.slice(0, 8).toUpperCase(), 165, infoY);
+    doc.text(sale.saleId, 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
     doc.text(sale.paymentMethod, 165, infoY + 10);
 
@@ -99,7 +99,7 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
     doc.setFontSize(10);
     doc.text('Thank you for your business!', 105, finalY + 20, { align: 'center' });
 
-    doc.save(`memo-${sale.id.slice(0,6)}.pdf`);
+    doc.save(`memo-${sale.saleId}.pdf`);
   };
 
   return (
@@ -108,4 +108,3 @@ export function DownloadSaleMemo({ sale, customer, books }: DownloadSaleMemoProp
     </Button>
   );
 }
-

@@ -87,7 +87,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                       
                       {'items' in item ? ( // It's a Sale
                         <TableCell className="max-w-[400px] truncate">
-                           Sale #{item.id.slice(0,6)}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
+                           Sale #{'saleId' in item && item.saleId}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
                            <Badge variant="outline" className="ml-2">{item.paymentMethod}</Badge>
                         </TableCell>
                       ) : ( // It's a Transaction

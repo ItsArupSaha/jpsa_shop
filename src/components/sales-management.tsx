@@ -259,9 +259,10 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     
     autoTable(doc, {
       startY: 20,
-      head: [['Date', 'Customer', 'Items', 'Payment', 'Total']],
+      head: [['Date', 'Sale ID', 'Customer', 'Items', 'Payment', 'Total']],
       body: filteredSales.map(sale => [
         format(new Date(sale.date), 'yyyy-MM-dd'),
+        sale.saleId,
         getCustomerName(sale.customerId),
         sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', '),
         sale.paymentMethod,
@@ -283,6 +284,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     const csvData = filteredSales.map(sale => ({
       Date: format(new Date(sale.date), 'yyyy-MM-dd'),
+      'Sale ID': sale.saleId,
       Customer: getCustomerName(sale.customerId),
       Items: sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('; '),
       'Payment Method': sale.paymentMethod,
@@ -369,6 +371,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Sale ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Payment</TableHead>
@@ -386,6 +389,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                             <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                         </TableRow>
                     ))
                 ) : sales.length > 0 ? sales.map((sale) => {
@@ -393,6 +397,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                   return (
                     <TableRow key={sale.id}>
                       <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
+                      <TableCell className="font-mono">{sale.saleId}</TableCell>
                       <TableCell className="font-medium">{customer?.name || 'Unknown Customer'}</TableCell>
                       <TableCell className="max-w-[300px]">
                         {sale.items.length > 0 && (
@@ -421,7 +426,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                   )
                 }) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No sales recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>

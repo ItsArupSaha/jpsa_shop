@@ -34,7 +34,7 @@ export async function initializeNewUser(userId: string) {
   // Create metadata for counters
   const metadataCollection = collection(userDocRef, 'metadata');
   const countersRef = doc(metadataCollection, 'counters');
-  batch.set(countersRef, { lastPurchaseNumber: 0 });
+  batch.set(countersRef, { lastPurchaseNumber: 0, lastSaleNumber: 0 });
   
   // Mark user as initialized (and approved)
   batch.set(userDocRef, { initialized: true, isApproved: true }, { merge: true });

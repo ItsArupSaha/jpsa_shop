@@ -44,6 +44,7 @@ export type SaleItem = {
 
 export type Sale = {
   id: string;
+  saleId: string; // The auto-generated ID like SALE-0001
   date: string; // Changed to string for serialization
   customerId: string;
   items: SaleItem[];
@@ -108,4 +109,5 @@ export type Transaction = {
 // Metadata for counters, etc.
 export type Metadata = {
   lastPurchaseNumber: number;
+  lastSaleNumber: number;
 }

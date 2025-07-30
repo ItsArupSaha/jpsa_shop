@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Book, Sale, SaleItem } from '../types';
+import type { Book, Metadata, Sale, SaleItem } from '../types';
 import { docToSale } from './utils';
 
 // --- Sales Actions ---
@@ -88,13 +88,14 @@ export async function getSalesForMonth(userId: string, year: number, month: numb
 
 export async function addSale(
     userId: string,
-    data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
+    data: Omit<Sale, 'id' | 'saleId' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db || !userId) return { success: false, error: "Database not configured." };
   
     try {
       const result = await runTransaction(db, async (transaction) => {
         const userRef = doc(db, 'users', userId);
+        const metadataRef = doc(userRef, 'metadata', 'counters');
         const booksCollection = collection(userRef, 'books');
         const customersCollection = collection(userRef, 'customers');
         const salesCollection = collection(userRef, 'sales');
@@ -104,12 +105,19 @@ export async function addSale(
         const bookRefs = data.items.map(item => doc(booksCollection, item.bookId));
         const customerRef = doc(customersCollection, data.customerId);
         
-        const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+        const [metadataDoc, ...bookDocs] = await Promise.all([
+            transaction.get(metadataRef),
+            ...bookRefs.map(ref => transaction.get(ref)),
+        ]);
         const customerDoc = await transaction.get(customerRef);
 
         if (!customerDoc.exists()) {
             throw new Error(`Customer with id ${data.customerId} does not exist!`);
         }
+
+        const lastSaleNumber = (metadataDoc.data() as Metadata)?.lastSaleNumber || 0;
+        const newSaleNumber = lastSaleNumber + 1;
+        const saleId = `SALE-${String(newSaleNumber).padStart(4, '0')}`;
         
         let calculatedSubtotal = 0;
         const itemsWithPrices: SaleItem[] = [];
@@ -143,12 +151,14 @@ export async function addSale(
         const newSaleRef = doc(salesCollection);
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
+          saleId,
           items: itemsWithPrices,
           subtotal: calculatedSubtotal,
           total: calculatedTotal,
           date: Timestamp.fromDate(saleDate),
         };
         transaction.set(newSaleRef, saleDataToSave);
+        transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
   
         for (let i = 0; i < bookDocs.length; i++) {
           const saleItem = data.items[i];
@@ -163,7 +173,7 @@ export async function addSale(
 
             // Record the asset from the partial payment
             const paymentTransactionData = {
-                description: `Partial payment for Sale #${newSaleRef.id.slice(0, 6)}`,
+                description: `Partial payment for ${saleId}`,
                 amount: data.amountPaid,
                 dueDate: Timestamp.fromDate(new Date()),
                 status: 'Paid' as const,
@@ -179,7 +189,7 @@ export async function addSale(
               transaction.update(customerRef, { dueBalance: currentDue + dueAmount });
 
               const receivableData = {
-                description: `Due from Sale #${newSaleRef.id.slice(0, 6)}`,
+                description: `Due from ${saleId}`,
                 amount: dueAmount,
                 dueDate: Timestamp.fromDate(new Date()),
                 status: 'Pending' as const,
