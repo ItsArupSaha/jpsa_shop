@@ -13,7 +13,12 @@ import { Button } from '@/components/ui/button';
 import { DollarSign } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+interface CustomerDetailPageProps {
+    params: { id: string };
+    searchParams?: { [key: string]: string | string[] | undefined };
+}
+
+export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const customerId = params.id;
   const user = await getAuthUser();
   if (!user) return notFound();
