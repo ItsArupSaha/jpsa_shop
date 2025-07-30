@@ -117,13 +117,3 @@ export async function resetDatabase(userId: string) {
   const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
 }
-
-export async function getAuthUser() {
-    // This is a placeholder for a more robust auth check, potentially using next-auth or similar
-    // For now, it returns a mock user. In a real app, you'd get this from the session.
-    return {
-        uid: 'mock-user-id-123',
-        name: 'Store Owner',
-        email: 'owner@example.com'
-    } as AuthUser;
-}

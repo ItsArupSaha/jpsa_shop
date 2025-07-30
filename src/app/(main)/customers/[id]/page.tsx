@@ -1,6 +1,6 @@
 
 import * as React from 'react';
-import { getCustomerById, getSalesForCustomer, getBooks, getTransactionsForCustomer, getAuthUser } from '@/lib/actions';
+import { getCustomerById, getSalesForCustomer, getBooks, getTransactionsForCustomer } from '@/lib/actions';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,11 +11,11 @@ import type { Transaction, Sale } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DollarSign } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { getAuthUser } from '@/lib/auth';
+
 
 interface CustomerDetailPageProps {
     params: { id: string };
-    searchParams?: { [key: string]: string | string[] | undefined };
 }
 
 export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
