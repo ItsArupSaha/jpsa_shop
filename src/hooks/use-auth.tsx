@@ -5,6 +5,7 @@ import { auth, db } from '@/lib/firebase';
 import { signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import * as React from 'react';
+import { initializeNewUser } from '@/lib/db/database';
 
 interface AuthContextType {
   user: User | null;
@@ -26,22 +27,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUser(user);
-        const userRef = doc(db!, 'users', user.uid);
-        const docSnap = await getDoc(userRef);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
 
-        if (!docSnap.exists()) {
-          // New user, create their document, but don't initialize data here yet.
-          // That will be handled in a later step.
+        if (userSnap.exists()) {
+          // Existing user, just set them
+          setUser(currentUser);
+        } else {
+          // New user, create their document and initialize their data
           await setDoc(userRef, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
             createdAt: serverTimestamp(),
           });
+          await initializeNewUser(currentUser.uid);
+          setUser(currentUser); // Set user after initialization
         }
       } else {
         setUser(null);

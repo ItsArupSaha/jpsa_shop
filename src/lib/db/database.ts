@@ -4,6 +4,7 @@
 import { collection, doc, getDocs, writeBatch, serverTimestamp, getDoc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
+import { DUMMY_BOOKS, DUMMY_CUSTOMERS } from '../data';
 import type { AuthUser } from '../types';
 
 // --- User Initialization on First Login ---
@@ -34,9 +35,10 @@ export async function initializeNewUser(userId: string) {
   const metadataCollection = collection(userDocRef, 'metadata');
   const countersRef = doc(metadataCollection, 'counters');
   batch.set(countersRef, { lastPurchaseNumber: 0 });
+  
+  // Mark user as initialized (and approved)
+  batch.set(userDocRef, { initialized: true, isApproved: true }, { merge: true });
 
-  // Mark user as initialized
-  batch.set(userDocRef, { initialized: true }, { merge: true });
 
   await batch.commit();
   console.log(`Initialized database for new user: ${userId}`);
@@ -70,4 +72,14 @@ export async function resetDatabase(userId: string) {
   // Revalidate all paths
   const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
+}
+
+export async function getAuthUser() {
+    // This is a placeholder for a more robust auth check, potentially using next-auth or similar
+    // For now, it returns a mock user. In a real app, you'd get this from the session.
+    return {
+        uid: 'mock-user-id-123',
+        name: 'Store Owner',
+        email: 'owner@example.com'
+    } as AuthUser;
 }
