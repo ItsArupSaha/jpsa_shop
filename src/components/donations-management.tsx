@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -180,7 +179,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
       foot: [
         [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `$${totalDonations.toFixed(2)}`],
       ],
-      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
+      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
     
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
