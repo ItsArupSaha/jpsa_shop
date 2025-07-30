@@ -49,3 +49,4 @@ export function docToTransaction(d: any): Transaction {
         dueDate: data.dueDate.toDate().toISOString(),
     } as Transaction;
 }
+
