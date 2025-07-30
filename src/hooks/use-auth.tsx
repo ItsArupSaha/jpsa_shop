@@ -9,7 +9,6 @@ import * as React from 'react';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isApproved: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -19,7 +18,6 @@ const AuthContext = React.createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [isApproved, setIsApproved] = React.useState(false);
 
   React.useEffect(() => {
     if (!auth || !db) {
@@ -34,23 +32,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userRef = doc(db!, 'users', user.uid);
         const docSnap = await getDoc(userRef);
 
-        if (docSnap.exists()) {
-          setIsApproved(docSnap.data().isApproved === true);
-        } else {
-          // New user, create their document
+        if (!docSnap.exists()) {
+          // New user, create their document, but don't initialize data here yet.
+          // That will be handled in a later step.
           await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName,
             photoURL: user.photoURL,
-            isApproved: false, // Default to not approved
             createdAt: serverTimestamp(),
           });
-          setIsApproved(false);
         }
       } else {
         setUser(null);
-        setIsApproved(false);
       }
       setLoading(false);
     });
@@ -82,9 +76,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = { user, loading, isApproved, signInWithGoogle, signOut };
+  const value = { user, loading, signInWithGoogle, signOut };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useAuth = (): AuthContextType => {
