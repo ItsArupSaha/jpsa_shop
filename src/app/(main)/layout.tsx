@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { ResetDatabaseButton } from '@/components/reset-database-button';
 import { useAuth } from '@/hooks/use-auth';
 
 const navItems = [
@@ -124,7 +123,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </SidebarMenu>
           </SidebarContent>
            <SidebarFooter className="p-4 border-t flex flex-col gap-4">
-             <ResetDatabaseButton />
              <ProfileButton />
           </SidebarFooter>
         </Sidebar>
