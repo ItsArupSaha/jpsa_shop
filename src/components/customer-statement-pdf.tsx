@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,8 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { FileText } from 'lucide-react';
-import type { Customer, Sale, Book } from '@/lib/types';
+import type { AuthUser, Customer, Sale, Book } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
 
 interface CustomerStatementPDFProps {
   customer: Customer;
@@ -15,29 +17,46 @@ interface CustomerStatementPDFProps {
 }
 
 export default function CustomerStatementPDF({ customer, sales, books }: CustomerStatementPDFProps) {
+  const { authUser } = useAuth();
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
   const generatePdf = () => {
+    if (!authUser) return;
     const doc = new jsPDF();
-
+    
+    const companyName = authUser.companyName || 'Bookstore';
+    const companyAddress = authUser.address || '';
+    const companyPhone = authUser.phone || '';
+    
     // Header
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(companyName, 14, 22);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(companyAddress, 14, 28);
+    doc.text(companyPhone, 14, 32);
+
+
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
-    doc.text('Customer Statement', 105, 20, { align: 'center' });
+    doc.text('Customer Statement', 200, 22, { align: 'right' });
+
 
     // Customer Info
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Customer:', 14, 40);
+    doc.text('Customer:', 14, 45);
     doc.setFont('helvetica', 'normal');
-    doc.text(customer.name, 38, 40);
-    doc.text(customer.address, 38, 46);
-    doc.text(customer.phone, 38, 52);
+    doc.text(customer.name, 38, 45);
+    doc.text(customer.address, 38, 51);
+    doc.text(customer.phone, 38, 57);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Date:', 140, 40);
+    doc.text('Date:', 140, 45);
     doc.setFont('helvetica', 'normal');
-    doc.text(format(new Date(), 'PPP'), 155, 40);
+    doc.text(format(new Date(), 'PPP'), 155, 45);
 
 
     // Table
@@ -73,7 +92,7 @@ export default function CustomerStatementPDF({ customer, sales, books }: Custome
   };
 
   return (
-    <Button onClick={generatePdf} variant="outline">
+    <Button onClick={generatePdf} variant="outline" disabled={!authUser}>
       <FileText className="mr-2 h-4 w-4" />
       Download PDF
     </Button>

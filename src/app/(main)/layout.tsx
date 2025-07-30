@@ -90,6 +90,7 @@ function ProfileButton() {
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { authUser } = useAuth();
   const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard';
   
   return (
@@ -101,7 +102,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                  <Book className="h-6 w-6 text-primary-foreground" />
               </div>
-              <h1 className="font-headline text-2xl font-semibold text-primary">Bookstore</h1>
+              <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Bookstore'}</h1>
             </div>
           </SidebarHeader>
           <SidebarContent className="p-4">

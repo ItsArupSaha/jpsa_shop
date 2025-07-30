@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { Book, Customer, Sale } from '@/lib/types';
+import type { AuthUser, Book, Customer, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -15,22 +15,23 @@ interface SaleMemoProps {
   sale: Sale;
   customer: Customer;
   books: Book[];
+  user: AuthUser;
   onNewSale: () => void;
 }
 
-export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
+export function SaleMemo({ sale, customer, books, user, onNewSale }: SaleMemoProps) {
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
   const generatePdf = () => {
     const doc = new jsPDF();
-    const bookTitle = 'Bookstore'; // Your bookstore name
-    const address = '123 Bookworm Lane, Readsville, USA'; // Your address
-    const phone = '555-123-4567'; // Your contact info
+    const companyName = user.companyName || 'Bookstore';
+    const address = user.address || '';
+    const phone = user.phone || '';
 
     // Header
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
-    doc.text(bookTitle, 14, 22);
+    doc.text(companyName, 14, 22);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);

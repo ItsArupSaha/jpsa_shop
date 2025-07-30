@@ -12,7 +12,7 @@ import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
 import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
 
-import type { Sale, Book, Customer } from '@/lib/types';
+import type { Sale, Book, Customer, AuthUser } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -32,6 +32,7 @@ import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
 import { DownloadSaleMemo } from './download-sale-memo';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -72,6 +73,7 @@ interface SalesManagementProps {
 }
 
 export default function SalesManagement({ userId }: SalesManagementProps) {
+  const { authUser } = useAuth();
   const [sales, setSales] = React.useState<Sale[]>([]);
   const [books, setBooks] = React.useState<Book[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
@@ -418,8 +420,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell>{sale.paymentMethod}</TableCell>
                       <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
-                        {customer && (
-                          <DownloadSaleMemo sale={sale} customer={customer} books={books} />
+                        {customer && authUser && (
+                          <DownloadSaleMemo sale={sale} customer={customer} books={books} user={authUser} />
                         )}
                       </TableCell>
                     </TableRow>
@@ -444,8 +446,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
       <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-2xl">
-          {completedSale ? (
-             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} books={books} onNewSale={handleAddNew}/>
+          {completedSale && authUser ? (
+             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} books={books} onNewSale={handleAddNew} user={authUser}/>
           ) : (
             <>
               <DialogHeader>
