@@ -7,6 +7,14 @@ export type AuthUser = {
   photoURL: string | null;
   isApproved: boolean;
   createdAt: any; // Firestore Timestamp
+  
+  // Onboarding fields
+  companyName?: string;
+  address?: string;
+  phone?: string;
+  bkashNumber?: string;
+  bankInfo?: string;
+  onboardingComplete?: boolean;
 };
 
 export type Customer = {
