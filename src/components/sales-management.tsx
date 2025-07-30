@@ -215,11 +215,24 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-        // Instead of refetching all, just add the new sale to the top.
-        setSales(prev => [result.sale!, ...prev]);
-        const updatedBooks = await getBooks(userId);
+        
+        const newSale = result.sale;
+
+        // Add the newly created sale to the local state to avoid a full refresh
+        setSales(prev => [newSale, ...prev]);
+
+        // Update local book stock
+        const updatedBooks = books.map(book => {
+            const soldItem = newSale.items.find(item => item.bookId === book.id);
+            if (soldItem) {
+                return { ...book, stock: book.stock - soldItem.quantity };
+            }
+            return book;
+        });
         setBooks(updatedBooks);
-        setCompletedSale(result.sale);
+
+        setCompletedSale(newSale);
+
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record sale.' });
       }
