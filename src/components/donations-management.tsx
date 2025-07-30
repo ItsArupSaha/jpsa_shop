@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addDonation, getDonationsPaginated } from '@/lib/actions';
+import { addDonation, getDonationsPaginated, getDonations } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -40,7 +40,11 @@ const donationSchema = z.object({
 
 type DonationFormValues = z.infer<typeof donationSchema>;
 
-export default function DonationsManagement() {
+interface DonationsManagementProps {
+    userId: string;
+}
+
+export default function DonationsManagement({ userId }: DonationsManagementProps) {
   const [donations, setDonations] = React.useState<Donation[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -53,21 +57,23 @@ export default function DonationsManagement() {
   
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5 });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5 });
     setDonations(newDonations);
     setHasMore(newHasMore);
     setIsInitialLoading(false);
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if(userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastDonationId = donations[donations.length - 1]?.id;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5, lastVisibleId: lastDonationId });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5, lastVisibleId: lastDonationId });
     setDonations(prev => [...prev, ...newDonations]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -90,14 +96,14 @@ export default function DonationsManagement() {
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-        const newDonation = await addDonation(data);
+        const newDonation = await addDonation(userId, data);
         setDonations(prev => [newDonation, ...prev]);
         toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
         setIsDialogOpen(false);
     });
   };
 
-  const getFilteredDonations = () => {
+  const getFilteredDonations = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -106,18 +112,19 @@ export default function DonationsManagement() {
         return null;
     }
     
+    const allDonations = await getDonations(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return donations.filter(donation => {
+    return allDonations.filter(donation => {
       const donationDate = new Date(donation.date);
       return donationDate >= from && donationDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredDonations = getFilteredDonations();
+  const handleDownloadPdf = async () => {
+    const filteredDonations = await getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -150,8 +157,8 @@ export default function DonationsManagement() {
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredDonations = getFilteredDonations();
+  const handleDownloadCsv = async () => {
+    const filteredDonations = await getFilteredDonations();
     if (!filteredDonations) return;
 
     if (filteredDonations.length === 0) {
@@ -399,5 +406,3 @@ export default function DonationsManagement() {
     </Card>
   );
 }
-
-    

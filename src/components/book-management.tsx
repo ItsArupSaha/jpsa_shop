@@ -59,8 +59,11 @@ const bookSchema = z.object({
 
 type BookFormValues = z.infer<typeof bookSchema>;
 
+interface BookManagementProps {
+    userId: string;
+}
 
-export default function BookManagement() {
+export default function BookManagement({ userId }: BookManagementProps) {
   const [books, setBooks] = React.useState<Book[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -77,7 +80,7 @@ export default function BookManagement() {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5 });
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ userId, pageLimit: 5 });
         setBooks(newBooks);
         setHasMore(newHasMore);
     } catch (error) {
@@ -90,11 +93,13 @@ export default function BookManagement() {
     } finally {
         setIsInitialLoading(false);
     }
-}, [toast]);
+}, [userId, toast]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if(userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
 
   const handleLoadMore = async () => {
@@ -102,7 +107,7 @@ export default function BookManagement() {
     setIsLoadingMore(true);
     const lastBookId = books[books.length - 1]?.id;
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ pageLimit: 5, lastVisibleId: lastBookId });
+        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ userId, pageLimit: 5, lastVisibleId: lastBookId });
         setBooks(prev => [...prev, ...newBooks]);
         setHasMore(newHasMore);
     } catch (error) {
@@ -143,7 +148,7 @@ export default function BookManagement() {
   const handleDelete = (id: string) => {
     startTransition(async () => {
       try {
-        await deleteBook(id);
+        await deleteBook(userId, id);
         await loadInitialData(); // Reload data to reflect deletion
         toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
       } catch (error) {
@@ -156,10 +161,10 @@ export default function BookManagement() {
     startTransition(async () => {
       try {
         if (editingBook) {
-          await updateBook(editingBook.id, data);
+          await updateBook(userId, editingBook.id, data);
           toast({ title: "Book Updated", description: "The book details have been saved." });
         } else {
-          await addBook(data);
+          await addBook(userId, data);
           toast({ title: "Book Added", description: "The new book is now in your inventory." });
         }
         await loadInitialData(); // Reload to show the changes
@@ -179,7 +184,7 @@ export default function BookManagement() {
     
     setIsCalculating(true);
     try {
-        const calculatedData = await calculateClosingStock(closingStockDate);
+        const calculatedData = await calculateClosingStock(userId, closingStockDate);
         setClosingStockData(calculatedData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });

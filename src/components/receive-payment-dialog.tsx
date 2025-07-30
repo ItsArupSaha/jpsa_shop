@@ -36,10 +36,11 @@ type PaymentFormValues = z.infer<typeof paymentSchema>;
 
 interface ReceivePaymentDialogProps {
   customerId?: string;
+  userId: string;
   children: React.ReactNode;
 }
 
-export default function ReceivePaymentDialog({ customerId, children }: ReceivePaymentDialogProps) {
+export default function ReceivePaymentDialog({ customerId, userId, children }: ReceivePaymentDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
   const [customersWithDue, setCustomersWithDue] = React.useState<CustomerWithDue[]>([]);
@@ -48,16 +49,16 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
 
   React.useEffect(() => {
     async function loadCustomersWithDue() {
-      if (isOpen && !customerId) {
+      if (isOpen && !customerId && userId) {
         setIsLoadingCustomers(true);
-        const dueCustomers = await getCustomersWithDueBalance();
+        const dueCustomers = await getCustomersWithDueBalance(userId);
         setCustomersWithDue(dueCustomers);
         setIsLoadingCustomers(false);
       }
     }
     
     loadCustomersWithDue();
-  }, [isOpen, customerId]);
+  }, [isOpen, customerId, userId]);
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -80,7 +81,7 @@ export default function ReceivePaymentDialog({ customerId, children }: ReceivePa
   const onSubmit = (data: PaymentFormValues) => {
     startTransition(async () => {
       try {
-        await addPayment(data);
+        await addPayment(userId, data);
         toast({
           title: 'Payment Received',
           description: 'The customer payment has been successfully recorded.',

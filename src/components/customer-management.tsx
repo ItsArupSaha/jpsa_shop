@@ -54,7 +54,11 @@ const customerSchema = z.object({
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
-export default function CustomerManagement() {
+interface CustomerManagementProps {
+    userId: string;
+}
+
+export default function CustomerManagement({ userId }: CustomerManagementProps) {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -67,7 +71,7 @@ export default function CustomerManagement() {
   const loadInitialCustomers = React.useCallback(async () => {
       setIsInitialLoading(true);
       try {
-        const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ pageLimit: 5 });
+        const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ userId, pageLimit: 5 });
         setCustomers(refreshedCustomers);
         setHasMore(refreshedHasMore);
       } catch (error) {
@@ -80,18 +84,20 @@ export default function CustomerManagement() {
       } finally {
         setIsInitialLoading(false);
       }
-  }, [toast]);
+  }, [userId, toast]);
 
   React.useEffect(() => {
-    loadInitialCustomers();
-  }, [loadInitialCustomers]);
+    if(userId) {
+        loadInitialCustomers();
+    }
+  }, [userId, loadInitialCustomers]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomerId = customers[customers.length - 1]?.id;
     try {
-        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ pageLimit: 5, lastVisibleId: lastCustomerId });
+        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 5, lastVisibleId: lastCustomerId });
         setCustomers(prev => [...prev, ...newCustomers]);
         setHasMore(newHasMore);
     } catch (error) {
@@ -132,7 +138,7 @@ export default function CustomerManagement() {
   const handleDelete = (id: string) => {
     startTransition(async () => {
         try {
-            await deleteCustomer(id);
+            await deleteCustomer(userId, id);
             await loadInitialCustomers();
             toast({ title: "Customer Deleted", description: "The customer has been removed." });
         } catch(e) {
@@ -145,10 +151,10 @@ export default function CustomerManagement() {
     startTransition(async () => {
         try {
             if (editingCustomer) {
-                await updateCustomer(editingCustomer.id, data);
+                await updateCustomer(userId, editingCustomer.id, data);
                 toast({ title: "Customer Updated", description: "The customer details have been saved." });
             } else {
-                await addCustomer(data);
+                await addCustomer(userId, data);
                 toast({ title: "Customer Added", description: "The new customer has been added." });
             }
             await loadInitialCustomers();

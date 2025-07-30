@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpensesPaginated, getExpenses } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -38,7 +38,11 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-export default function ExpensesManagement() {
+interface ExpensesManagementProps {
+    userId: string;
+}
+
+export default function ExpensesManagement({ userId }: ExpensesManagementProps) {
   const [expenses, setExpenses] = React.useState<Expense[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -51,22 +55,24 @@ export default function ExpensesManagement() {
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5 });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5 });
     setExpenses(newExpenses);
     setHasMore(newHasMore);
     setIsInitialLoading(false);
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if(userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5, lastVisibleId: lastExpenseId });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5, lastVisibleId: lastExpenseId });
     setExpenses(prev => [...prev, ...newExpenses]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -88,7 +94,7 @@ export default function ExpensesManagement() {
 
   const handleDelete = (id: string) => {
     startTransition(async () => {
-        await deleteExpense(id);
+        await deleteExpense(userId, id);
         setExpenses(prev => prev.filter(e => e.id !== id));
         toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
@@ -96,14 +102,14 @@ export default function ExpensesManagement() {
 
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
-        const newExpense = await addExpense(data);
+        const newExpense = await addExpense(userId, data);
         setExpenses(prev => [newExpense, ...prev]);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
         setIsAddDialogOpen(false);
     });
   };
   
-  const getFilteredExpenses = () => {
+  const getFilteredExpenses = async () => {
     if (!dateRange?.from) {
         toast({
             variant: "destructive",
@@ -112,18 +118,19 @@ export default function ExpensesManagement() {
         return null;
     }
     
+    const allExpenses = await getExpenses(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
 
-    return expenses.filter(expense => {
+    return allExpenses.filter(expense => {
       const expenseDate = new Date(expense.date);
       return expenseDate >= from && expenseDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadPdf = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {
@@ -155,8 +162,8 @@ export default function ExpensesManagement() {
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredExpenses = getFilteredExpenses();
+  const handleDownloadCsv = async () => {
+    const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
     if (filteredExpenses.length === 0) {

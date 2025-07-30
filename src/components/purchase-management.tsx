@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addPurchase, getPurchasesPaginated } from '@/lib/actions';
+import { addPurchase, getPurchasesPaginated, getPurchases } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -66,7 +66,11 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
-export default function PurchaseManagement() {
+interface PurchaseManagementProps {
+    userId: string;
+}
+
+export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -80,7 +84,7 @@ export default function PurchaseManagement() {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10 });
       setPurchases(newPurchases);
       setHasMore(newHasMore);
     } catch (error) {
@@ -88,18 +92,20 @@ export default function PurchaseManagement() {
     } finally {
       setIsInitialLoading(false);
     }
-  }, [toast]);
+  }, [userId, toast]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if (userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastPurchaseId = purchases[purchases.length - 1]?.id;
     try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10, lastVisibleId: lastPurchaseId });
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10, lastVisibleId: lastPurchaseId });
       setPurchases(prev => [...prev, ...newPurchases]);
       setHasMore(newHasMore);
     } catch (error) {
@@ -161,7 +167,7 @@ export default function PurchaseManagement() {
         ...data,
         dueDate: data.dueDate.toISOString()
       };
-      const result = await addPurchase(purchaseData);
+      const result = await addPurchase(userId, purchaseData);
       if (result?.success) {
         toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
         loadInitialData();
@@ -172,23 +178,24 @@ export default function PurchaseManagement() {
     });
   };
 
-  const getFilteredPurchases = () => {
+  const getFilteredPurchases = async () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
     
+    const allPurchases = await getPurchases(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return purchases.filter(p => {
+    return allPurchases.filter(p => {
       const pDate = new Date(p.date);
       return pDate >= from && pDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredPurchases = getFilteredPurchases();
+  const handleDownloadPdf = async () => {
+    const filteredPurchases = await getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
@@ -211,8 +218,8 @@ export default function PurchaseManagement() {
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredPurchases = getFilteredPurchases();
+  const handleDownloadCsv = async () => {
+    const filteredPurchases = await getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });

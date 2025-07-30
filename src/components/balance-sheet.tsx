@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -14,19 +15,25 @@ import { format } from 'date-fns';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
-export default function BalanceSheet() {
+interface BalanceSheetProps {
+    userId: string;
+}
+
+export default function BalanceSheet({ userId }: BalanceSheetProps) {
   const [data, setData] = React.useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
-      const balanceSheetData = await getBalanceSheetData();
+      const balanceSheetData = await getBalanceSheetData(userId);
       setData(balanceSheetData);
       setIsLoading(false);
     }
-    loadData();
-  }, []);
+    if (userId) {
+        loadData();
+    }
+  }, [userId]);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString(undefined, {

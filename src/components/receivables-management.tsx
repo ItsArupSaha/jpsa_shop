@@ -18,7 +18,11 @@ import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
 import { Skeleton } from './ui/skeleton';
 
-export default function ReceivablesManagement() {
+interface ReceivablesManagementProps {
+    userId: string;
+}
+
+export default function ReceivablesManagement({ userId }: ReceivablesManagementProps) {
   const [customers, setCustomers] = React.useState<CustomerWithDue[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -27,15 +31,17 @@ export default function ReceivablesManagement() {
   
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { customersWithDue, hasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5 });
+    const { customersWithDue, hasMore } = await getCustomersWithDueBalancePaginated({ userId, pageLimit: 5 });
     setCustomers(customersWithDue);
     setHasMore(hasMore);
     setIsInitialLoading(false);
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if (userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -48,7 +54,7 @@ export default function ReceivablesManagement() {
         dueBalance: lastCustomer.dueBalance,
     };
 
-    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5, lastVisible });
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ userId, pageLimit: 5, lastVisible });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -56,7 +62,7 @@ export default function ReceivablesManagement() {
 
   const handleDownload = async (formatType: 'pdf' | 'csv') => {
     // For reports, we fetch all customers with due balance
-    const allCustomersWithDue = await getCustomersWithDueBalance();
+    const allCustomersWithDue = await getCustomersWithDueBalance(userId);
 
     if (allCustomersWithDue.length === 0) {
       toast({
@@ -105,7 +111,7 @@ export default function ReceivablesManagement() {
               <CardDescription>A list of all customers with an outstanding balance.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
-                <ReceivePaymentDialog>
+                <ReceivePaymentDialog userId={userId}>
                     <Button>
                         <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
                     </Button>

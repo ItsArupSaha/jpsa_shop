@@ -39,9 +39,10 @@ interface TransactionsManagementProps {
   title: string;
   description: string;
   type: 'Payable';
+  userId: string;
 }
 
-export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
+export default function TransactionsManagement({ title, description, type, userId }: TransactionsManagementProps) {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -54,21 +55,23 @@ export default function TransactionsManagement({ title, description, type }: Tra
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5 });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ userId, type, pageLimit: 5 });
     setTransactions(newTransactions);
     setHasMore(newHasMore);
     setIsInitialLoading(false);
-  }, [type]);
+  }, [userId, type]);
 
   React.useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    if (userId) {
+        loadInitialData();
+    }
+  }, [userId, loadInitialData]);
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastTransactionId = transactions[transactions.length - 1]?.id;
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5, lastVisibleId: lastTransactionId });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ userId, type, pageLimit: 5, lastVisibleId: lastTransactionId });
     setTransactions(prev => [...prev, ...newTransactions]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -89,7 +92,7 @@ export default function TransactionsManagement({ title, description, type }: Tra
 
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
-        const newTransaction = await addTransaction({ ...data, type });
+        const newTransaction = await addTransaction(userId, { ...data, type });
         setTransactions(prev => [newTransaction, ...prev]);
         toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
         setIsDialogOpen(false);
@@ -101,7 +104,7 @@ export default function TransactionsManagement({ title, description, type }: Tra
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
-    const allTrans = await getTransactions(type); // Fetch all for report
+    const allTrans = await getTransactions(userId, type); // Fetch all for report
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);

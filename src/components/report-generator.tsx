@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,11 @@ interface ReportDataSource {
   balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
-export default function ReportGenerator() {
+interface ReportGeneratorProps {
+    userId: string;
+}
+
+export default function ReportGenerator({ userId }: ReportGeneratorProps) {
   const [dataSource, setDataSource] = React.useState<ReportDataSource | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -39,11 +44,12 @@ export default function ReportGenerator() {
 
   React.useEffect(() => {
     async function loadData() {
+      if (!userId) return;
       setIsLoading(true);
       try {
         const [books, balanceSheet] = await Promise.all([
-          getBooks(),
-          getBalanceSheetData(),
+          getBooks(userId),
+          getBalanceSheetData(userId),
         ]);
         setDataSource({ books, balanceSheet });
       } catch (error) {
@@ -58,7 +64,7 @@ export default function ReportGenerator() {
       }
     }
     loadData();
-  }, [toast]);
+  }, [userId, toast]);
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
@@ -76,9 +82,9 @@ export default function ReportGenerator() {
       const selectedYear = parseInt(formData.year, 10);
       
       const [salesForMonth, expensesForMonth, donationsForMonth] = await Promise.all([
-        getSalesForMonth(selectedYear, selectedMonth),
-        getExpensesForMonth(selectedYear, selectedMonth),
-        getDonationsForMonth(selectedYear, selectedMonth)
+        getSalesForMonth(userId, selectedYear, selectedMonth),
+        getExpensesForMonth(userId, selectedYear, selectedMonth),
+        getDonationsForMonth(userId, selectedYear, selectedMonth)
       ]);
       
       const input = {
