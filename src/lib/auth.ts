@@ -8,7 +8,11 @@ import type { AuthUser } from './types';
 export async function getAuthUser(): Promise<AuthUser> {
     return {
         uid: 'mock-user-id-123',
-        name: 'Store Owner',
-        email: 'owner@example.com'
-    } as AuthUser;
+        email: 'owner@example.com',
+        displayName: 'Store Owner',
+        photoURL: null,
+        isApproved: true,
+        createdAt: new Date(),
+        onboardingComplete: true,
+    };
 }

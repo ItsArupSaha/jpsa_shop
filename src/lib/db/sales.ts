@@ -2,17 +2,17 @@
 'use server';
 
 import {
-  Timestamp,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  runTransaction,
-  startAfter,
-  where
+    Timestamp,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    orderBy,
+    query,
+    runTransaction,
+    startAfter,
+    where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -94,7 +94,7 @@ export async function addSale(
   
     try {
       const result = await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', userId);
+        const userRef = doc(db!, 'users', userId);
         const metadataRef = doc(userRef, 'metadata', 'counters');
         const booksCollection = collection(userRef, 'books');
         const customersCollection = collection(userRef, 'customers');

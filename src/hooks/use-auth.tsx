@@ -1,12 +1,12 @@
 
 'use client';
 
+import { initializeNewUser } from '@/lib/db/database';
 import { auth, db } from '@/lib/firebase';
+import type { AuthUser } from '@/lib/types';
 import { signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import * as React from 'react';
-import { initializeNewUser } from '@/lib/db/database';
-import type { AuthUser } from '@/lib/types';
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        if (!db) return;
         const userRef = doc(db, 'users', currentUser.uid);
         const userSnap = await getDoc(userRef);
 

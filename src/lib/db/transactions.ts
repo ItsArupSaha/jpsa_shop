@@ -2,20 +2,20 @@
 'use server';
 
 import {
-  Timestamp,
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  runTransaction,
-  startAfter,
-  updateDoc,
-  where
+    Timestamp,
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    limit,
+    orderBy,
+    query,
+    runTransaction,
+    startAfter,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -126,7 +126,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const userRef = doc(db, 'users', userId);
+            const userRef = doc(db!, 'users', userId);
             const customersCollection = collection(userRef, 'customers');
             const transactionsCollection = collection(userRef, 'transactions');
 

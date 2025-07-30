@@ -63,7 +63,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
   try {
       const result = await runTransaction(db, async (transaction) => {
-          const userRef = doc(db, 'users', userId);
+          const userRef = doc(db!, 'users', userId);
           const metadataRef = doc(userRef, 'metadata', 'counters');
           const purchasesCollection = collection(userRef, 'purchases');
           const booksCollection = collection(userRef, 'books');

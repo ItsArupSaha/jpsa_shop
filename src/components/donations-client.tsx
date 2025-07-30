@@ -1,33 +1,34 @@
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { addDonation, getDonations, getDonationsPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getDonations, addDonation, getDonationsPaginated } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide-react';
 import Papa from 'papaparse';
+import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
-import type { Donation } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import type { Donation } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from './ui/textarea';
 
 const donationSchema = z.object({
   donorName: z.string().min(1, 'Donor name is required'),
@@ -49,24 +50,27 @@ export default function DonationsManagement() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  const { authUser } = useAuth();
+  const userId = authUser?.uid;
   
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5 });
+    if (!userId) return;
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5 });
     setDonations(newDonations);
     setHasMore(newHasMore);
     setIsInitialLoading(false);
-  }, []);
+  }, [userId]);
 
   React.useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
 
   const handleLoadMore = async () => {
-    if (!hasMore || isLoadingMore) return;
+    if (!hasMore || isLoadingMore || !userId) return;
     setIsLoadingMore(true);
     const lastDonationId = donations[donations.length - 1]?.id;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ pageLimit: 5, lastVisibleId: lastDonationId });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5, lastVisibleId: lastDonationId });
     setDonations(prev => [...prev, ...newDonations]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -89,7 +93,8 @@ export default function DonationsManagement() {
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-        const newDonation = await addDonation(data);
+        if (!userId) return;
+        const newDonation = await addDonation(userId, data);
         setDonations(prev => [newDonation, ...prev]);
         toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
         setIsDialogOpen(false);
@@ -104,8 +109,8 @@ export default function DonationsManagement() {
         });
         return null;
     }
-    
-    const allDonations = await getDonations();
+    if (!userId) return null;
+    const allDonations = await getDonations(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
