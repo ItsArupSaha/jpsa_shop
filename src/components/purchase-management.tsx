@@ -355,8 +355,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto pr-4 pl-1">
-                 <div className="space-y-4">
+            <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1 py-4">
+                 <div className="space-y-4 px-4">
                     <FormField
                         control={form.control}
                         name="supplier"
@@ -373,89 +373,87 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     <Separator />
                     
                     <FormLabel>Items</FormLabel>
-                    <ScrollArea className="h-48">
-                        <div className="space-y-3 pr-6">
-                            {fields.map((field, index) => (
-                            <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md relative">
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.itemName`}
-                                        render={({ field }) => (
-                                        <FormItem className="md:col-span-2">
-                                            <FormLabel className="text-xs">Item Name</FormLabel>
-                                            <FormControl><Input placeholder="e.g., The Midnight Library" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.category`}
-                                        render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-xs">Category</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Book">Book</SelectItem>
-                                                <SelectItem value="Office Asset">Office Asset</SelectItem>
-                                            </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
-                                    {watchItems[index]?.category === 'Book' && (
-                                        <FormField
-                                            control={form.control}
-                                            name={`items.${index}.author`}
-                                            render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Author</FormLabel>
-                                                <FormControl><Input placeholder="e.g., Matt Haig" {...field} /></FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                            )}
-                                    />
+                    <div className="space-y-3 pr-2">
+                        {fields.map((field, index) => (
+                        <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md relative">
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.itemName`}
+                                    render={({ field }) => (
+                                    <FormItem className="md:col-span-2">
+                                        <FormLabel className="text-xs">Item Name</FormLabel>
+                                        <FormControl><Input placeholder="e.g., The Midnight Library" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
                                     )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.category`}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Category</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="Book">Book</SelectItem>
+                                            <SelectItem value="Office Asset">Office Asset</SelectItem>
+                                        </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                {watchItems[index]?.category === 'Book' && (
                                     <FormField
                                         control={form.control}
-                                        name={`items.${index}.quantity`}
+                                        name={`items.${index}.author`}
                                         render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-xs">Qty</FormLabel>
-                                            <FormControl><Input type="number" min="1" placeholder="1" {...field} /></FormControl>
+                                            <FormLabel className="text-xs">Author</FormLabel>
+                                            <FormControl><Input placeholder="e.g., Matt Haig" {...field} /></FormControl>
                                             <FormMessage />
                                         </FormItem>
                                         )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name={`items.${index}.cost`}
-                                        render={({ field }) => (
-                                        <FormItem className={watchItems[index]?.category !== 'Book' ? 'md:col-start-4' : ''}>
-                                            <FormLabel className="text-xs">Unit Cost</FormLabel>
-                                            <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
-                                </div>
-                                <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:bg-destructive/10 mt-6"
-                                onClick={() => remove(index)}
-                                disabled={fields.length === 1}
-                                >
-                                <Trash2 className="h-4 w-4" />
-                                </Button>
+                                />
+                                )}
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.quantity`}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Qty</FormLabel>
+                                        <FormControl><Input type="number" min="1" placeholder="1" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.cost`}
+                                    render={({ field }) => (
+                                    <FormItem className={watchItems[index]?.category !== 'Book' ? 'md:col-start-4' : ''}>
+                                        <FormLabel className="text-xs">Unit Cost</FormLabel>
+                                        <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
                             </div>
-                            ))}
+                            <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10 mt-6"
+                            onClick={() => remove(index)}
+                            disabled={fields.length === 1}
+                            >
+                            <Trash2 className="h-4 w-4" />
+                            </Button>
                         </div>
-                    </ScrollArea>
+                        ))}
+                    </div>
                     <Button
                     type="button"
                     variant="outline"
@@ -561,7 +559,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                 </div>
               </div>
               
-              <div className="mt-auto pt-4 space-y-4 border-t px-4">
+              <div className="mt-auto pt-4 space-y-4 border-t px-6 pb-6">
                   <div className="space-y-2 text-sm">
                       <div className="flex justify-between font-bold text-base">
                           <span>Total Amount</span>
