@@ -4,13 +4,27 @@
 import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { docToBook, docToExpense, docToSale } from './utils';
-import { getBooks } from './books';
 import { getCustomersWithDueBalance } from './customers';
 
-export async function getDashboardStats() {
-    if (!db) {
-        throw new Error("Database not connected");
+export async function getDashboardStats(userId: string) {
+    if (!db || !userId) {
+        // Return a default structure if no user or DB
+        return {
+            totalBooksInStock: 0,
+            totalBookTitles: 0,
+            monthlySalesValue: 0,
+            monthlySalesCount: 0,
+            monthlyExpenses: 0,
+            netProfit: 0,
+            receivablesAmount: 0,
+            pendingReceivablesCount: 0,
+        };
     }
+
+    const userRef = doc(db, 'users', userId);
+    const booksCollection = collection(userRef, 'books');
+    const salesCollection = collection(userRef, 'sales');
+    const expensesCollection = collection(userRef, 'expenses');
 
     const now = new Date();
     const year = now.getFullYear();
@@ -19,16 +33,26 @@ export async function getDashboardStats() {
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
     const salesQuery = query(
-        collection(db, 'sales'),
+        salesCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
 
     const expensesQuery = query(
-        collection(db, 'expenses'),
+        expensesCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
+    
+    // Wrap snapshot fetching in try/catch to handle cases where collections don't exist yet for new users.
+    const safeGetDocs = async (q: any) => {
+        try {
+            return await getDocs(q);
+        } catch (error) {
+            console.warn("Could not fetch collection, it might not exist for a new user.", error);
+            return { docs: [] }; // Return an empty snapshot
+        }
+    };
 
     const [
         booksSnapshot, 
@@ -36,10 +60,10 @@ export async function getDashboardStats() {
         expensesSnapshot, 
         customersWithDue
     ] = await Promise.all([
-        getDocs(query(collection(db, 'books'))),
-        getDocs(salesQuery),
-        getDocs(expensesQuery),
-        getCustomersWithDueBalance()
+        safeGetDocs(query(booksCollection)),
+        safeGetDocs(salesQuery),
+        safeGetDocs(expensesQuery),
+        getCustomersWithDueBalance(userId)
     ]);
 
     const books = booksSnapshot.docs.map(docToBook);

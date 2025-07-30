@@ -9,18 +9,18 @@ import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
 
-export async function getBalanceSheetData() {
+export async function getBalanceSheetData(userId: string) {
     if (!db) {
         throw new Error("Database not connected");
     }
 
     const [books, sales, expenses, allTransactionsData, purchases, donations] = await Promise.all([
-        getBooks(),
-        getSales(),
-        getExpenses(),
-        getDocs(collection(db, 'transactions')),
-        getPurchases(),
-        getDonations(),
+        getBooks(userId),
+        getSales(userId),
+        getExpenses(userId),
+        getDocs(collection(db, 'users', userId, 'transactions')),
+        getPurchases(userId),
+        getDonations(userId),
     ]);
 
     const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));

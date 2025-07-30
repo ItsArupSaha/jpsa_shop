@@ -21,23 +21,25 @@ import type { Book } from '../types';
 import { docToBook } from './utils';
 
 // --- Books Actions ---
-export async function getBooks(): Promise<Book[]> {
-  if (!db) return [];
-  const snapshot = await getDocs(query(collection(db, 'books'), orderBy('title')));
+export async function getBooks(userId: string): Promise<Book[]> {
+  if (!db || !userId) return [];
+  const booksCollection = collection(db, 'users', userId, 'books');
+  const snapshot = await getDocs(query(booksCollection, orderBy('title')));
   return snapshot.docs.map(docToBook);
 }
 
-export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
-  if (!db) return { books: [], hasMore: false };
+export async function getBooksPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ books: Book[], hasMore: boolean }> {
+  if (!db || !userId) return { books: [], hasMore: false };
 
+  const booksCollection = collection(db, 'users', userId, 'books');
   let q = query(
-      collection(db, 'books'),
+      booksCollection,
       orderBy('title'),
       limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(db, 'books', lastVisibleId));
+      const lastVisibleDoc = await getDoc(doc(booksCollection, lastVisibleId));
       if (lastVisibleDoc.exists()) {
           q = query(q, startAfter(lastVisibleDoc));
       }
@@ -49,7 +51,7 @@ export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { page
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
-    const nextQuery = query(collection(db, 'books'), orderBy('title'), startAfter(lastDoc), limit(1));
+    const nextQuery = query(booksCollection, orderBy('title'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
   }
@@ -57,24 +59,27 @@ export async function getBooksPaginated({ pageLimit = 5, lastVisibleId }: { page
   return { books, hasMore };
 }
 
-export async function addBook(data: Omit<Book, 'id'>) {
-  if (!db) return;
-  const newDocRef = await addDoc(collection(db, 'books'), data);
+export async function addBook(userId: string, data: Omit<Book, 'id'>) {
+  if (!db || !userId) return;
+  const booksCollection = collection(db, 'users', userId, 'books');
+  const newDocRef = await addDoc(booksCollection, data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
   return { id: newDocRef.id, ...data };
 }
 
-export async function updateBook(id: string, data: Omit<Book, 'id'>) {
-  if (!db) return;
-  await updateDoc(doc(db, 'books', id), data);
+export async function updateBook(userId: string, id: string, data: Omit<Book, 'id'>) {
+  if (!db || !userId) return;
+  const bookRef = doc(db, 'users', userId, 'books', id);
+  await updateDoc(bookRef, data);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
 }
 
-export async function deleteBook(id: string) {
-  if (!db) return;
-  await deleteDoc(doc(db, 'books', id));
+export async function deleteBook(userId: string, id: string) {
+  if (!db || !userId) return;
+  const bookRef = doc(db, 'users', userId, 'books', id);
+  await deleteDoc(bookRef);
   revalidatePath('/books');
   revalidatePath('/balance-sheet');
 }

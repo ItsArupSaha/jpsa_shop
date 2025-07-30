@@ -11,8 +11,8 @@ import { getSales } from './sales';
  * @param closingStockDate The date to calculate the closing stock for.
  * @returns A promise that resolves to an array of books with their closing stock.
  */
-export async function calculateClosingStock(closingStockDate: Date): Promise<ClosingStock[]> {
-    const [allBooks, allSales] = await Promise.all([getBooks(), getSales()]);
+export async function calculateClosingStock(userId: string, closingStockDate: Date): Promise<ClosingStock[]> {
+    const [allBooks, allSales] = await Promise.all([getBooks(userId), getSales(userId)]);
 
     const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
 

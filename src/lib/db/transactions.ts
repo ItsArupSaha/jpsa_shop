@@ -23,19 +23,21 @@ import type { Transaction } from '../types';
 import { docToTransaction } from './utils';
 
 // --- Transactions (Receivables/Payables) Actions ---
-export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
-    if (!db) return [];
-    const q = query(collection(db, 'transactions'), where('type', '==', type), where('status', '==', 'Pending'));
+export async function getTransactions(userId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
+    if (!db || !userId) return [];
+    const transactionsCollection = collection(db, 'users', userId, 'transactions');
+    const q = query(transactionsCollection, where('type', '==', type), where('status', '==', 'Pending'));
     const snapshot = await getDocs(q);
     const transactions = snapshot.docs.map(docToTransaction);
     // Sort in application code to avoid needing a composite index
     return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
-  if (!db) return { transactions: [], hasMore: false };
+export async function getTransactionsPaginated({ userId, type, pageLimit = 5, lastVisibleId }: { userId: string, type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
+  if (!db || !userId) return { transactions: [], hasMore: false };
+  const transactionsCollection = collection(db, 'users', userId, 'transactions');
   let q = query(
-    collection(db, 'transactions'), 
+    transactionsCollection, 
     where('type', '==', type), 
     where('status', '==', 'Pending'),
     // orderBy('dueDate', 'desc'), // Removing order to prevent needing a composite index
@@ -43,7 +45,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
   );
 
   if (lastVisibleId) {
-    const lastVisibleDoc = await getDoc(doc(db, 'transactions', lastVisibleId));
+    const lastVisibleDoc = await getDoc(doc(transactionsCollection, lastVisibleId));
     if (lastVisibleDoc.exists()) {
         q = query(q, startAfter(lastVisibleDoc));
     }
@@ -57,7 +59,7 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
   let hasMore = false;
   if (lastDoc) {
     const nextQuery = query(
-        collection(db, 'transactions'), 
+        transactionsCollection, 
         where('type', '==', type), 
         where('status', '==', 'Pending'),
         // orderBy('dueDate', 'desc'),
@@ -72,11 +74,13 @@ export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibl
 }
 
 export async function getTransactionsForCustomer(
+  userId: string,
   customerId: string, 
   type: 'Receivable' | 'Payable', 
   options: { excludeSaleDues?: boolean } = {}
 ): Promise<Transaction[]> {
-  if (!db) return [];
+  if (!db || !userId) return [];
+  const transactionsCollection = collection(db, 'users', userId, 'transactions');
   let qConstraints: any[] = [
     where('type', '==', type),
     where('customerId', '==', customerId)
@@ -89,7 +93,7 @@ export async function getTransactionsForCustomer(
   }
   
   const q = query(
-      collection(db, 'transactions'),
+      transactionsCollection,
       ...qConstraints
   );
 
@@ -99,14 +103,15 @@ export async function getTransactionsForCustomer(
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
-    if (!db) throw new Error("Database not connected");
+export async function addTransaction(userId: string, data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
+    if (!db || !userId) throw new Error("Database not connected");
+    const transactionsCollection = collection(db, 'users', userId, 'transactions');
     const transactionData = {
         ...data,
         status: 'Pending' as const,
         dueDate: Timestamp.fromDate(data.dueDate),
     };
-    const newDocRef = await addDoc(collection(db, 'transactions'), transactionData);
+    const newDocRef = await addDoc(transactionsCollection, transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -116,12 +121,16 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 
     return { ...transactionData, id: newDocRef.id, dueDate: data.dueDate.toISOString() };
 }
 
-export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
-    if (!db) throw new Error("Database not configured.");
+export async function addPayment(userId: string, data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
+    if (!db || !userId) throw new Error("Database not configured.");
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const customerRef = doc(db!, 'customers', data.customerId);
+            const userRef = doc(db, 'users', userId);
+            const customersCollection = collection(userRef, 'customers');
+            const transactionsCollection = collection(userRef, 'transactions');
+
+            const customerRef = doc(customersCollection, data.customerId);
             const customerDoc = await transaction.get(customerRef);
 
             if (!customerDoc.exists()) {
@@ -142,13 +151,13 @@ export async function addPayment(data: { customerId: string, amount: number, pay
                 paymentMethod: data.paymentMethod,
                 customerId: data.customerId
             };
-            const newTransactionRef = doc(collection(db!, "transactions"));
+            const newTransactionRef = doc(transactionsCollection);
             transaction.set(newTransactionRef, paymentTransactionData);
 
             // Settle pending receivables if any
             let amountToSettle = data.amount;
             const receivablesQuery = query(
-                collection(db!, 'transactions'),
+                transactionsCollection,
                 where('type', '==', 'Receivable'),
                 where('status', '==', 'Pending'),
                 where('customerId', '==', data.customerId),
@@ -161,7 +170,7 @@ export async function addPayment(data: { customerId: string, amount: number, pay
                 if (amountToSettle <= 0) break;
 
                 const receivable = docToTransaction(docSnap);
-                const receivableRef = doc(db!, 'transactions', docSnap.id);
+                const receivableRef = doc(transactionsCollection, docSnap.id);
                 
                 if (amountToSettle >= receivable.amount) {
                     transaction.update(receivableRef, { status: 'Paid' });
@@ -186,9 +195,9 @@ export async function addPayment(data: { customerId: string, amount: number, pay
 }
 
 
-export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
-    if (!db) return;
-    const transRef = doc(db, 'transactions', id);
+export async function updateTransactionStatus(userId: string, id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
+    if (!db || !userId) return;
+    const transRef = doc(db, 'users', userId, 'transactions', id);
     const transDoc = await getDoc(transRef);
     
     await updateDoc(transRef, { status });
@@ -205,9 +214,10 @@ export async function updateTransactionStatus(id: string, status: 'Pending' | 'P
     }
 }
 
-export async function deleteTransaction(id: string, type: 'Receivable' | 'Payable') {
-    if (!db) return;
-    await deleteDoc(doc(db, 'transactions', id));
+export async function deleteTransaction(userId: string, id: string, type: 'Receivable' | 'Payable') {
+    if (!db || !userId) return;
+    const transRef = doc(db, 'users', userId, 'transactions', id);
+    await deleteDoc(transRef);
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');

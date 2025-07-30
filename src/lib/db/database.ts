@@ -1,48 +1,28 @@
 
 'use server';
 
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, writeBatch, serverTimestamp, getDoc } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
-import { DUMMY_BOOKS, DUMMY_CUSTOMERS } from '../data';
 import { db } from '../firebase';
+import type { AuthUser } from '../types';
 
-// --- Database Seeding/Resetting ---
-export async function resetDatabase() {
-  if (!db) {
-    console.warn('Firebase not configured. Database reset skipped.');
-    return;
+// --- User Initialization on First Login ---
+export async function initializeNewUser(userId: string) {
+  if (!db) return;
+  const userDocRef = doc(db, 'users', userId);
+  const userDoc = await getDoc(userDocRef);
+
+  // Check if the user document already has collections initialized
+  if (userDoc.exists() && userDoc.data()?.initialized) {
+    return; // Already initialized
   }
-  console.log('Starting database reset...');
 
   const batch = writeBatch(db);
 
-  const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
-  for (const coll of collectionsToDelete) {
-    const snapshot = await getDocs(collection(db, coll));
-    snapshot.docs.forEach(doc => batch.delete(doc.ref));
-  }
-  
-  await batch.commit();
-  console.log('All collections cleared.');
-  
-  // Re-run batch for seeding
-  const seedBatch = writeBatch(db);
-
-  // Seed Books
-  DUMMY_BOOKS.forEach(book => {
-    const bookRef = doc(collection(db!, 'books'));
-    seedBatch.set(bookRef, book);
-  });
-
-  // Seed Customers
-  DUMMY_CUSTOMERS.forEach(customer => {
-    const customerRef = doc(collection(db!, 'customers'));
-    const customerWithDue = { ...customer, dueBalance: customer.openingBalance };
-    seedBatch.set(customerRef, customerWithDue);
-  });
-  
-  // Seed a "Walk-in Customer"
-  seedBatch.set(doc(collection(db!, 'customers')), {
+  // Create a "Walk-in Customer"
+  const customersCollection = collection(userDocRef, 'customers');
+  const walkInCustomerRef = doc(customersCollection);
+  batch.set(walkInCustomerRef, {
     name: 'Walk-in Customer',
     phone: 'N/A',
     address: 'N/A',
@@ -50,12 +30,42 @@ export async function resetDatabase() {
     dueBalance: 0,
   });
 
+  // Create metadata for counters
+  const metadataCollection = collection(userDocRef, 'metadata');
+  const countersRef = doc(metadataCollection, 'counters');
+  batch.set(countersRef, { lastPurchaseNumber: 0 });
 
-  const metadataRef = doc(db!, 'metadata', 'counters');
-  seedBatch.set(metadataRef, { lastPurchaseNumber: 0 });
+  // Mark user as initialized
+  batch.set(userDocRef, { initialized: true }, { merge: true });
 
-  await seedBatch.commit();
-  console.log('Database reset and seeded with initial data.');
+  await batch.commit();
+  console.log(`Initialized database for new user: ${userId}`);
+}
+
+
+// --- Database Seeding/Resetting for a specific user ---
+export async function resetDatabase(userId: string) {
+  if (!db || !userId) {
+    console.warn('Firebase not configured or no user ID provided. Database reset skipped.');
+    return;
+  }
+  console.log(`Starting database reset for user: ${userId}`);
+
+  const userRef = doc(db, 'users', userId);
+  const batch = writeBatch(db);
+
+  const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
+  for (const coll of collectionsToDelete) {
+    const snapshot = await getDocs(collection(userRef, coll));
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+  }
+  
+  await batch.commit();
+  console.log(`All collections cleared for user: ${userId}`);
+  
+  // Re-initialize with the empty state + walk-in customer
+  await initializeNewUser(userId);
+  console.log(`Database reset and re-initialized for user: ${userId}`);
 
   // Revalidate all paths
   const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];

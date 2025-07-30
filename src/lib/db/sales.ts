@@ -20,23 +20,25 @@ import type { Book, Sale, SaleItem } from '../types';
 import { docToSale } from './utils';
 
 // --- Sales Actions ---
-export async function getSales(): Promise<Sale[]> {
-    if (!db) return [];
-    const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
+export async function getSales(userId: string): Promise<Sale[]> {
+    if (!db || !userId) return [];
+    const salesCollection = collection(db, 'users', userId, 'sales');
+    const snapshot = await getDocs(query(salesCollection, orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
 
-export async function getSalesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
-  if (!db) return { sales: [], hasMore: false };
+export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
+  if (!db || !userId) return { sales: [], hasMore: false };
 
+  const salesCollection = collection(db, 'users', userId, 'sales');
   let q = query(
-      collection(db, 'sales'),
+      salesCollection,
       orderBy('date', 'desc'),
       limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(db, 'sales', lastVisibleId));
+      const lastVisibleDoc = await getDoc(doc(salesCollection, lastVisibleId));
       if (lastVisibleDoc.exists()) {
           q = query(q, startAfter(lastVisibleDoc));
       }
@@ -48,7 +50,7 @@ export async function getSalesPaginated({ pageLimit = 5, lastVisibleId }: { page
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
-    const nextQuery = query(collection(db, 'sales'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextQuery = query(salesCollection, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
   }
@@ -57,10 +59,11 @@ export async function getSalesPaginated({ pageLimit = 5, lastVisibleId }: { page
 }
 
 
-export async function getSalesForCustomer(customerId: string): Promise<Sale[]> {
-  if (!db) return [];
+export async function getSalesForCustomer(userId: string, customerId: string): Promise<Sale[]> {
+  if (!db || !userId) return [];
+  const salesCollection = collection(db, 'users', userId, 'sales');
   const q = query(
-      collection(db, 'sales'),
+      salesCollection,
       where('customerId', '==', customerId),
       orderBy('date', 'desc')
   );
@@ -68,12 +71,13 @@ export async function getSalesForCustomer(customerId: string): Promise<Sale[]> {
   return snapshot.docs.map(docToSale);
 }
 
-export async function getSalesForMonth(year: number, month: number): Promise<Sale[]> {
-    if (!db) return [];
+export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
+    if (!db || !userId) return [];
+    const salesCollection = collection(db, 'users', userId, 'sales');
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     const q = query(
-        collection(db, 'sales'),
+        salesCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate)),
         orderBy('date', 'desc')
@@ -83,15 +87,22 @@ export async function getSalesForMonth(year: number, month: number): Promise<Sal
 }
 
 export async function addSale(
+    userId: string,
     data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
-    if (!db) return { success: false, error: "Database not configured." };
+    if (!db || !userId) return { success: false, error: "Database not configured." };
   
     try {
       const result = await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', userId);
+        const booksCollection = collection(userRef, 'books');
+        const customersCollection = collection(userRef, 'customers');
+        const salesCollection = collection(userRef, 'sales');
+        const transactionsCollection = collection(userRef, 'transactions');
+
         const saleDate = new Date();
-        const bookRefs = data.items.map(item => doc(db!, 'books', item.bookId));
-        const customerRef = doc(db!, 'customers', data.customerId);
+        const bookRefs = data.items.map(item => doc(booksCollection, item.bookId));
+        const customerRef = doc(customersCollection, data.customerId);
         
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
         const customerDoc = await transaction.get(customerRef);
@@ -129,7 +140,7 @@ export async function addSale(
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
         const calculatedTotal = calculatedSubtotal - discountAmount;
   
-        const newSaleRef = doc(collection(db!, "sales"));
+        const newSaleRef = doc(salesCollection);
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
           items: itemsWithPrices,
@@ -163,7 +174,7 @@ export async function addSale(
                 type: 'Receivable' as const,
                 customerId: data.customerId
               };
-              const newTransactionRef = doc(collection(db!, "transactions"));
+              const newTransactionRef = doc(transactionsCollection);
               transaction.set(newTransactionRef, receivableData);
           }
         }
