@@ -45,6 +45,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -64,6 +65,7 @@ interface BookManagementProps {
 }
 
 export default function BookManagement({ userId }: BookManagementProps) {
+  const { authUser } = useAuth();
   const [books, setBooks] = React.useState<Book[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -195,15 +197,21 @@ export default function BookManagement({ userId }: BookManagementProps) {
   }
 
   const handleDownloadClosingStockPdf = () => {
-    if (!closingStockData.length || !closingStockDate) return;
+    if (!closingStockData.length || !closingStockDate || !authUser) return;
     
     const doc = new jsPDF();
     const dateString = format(closingStockDate, 'PPP');
     
-    doc.text(`Closing Stock Report as of ${dateString}`, 14, 15);
-    
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Closing Stock Report', 14, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`As of ${dateString}`, 14, 36);
+
     autoTable(doc, {
-      startY: 20,
+      startY: 45,
       head: [['Title', 'Author', 'Stock']],
       body: closingStockData.map(book => [book.title, book.author, book.closingStock]),
     });

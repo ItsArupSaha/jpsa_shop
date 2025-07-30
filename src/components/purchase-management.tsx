@@ -30,6 +30,7 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -71,6 +72,7 @@ interface PurchaseManagementProps {
 }
 
 export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
+  const { authUser } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -196,16 +198,24 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
 
   const handleDownloadPdf = async () => {
     const filteredPurchases = await getFilteredPurchases();
-    if (!filteredPurchases) return;
+    if (!filteredPurchases || !authUser) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
       return;
     }
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
-    doc.text(`Purchases Report: ${dateString}`, 14, 15);
+
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Purchases Report', 14, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 14, 36);
+
     autoTable(doc, {
-      startY: 20,
+      startY: 45,
       head: [['Date', 'Purchase ID', 'Supplier', 'Items', 'Total']],
       body: filteredPurchases.map(p => [
         format(new Date(p.date), 'yyyy-MM-dd'),

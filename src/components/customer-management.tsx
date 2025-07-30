@@ -43,6 +43,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from './ui/textarea';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -59,6 +60,7 @@ interface CustomerManagementProps {
 }
 
 export default function CustomerManagement({ userId }: CustomerManagementProps) {
+  const { authUser } = useAuth();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -167,13 +169,16 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
   };
 
   const handleDownloadPdf = () => {
-    if (!customers.length) return;
+    if (!customers.length || !authUser) return;
     
     const doc = new jsPDF();
-    doc.text(`Customer List (Visible)`, 14, 15);
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Customer List', 14, 30);
     
     autoTable(doc, {
-      startY: 20,
+      startY: 40,
       head: [['Name', 'Phone', 'Address', 'Due Balance']],
       body: customers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
     });

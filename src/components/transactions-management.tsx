@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -43,6 +44,7 @@ interface TransactionsManagementProps {
 }
 
 export default function TransactionsManagement({ title, description, type, userId }: TransactionsManagementProps) {
+  const { authUser } = useAuth();
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -116,16 +118,24 @@ export default function TransactionsManagement({ title, description, type, userI
 
   const handleDownloadPdf = async () => {
     const filteredTransactions = await getFilteredTransactions();
-    if (!filteredTransactions) return;
+    if (!filteredTransactions || !authUser) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
       return;
     }
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
-    doc.text(`Pending ${type}s Report: ${dateString}`, 14, 15);
+    
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text(`Pending ${type}s Report`, 14, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 14, 36);
+
     autoTable(doc, {
-      startY: 20,
+      startY: 45,
       head: [['Description', 'Due Date', 'Amount']],
       body: filteredTransactions.map(t => [
         t.description,

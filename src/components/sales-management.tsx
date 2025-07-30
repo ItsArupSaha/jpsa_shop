@@ -248,7 +248,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   
   const handleDownloadPdf = async () => {
     const filteredSales = await getFilteredSales();
-    if (!filteredSales) return;
+    if (!filteredSales || !authUser) return;
 
     if (filteredSales.length === 0) {
       toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
@@ -257,10 +257,17 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
-    doc.text(`Sales Report: ${dateString}`, 14, 15);
+    
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Sales Report', 14, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 14, 36);
     
     autoTable(doc, {
-      startY: 20,
+      startY: 45,
       head: [['Date', 'Sale ID', 'Customer', 'Items', 'Payment', 'Total']],
       body: filteredSales.map(sale => [
         format(new Date(sale.date), 'yyyy-MM-dd'),

@@ -4,6 +4,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
 import type { ReportAnalysis } from '@/lib/report-generator';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -23,19 +24,24 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {
+  const { authUser } = useAuth();
   const { openingBalances, monthlyActivity, netResult } = reportData;
 
   const handleDownloadPdf = () => {
+    if (!authUser) return;
     const doc = new jsPDF();
-
+    
     doc.setFontSize(18);
-    doc.text(`Monthly Financial Report`, 105, 20, { align: 'center' });
+    doc.text(authUser.companyName || 'Bookstore', 105, 20, { align: 'center' });
     doc.setFontSize(12);
-    doc.text(`${month} ${year}`, 105, 28, { align: 'center' });
+    doc.text(`Monthly Financial Report`, 105, 28, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`${month} ${year}`, 105, 34, { align: 'center' });
     
     // Balances Table
     autoTable(doc, {
-      startY: 40,
+      startY: 45,
       head: [['Opening Balances', 'Amount']],
       body: [
         ['Cash', formatCurrency(openingBalances.cash)],

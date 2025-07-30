@@ -29,6 +29,7 @@ import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/hooks/use-auth';
 
 const donationSchema = z.object({
   donorName: z.string().min(1, 'Donor name is required'),
@@ -45,6 +46,7 @@ interface DonationsManagementProps {
 }
 
 export default function DonationsManagement({ userId }: DonationsManagementProps) {
+  const { authUser } = useAuth();
   const [donations, setDonations] = React.useState<Donation[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -125,7 +127,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
 
   const handleDownloadPdf = async () => {
     const filteredDonations = await getFilteredDonations();
-    if (!filteredDonations) return;
+    if (!filteredDonations || !authUser) return;
 
     if (filteredDonations.length === 0) {
       toast({ title: 'No Donations Found', description: 'There are no donations in the selected date range.' });
@@ -136,10 +138,17 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
     const totalDonations = filteredDonations.reduce((sum, d) => sum + d.amount, 0);
 
-    doc.text(`Donations Report: ${dateString}`, 14, 15);
+    doc.setFontSize(18);
+    doc.text(authUser.companyName || 'Bookstore', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Donations Report', 14, 30);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 14, 36);
+
     
     autoTable(doc, {
-      startY: 20,
+      startY: 45,
       head: [['Date', 'Donor', 'Method', 'Notes', 'Amount']],
       body: filteredDonations.map(d => [
         format(new Date(d.date), 'yyyy-MM-dd'),

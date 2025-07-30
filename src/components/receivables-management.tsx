@@ -17,12 +17,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
 import { Skeleton } from './ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 
 interface ReceivablesManagementProps {
     userId: string;
 }
 
 export default function ReceivablesManagement({ userId }: ReceivablesManagementProps) {
+  const { authUser } = useAuth();
   const [customers, setCustomers] = React.useState<CustomerWithDue[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -64,7 +66,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     // For reports, we fetch all customers with due balance
     const allCustomersWithDue = await getCustomersWithDueBalance(userId);
 
-    if (allCustomersWithDue.length === 0) {
+    if (allCustomersWithDue.length === 0 || !authUser) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -82,10 +84,16 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
-      doc.text('Pending Receivables Report', 14, 15);
-      doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 22);
+      doc.setFontSize(18);
+      doc.text(authUser.companyName || 'Bookstore', 14, 22);
+      doc.setFontSize(12);
+      doc.text('Pending Receivables Report', 14, 30);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 36);
+
       autoTable(doc, {
-        startY: 30,
+        startY: 45,
         head: [['Customer', 'Phone', 'Due Amount']],
         body: body.map(row => Object.values(row)),
       });
