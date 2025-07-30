@@ -271,16 +271,37 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
     
-    doc.setFontSize(18);
-    doc.text(authUser.companyName || 'Bookstore', 14, 22);
-    doc.setFontSize(12);
-    doc.text('Sales Report', 14, 30);
+    // Left side header
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(authUser.companyName || 'Bookstore', 14, 20);
     doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`For the period: ${dateString}`, 14, 36);
+    doc.setFont('helvetica', 'normal');
+    doc.text(authUser.address || '', 14, 26);
+    doc.text(authUser.phone || '', 14, 32);
+
+    // Right side header
+    let yPos = 20;
+    if (authUser.bkashNumber) {
+        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+        yPos += 6;
+    }
+    if (authUser.bankInfo) {
+        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+    }
     
+    // Report Title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Sales Report', 105, 45, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 105, 51, { align: 'center' });
+    doc.setTextColor(0);
+
     autoTable(doc, {
-      startY: 45,
+      startY: 60,
       head: [['Date', 'Sale ID', 'Customer', 'Items', 'Payment', 'Total']],
       body: filteredSales.map(sale => [
         format(new Date(sale.date), 'yyyy-MM-dd'),
@@ -725,3 +746,5 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     </>
   );
 }
+
+    
