@@ -84,16 +84,39 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text(authUser.companyName || 'Bookstore', 14, 22);
-      doc.setFontSize(12);
-      doc.text('Pending Receivables Report', 14, 30);
+      const dateString = format(new Date(), 'PPP');
+
+      // Left side header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(authUser.companyName || 'Bookstore', 14, 20);
       doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(authUser.address || '', 14, 26);
+      doc.text(authUser.phone || '', 14, 32);
+
+      // Right side header
+      let yPos = 20;
+      if (authUser.bkashNumber) {
+          doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+          yPos += 6;
+      }
+      if (authUser.bankInfo) {
+          doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      }
+
+      // Report Title
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pending Receivables Report', 105, 45, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
-      doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 36);
+      doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
+      doc.setTextColor(0);
 
       autoTable(doc, {
-        startY: 45,
+        startY: 60,
         head: [['Customer', 'Phone', 'Due Amount']],
         body: body.map(row => Object.values(row)),
       });
