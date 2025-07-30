@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from './ui/textarea';
 import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import { format } from 'date-fns';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -172,18 +173,44 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     if (!customers.length || !authUser) return;
     
     const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text(authUser.companyName || 'Bookstore', 14, 22);
-    doc.setFontSize(12);
-    doc.text('Customer List', 14, 30);
+    const dateString = format(new Date(), 'PPP');
+    
+    // Left side header
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(authUser.companyName || 'Bookstore', 14, 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(authUser.address || '', 14, 26);
+    doc.text(authUser.phone || '', 14, 32);
+
+    // Right side header
+    let yPos = 20;
+    if (authUser.bkashNumber) {
+        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+        yPos += 6;
+    }
+    if (authUser.bankInfo) {
+        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+    }
+
+    // Report Title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Customer List', 105, 45, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
+    doc.setTextColor(0);
     
     autoTable(doc, {
-      startY: 40,
+      startY: 60,
       head: [['Name', 'Phone', 'Address', 'Due Balance']],
       body: customers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
     });
     
-    doc.save(`customer-list.pdf`);
+    doc.save(`customer-list-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleDownloadCsv = () => {
