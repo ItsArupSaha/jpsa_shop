@@ -160,6 +160,18 @@ export async function addSale(
           let dueAmount = calculatedTotal;
           if(data.paymentMethod === 'Split' && data.amountPaid) {
             dueAmount = calculatedTotal - data.amountPaid;
+
+            // Record the asset from the partial payment
+            const paymentTransactionData = {
+                description: `Partial payment for Sale #${newSaleRef.id.slice(0, 6)}`,
+                amount: data.amountPaid,
+                dueDate: Timestamp.fromDate(new Date()),
+                status: 'Paid' as const,
+                type: 'Receivable' as const,
+                paymentMethod: data.splitPaymentMethod, // Use the selected method
+                customerId: data.customerId
+            };
+            transaction.set(doc(transactionsCollection), paymentTransactionData);
           }
 
           if (dueAmount > 0) {
@@ -174,8 +186,7 @@ export async function addSale(
                 type: 'Receivable' as const,
                 customerId: data.customerId
               };
-              const newTransactionRef = doc(transactionsCollection);
-              transaction.set(newTransactionRef, receivableData);
+              transaction.set(doc(transactionsCollection), receivableData);
           }
         }
   

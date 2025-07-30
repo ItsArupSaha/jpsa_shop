@@ -53,6 +53,7 @@ export type Sale = {
   total: number;
   paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
   amountPaid?: number;
+  splitPaymentMethod?: 'Cash' | 'Bank';
 };
 
 export type PurchaseItem = {
