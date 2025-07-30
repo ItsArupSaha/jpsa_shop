@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { docToBook, docToExpense, docToSale } from './utils';
 import { getCustomersWithDueBalance } from './customers';
