@@ -39,15 +39,19 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, signInWithGoogle, loading } = useAuth();
+  const { authUser, signInWithGoogle, loading } = useAuth();
   const [isSigningIn, setIsSigningIn] = React.useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
-    if (!loading && user) {
-      router.replace('/dashboard');
+    if (!loading && authUser) {
+      if (authUser.onboardingComplete) {
+        router.replace('/dashboard');
+      } else {
+        router.replace('/onboarding');
+      }
     }
-  }, [user, loading, router]);
+  }, [authUser, loading, router]);
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
@@ -64,7 +68,7 @@ export default function LoginPage() {
     }
   };
 
-  if (loading || user) {
+  if (loading || authUser) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <Book className="h-8 w-8 animate-spin text-primary" />

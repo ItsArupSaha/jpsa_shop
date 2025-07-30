@@ -6,9 +6,11 @@ import { signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged, sig
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import * as React from 'react';
 import { initializeNewUser } from '@/lib/db/database';
+import type { AuthUser } from '@/lib/types';
 
 interface AuthContextType {
   user: User | null;
+  authUser: AuthUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -18,6 +20,7 @@ const AuthContext = React.createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -33,7 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
-          // Existing user, just set them
+          const userData = userSnap.data() as AuthUser;
+          setAuthUser(userData);
           setUser(currentUser);
         } else {
           // New user, create their document and initialize their data
@@ -43,12 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             displayName: currentUser.displayName,
             photoURL: currentUser.photoURL,
             createdAt: serverTimestamp(),
+            onboardingComplete: false,
           });
           await initializeNewUser(currentUser.uid);
-          setUser(currentUser); // Set user after initialization
+          const newUserSnap = await getDoc(userRef);
+          if (newUserSnap.exists()) {
+            setAuthUser(newUserSnap.data() as AuthUser);
+          }
+          setUser(currentUser);
         }
       } else {
         setUser(null);
+        setAuthUser(null);
       }
       setLoading(false);
     });
@@ -80,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = { user, loading, signInWithGoogle, signOut };
+  const value = { user, authUser, loading, signInWithGoogle, signOut };
 
   return (
     <AuthContext.Provider value={value}>

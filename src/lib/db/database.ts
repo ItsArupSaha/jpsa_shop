@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, doc, getDocs, writeBatch, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, writeBatch, serverTimestamp, getDoc, updateDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import { DUMMY_BOOKS, DUMMY_CUSTOMERS } from '../data';
@@ -36,12 +36,56 @@ export async function initializeNewUser(userId: string) {
   const countersRef = doc(metadataCollection, 'counters');
   batch.set(countersRef, { lastPurchaseNumber: 0, lastSaleNumber: 0 });
   
-  // Mark user as initialized (and approved)
-  batch.set(userDocRef, { initialized: true, isApproved: true }, { merge: true });
+  // Mark user as initialized (but onboarding not yet complete)
+  batch.set(userDocRef, { initialized: true }, { merge: true });
 
 
   await batch.commit();
   console.log(`Initialized database for new user: ${userId}`);
+}
+
+export async function completeOnboarding(userId: string, data: any) {
+  if (!db || !userId) return;
+
+  const userDocRef = doc(db, 'users', userId);
+  
+  // 1. Update user document with company info and mark onboarding as complete
+  const userData = {
+    companyName: data.companyName,
+    address: data.address,
+    phone: data.phone,
+    bkashNumber: data.bkashNumber,
+    bankInfo: data.bankInfo,
+    onboardingComplete: true,
+  };
+  await updateDoc(userDocRef, userData);
+
+  // 2. Record initial capital
+  const donationsCollection = collection(userDocRef, 'donations');
+  const now = new Date();
+
+  if (data.initialCash > 0) {
+    await addDoc(donationsCollection, {
+      donorName: 'Initial Capital',
+      amount: data.initialCash,
+      date: Timestamp.fromDate(now),
+      paymentMethod: 'Cash',
+      notes: 'Initial cash balance upon store setup.',
+    });
+  }
+
+  if (data.initialBank > 0) {
+    await addDoc(donationsCollection, {
+      donorName: 'Initial Capital',
+      amount: data.initialBank,
+      date: Timestamp.fromDate(now),
+      paymentMethod: 'Bank',
+      notes: 'Initial bank balance upon store setup.',
+    });
+  }
+  
+  // Revalidate paths to ensure data is fresh across the app
+  revalidatePath('/dashboard', 'layout');
 }
 
 

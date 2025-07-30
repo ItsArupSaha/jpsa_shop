@@ -28,22 +28,26 @@ export async function getBalanceSheetData(userId: string) {
     let cash = 0;
     let bank = 0;
 
+    // Capital contributions are recorded as donations
+    donations.forEach(donation => {
+        if (donation.paymentMethod === 'Cash') {
+            cash += donation.amount;
+        } else if (donation.paymentMethod === 'Bank') {
+            bank += donation.amount;
+        }
+    });
+
     sales.forEach(sale => {
         if (sale.paymentMethod === 'Cash') {
             cash += sale.total;
         } else if (sale.paymentMethod === 'Bank') {
             bank += sale.total;
         } else if (sale.paymentMethod === 'Split' && sale.amountPaid) {
-            // Assuming split payments from sales are cash unless specified otherwise
-            cash += sale.amountPaid;
-        }
-    });
-    
-    donations.forEach(donation => {
-        if (donation.paymentMethod === 'Cash') {
-            cash += donation.amount;
-        } else if (donation.paymentMethod === 'Bank') {
-            bank += donation.amount;
+            if (sale.splitPaymentMethod === 'Bank') {
+                bank += sale.amountPaid;
+            } else {
+                cash += sale.amountPaid;
+            }
         }
     });
 
