@@ -27,6 +27,7 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import { ScrollArea } from './ui/scroll-area';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -213,16 +214,18 @@ export default function TransactionsManagement({ title, description, type, userI
                           <DialogTitle>Download {type} Report</DialogTitle>
                           <DialogDescription>Select a date range to download your pending {type.toLowerCase()} data.</DialogDescription>
                       </DialogHeader>
-                       <div className="py-4 flex flex-col items-center gap-4">
-                          <Calendar
-                              initialFocus
-                              mode="range"
-                              defaultMonth={dateRange?.from}
-                              selected={dateRange}
-                              onSelect={setDateRange}
-                              numberOfMonths={1}
-                          />
-                      </div>
+                      <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                        <div className="py-4 flex flex-col items-center gap-4">
+                            <Calendar
+                                initialFocus
+                                mode="range"
+                                defaultMonth={dateRange?.from}
+                                selected={dateRange}
+                                onSelect={setDateRange}
+                                numberOfMonths={1}
+                            />
+                        </div>
+                      </ScrollArea>
                       <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
                           <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
