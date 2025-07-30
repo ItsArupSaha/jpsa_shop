@@ -12,6 +12,7 @@ import { Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
+import { useAuth } from '@/hooks/use-auth';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
@@ -22,6 +23,7 @@ interface BalanceSheetProps {
 export default function BalanceSheet({ userId }: BalanceSheetProps) {
   const [data, setData] = React.useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const { authUser } = useAuth();
 
   React.useEffect(() => {
     async function loadData() {
@@ -43,19 +45,42 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   };
 
   const handleDownloadPdf = () => {
-    if (!data) return;
+    if (!data || !authUser) return;
     const doc = new jsPDF();
     const dateString = format(new Date(), 'PPP');
 
-    doc.setFontSize(18);
-    doc.text('Balance Sheet', 14, 22);
-    doc.setFontSize(11);
+    // Left side header
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(authUser.companyName || 'Bookstore', 14, 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(authUser.address || '', 14, 26);
+    doc.text(authUser.phone || '', 14, 32);
+
+    // Right side header
+    let yPos = 20;
+    if (authUser.bkashNumber) {
+        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+        yPos += 6;
+    }
+    if (authUser.bankInfo) {
+        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+    }
+
+    // Report Title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Balance Sheet', 105, 45, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text(`As of ${dateString}`, 14, 29);
+    doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
+    doc.setTextColor(0);
 
     // Assets
     autoTable(doc, {
-      startY: 40,
+      startY: 60,
       head: [['Assets', '']],
       body: [
         ['Cash', formatCurrency(data.cash)],
@@ -125,7 +150,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
           <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
           <CardDescription>A financial snapshot of your business's assets, liabilities, and equity.</CardDescription>
         </div>
-        <Button onClick={handleDownloadPdf} disabled={isLoading || !data} variant="outline">
+        <Button onClick={handleDownloadPdf} disabled={isLoading || !data || !authUser} variant="outline">
           <Download className="mr-2 h-4 w-4" />
           Download PDF
         </Button>
