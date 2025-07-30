@@ -1,25 +1,20 @@
 
-import * as React from 'react';
-import { getCustomerById, getSalesForCustomer, getBooks, getTransactionsForCustomer } from '@/lib/actions';
-import { notFound } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { format } from 'date-fns';
 import CustomerStatementPDF from '@/components/customer-statement-pdf';
 import ReceivePaymentDialog from '@/components/receive-payment-dialog';
-import type { Transaction, Sale } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DollarSign } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getBooks, getCustomerById, getSalesForCustomer, getTransactionsForCustomer } from '@/lib/actions';
 import { getAuthUser } from '@/lib/auth';
+import type { Sale, Transaction } from '@/lib/types';
+import { format } from 'date-fns';
+import { DollarSign } from 'lucide-react';
+import { notFound } from 'next/navigation';
 
 
-interface CustomerDetailPageProps {
-    params: { id: string };
-}
-
-export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
-  const customerId = params.id;
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: customerId } = await params;
   const user = await getAuthUser();
   if (!user) return notFound();
   
