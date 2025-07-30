@@ -305,16 +305,18 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                             <DialogTitle>Download Purchase Report</DialogTitle>
                             <DialogDescription>Select a date range to download your purchase data.</DialogDescription>
                         </DialogHeader>
-                         <div className="py-4 flex flex-col items-center gap-4">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={1}
-                            />
-                        </div>
+                         <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                            <div className="py-4 flex flex-col items-center gap-4">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={dateRange?.from}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    numberOfMonths={1}
+                                />
+                            </div>
+                        </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                             <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
                             <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
