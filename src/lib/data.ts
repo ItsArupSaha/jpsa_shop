@@ -122,12 +122,14 @@ export const DUMMY_CUSTOMERS: Omit<Customer, 'id'>[] = [
     whatsapp: '555-0101',
     address: '123 Maple St, Springfield',
     openingBalance: 50.0,
+    dueBalance: 50.0,
   },
   {
     name: 'Bob Williams',
     phone: '555-0102',
     address: '456 Oak Ave, Shelbyville',
     openingBalance: 0,
+    dueBalance: 0,
   },
   {
     name: 'Charlie Brown',
@@ -135,12 +137,14 @@ export const DUMMY_CUSTOMERS: Omit<Customer, 'id'>[] = [
     whatsapp: '555-0103',
     address: '789 Pine Ln, Capital City',
     openingBalance: 15.5,
+    dueBalance: 15.5,
   },
   {
     name: 'Diana Prince',
     phone: '555-0104',
     address: '101 Themyscira Blvd, Gateway City',
     openingBalance: 0,
+    dueBalance: 0,
   },
   {
     name: 'Ethan Hunt',
@@ -148,5 +152,6 @@ export const DUMMY_CUSTOMERS: Omit<Customer, 'id'>[] = [
     whatsapp: '555-0105',
     address: '221B Baker Street, London',
     openingBalance: 120.75,
+    dueBalance: 120.75,
   },
 ];

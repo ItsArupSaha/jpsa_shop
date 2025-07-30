@@ -2,20 +2,20 @@
 'use server';
 
 import {
-    Timestamp,
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    runTransaction,
-    startAfter,
-    updateDoc,
-    where
+  Timestamp,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  runTransaction,
+  startAfter,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -23,47 +23,44 @@ import type { Transaction } from '../types';
 import { docToTransaction } from './utils';
 
 // --- Transactions (Receivables/Payables) Actions ---
-export async function getTransactions(userId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
-    if (!db || !userId) return [];
-    const transactionsRef = collection(db, 'users', userId, 'transactions');
-    const q = query(
-        transactionsRef, 
-        where('type', '==', type), 
-        where('status', '==', 'Pending'),
-        orderBy('dueDate', 'desc')
-    );
+export async function getTransactions(type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
+    if (!db) return [];
+    const q = query(collection(db, 'transactions'), where('type', '==', type), where('status', '==', 'Pending'));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToTransaction);
+    const transactions = snapshot.docs.map(docToTransaction);
+    // Sort in application code to avoid needing a composite index
+    return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function getTransactionsPaginated({ userId, type, pageLimit = 10, lastVisibleId }: { userId: string, type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
-  if (!db || !userId) return { transactions: [], hasMore: false };
-  const transactionsRef = collection(db, 'users', userId, 'transactions');
+export async function getTransactionsPaginated({ type, pageLimit = 5, lastVisibleId }: { type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
+  if (!db) return { transactions: [], hasMore: false };
   let q = query(
-    transactionsRef, 
+    collection(db, 'transactions'), 
     where('type', '==', type), 
     where('status', '==', 'Pending'),
-    orderBy('dueDate', 'desc'),
+    // orderBy('dueDate', 'desc'), // Removing order to prevent needing a composite index
     limit(pageLimit)
   );
 
   if (lastVisibleId) {
-    const lastVisibleDoc = await getDoc(doc(transactionsRef, lastVisibleId));
+    const lastVisibleDoc = await getDoc(doc(db, 'transactions', lastVisibleId));
     if (lastVisibleDoc.exists()) {
         q = query(q, startAfter(lastVisibleDoc));
     }
   }
   const snapshot = await getDocs(q);
-  const transactions = snapshot.docs.map(docToTransaction);
-  
+  const transactions = snapshot.docs.map(docToTransaction)
+    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+
+
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if (lastDoc) {
     const nextQuery = query(
-        transactionsRef,
+        collection(db, 'transactions'), 
         where('type', '==', type), 
         where('status', '==', 'Pending'),
-        orderBy('dueDate', 'desc'),
+        // orderBy('dueDate', 'desc'),
         startAfter(lastDoc), 
         limit(1)
     );
@@ -75,25 +72,24 @@ export async function getTransactionsPaginated({ userId, type, pageLimit = 10, l
 }
 
 export async function getTransactionsForCustomer(
-  userId: string,
   customerId: string, 
   type: 'Receivable' | 'Payable', 
   options: { excludeSaleDues?: boolean } = {}
 ): Promise<Transaction[]> {
-  if (!db || !userId) return [];
-  const transactionsRef = collection(db, 'users', userId, 'transactions');
-
+  if (!db) return [];
   let qConstraints: any[] = [
     where('type', '==', type),
     where('customerId', '==', customerId)
   ];
 
   if (options.excludeSaleDues) {
+    // This is a workaround for Firestore's lack of 'not-starts-with'
+    // It assumes sale descriptions always start with "Due from Sale #"
     qConstraints.push(where('description', '>=', 'Payment from customer'));
   }
   
   const q = query(
-      transactionsRef,
+      collection(db, 'transactions'),
       ...qConstraints
   );
 
@@ -103,15 +99,14 @@ export async function getTransactionsForCustomer(
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
-export async function addTransaction(userId: string, data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
-    if (!db || !userId) throw new Error("Database not connected or user not authenticated.");
-    const transactionsRef = collection(db, 'users', userId, 'transactions');
+export async function addTransaction(data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
+    if (!db) throw new Error("Database not connected");
     const transactionData = {
         ...data,
         status: 'Pending' as const,
         dueDate: Timestamp.fromDate(data.dueDate),
     };
-    const newDocRef = await addDoc(transactionsRef, transactionData);
+    const newDocRef = await addDoc(collection(db, 'transactions'), transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
@@ -121,13 +116,12 @@ export async function addTransaction(userId: string, data: Omit<Transaction, 'id
     return { ...transactionData, id: newDocRef.id, dueDate: data.dueDate.toISOString() };
 }
 
-export async function addPayment(userId: string, data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
-    if (!db || !userId) throw new Error("Database not configured or user not authenticated.");
+export async function addPayment(data: { customerId: string, amount: number, paymentMethod: 'Cash' | 'Bank' }) {
+    if (!db) throw new Error("Database not configured.");
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const userRef = doc(db, 'users', userId);
-            const customerRef = doc(userRef, 'customers', data.customerId);
+            const customerRef = doc(db!, 'customers', data.customerId);
             const customerDoc = await transaction.get(customerRef);
 
             if (!customerDoc.exists()) {
@@ -139,7 +133,6 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             
             transaction.update(customerRef, { dueBalance: newDue < 0 ? 0 : newDue });
 
-            const transactionsCollectionRef = collection(userRef, 'transactions');
             const paymentTransactionData = {
                 description: `Payment from customer`,
                 amount: data.amount,
@@ -149,13 +142,13 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 paymentMethod: data.paymentMethod,
                 customerId: data.customerId
             };
-            const newTransactionRef = doc(transactionsCollectionRef);
+            const newTransactionRef = doc(collection(db!, "transactions"));
             transaction.set(newTransactionRef, paymentTransactionData);
 
             // Settle pending receivables if any
             let amountToSettle = data.amount;
             const receivablesQuery = query(
-                transactionsCollectionRef,
+                collection(db!, 'transactions'),
                 where('type', '==', 'Receivable'),
                 where('status', '==', 'Pending'),
                 where('customerId', '==', data.customerId),
@@ -168,7 +161,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 if (amountToSettle <= 0) break;
 
                 const receivable = docToTransaction(docSnap);
-                const receivableRef = docSnap.ref;
+                const receivableRef = doc(db!, 'transactions', docSnap.id);
                 
                 if (amountToSettle >= receivable.amount) {
                     transaction.update(receivableRef, { status: 'Paid' });
@@ -193,9 +186,9 @@ export async function addPayment(userId: string, data: { customerId: string, amo
 }
 
 
-export async function updateTransactionStatus(userId: string, id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
-    if (!db || !userId) return;
-    const transRef = doc(db, 'users', userId, 'transactions', id);
+export async function updateTransactionStatus(id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
+    if (!db) return;
+    const transRef = doc(db, 'transactions', id);
     const transDoc = await getDoc(transRef);
     
     await updateDoc(transRef, { status });
@@ -212,10 +205,9 @@ export async function updateTransactionStatus(userId: string, id: string, status
     }
 }
 
-export async function deleteTransaction(userId: string, id: string, type: 'Receivable' | 'Payable') {
-    if (!db || !userId) return;
-    const transRef = doc(db, 'users', userId, 'transactions', id);
-    await deleteDoc(transRef);
+export async function deleteTransaction(id: string, type: 'Receivable' | 'Payable') {
+    if (!db) return;
+    await deleteDoc(doc(db, 'transactions', id));
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');

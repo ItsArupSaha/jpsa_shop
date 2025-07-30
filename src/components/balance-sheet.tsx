@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -8,34 +7,26 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
-export default function BalanceSheet({ userId }: { userId: string }) {
+export default function BalanceSheet() {
   const [data, setData] = React.useState<BalanceSheetData | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
-
-  const loadData = React.useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const balanceSheetData = await getBalanceSheetData(userId);
-      setData(balanceSheetData);
-    } catch (error) {
-        // Handle error appropriately
-        console.error(error);
-    } finally {
-        setIsLoading(false);
-    }
-  }, [userId]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      const balanceSheetData = await getBalanceSheetData();
+      setData(balanceSheetData);
+      setIsLoading(false);
+    }
     loadData();
-  }, [loadData]);
-
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString(undefined, {
@@ -127,21 +118,13 @@ export default function BalanceSheet({ userId }: { userId: string }) {
           <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
           <CardDescription>A financial snapshot of your business's assets, liabilities, and equity.</CardDescription>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={loadData} disabled={isLoading} variant="default">
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? 'Generating...' : data ? 'Regenerate' : 'Generate'}
-          </Button>
-          {data && (
-            <Button onClick={handleDownloadPdf} disabled={isLoading || !data} variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </Button>
-          )}
-        </div>
+        <Button onClick={handleDownloadPdf} disabled={isLoading || !data} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Download PDF
+        </Button>
       </CardHeader>
       <CardContent>
-        {isLoading ? renderSkeleton() : data ? (
+        {isLoading ? renderSkeleton() : data && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Assets Section */}
@@ -214,11 +197,6 @@ export default function BalanceSheet({ userId }: { userId: string }) {
                     <span>{formatCurrency(data.payables + data.equity)}</span>
                 </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center text-center h-64 border-2 border-dashed rounded-lg">
-              <p className="text-lg font-semibold text-muted-foreground">Your Balance Sheet is Ready</p>
-              <p className="text-sm text-muted-foreground mt-1">Click the "Generate" button to view your financial snapshot.</p>
           </div>
         )}
       </CardContent>

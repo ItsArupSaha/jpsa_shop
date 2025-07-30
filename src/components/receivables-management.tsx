@@ -15,38 +15,50 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { getCustomersWithDueBalancePaginated } from '@/lib/actions';
+import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
+import { Skeleton } from './ui/skeleton';
 
-interface ReceivablesManagementProps {
-  initialCustomers: CustomerWithDue[];
-  initialHasMore: boolean;
-  userId: string;
-}
-
-export default function ReceivablesManagement({ initialCustomers, initialHasMore, userId }: ReceivablesManagementProps) {
-  const [customers, setCustomers] = React.useState<CustomerWithDue[]>(initialCustomers);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function ReceivablesManagement() {
+  const [customers, setCustomers] = React.useState<CustomerWithDue[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const { toast } = useToast();
   
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { customersWithDue, hasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5 });
+    setCustomers(customersWithDue);
+    setHasMore(hasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastCustomer = customers[customers.length - 1];
     
+    // We need to pass the last customer's ID and their due balance to get the next page correctly
     const lastVisible = {
         id: lastCustomer.id,
         dueBalance: lastCustomer.dueBalance,
     };
 
-    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ userId, pageLimit: 10, lastVisible });
+    const { customersWithDue: newCustomers, hasMore: newHasMore } = await getCustomersWithDueBalancePaginated({ pageLimit: 5, lastVisible });
     setCustomers(prev => [...prev, ...newCustomers]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
   };
 
-  const handleDownload = (formatType: 'pdf' | 'csv') => {
-    if (customers.length === 0) {
+  const handleDownload = async (formatType: 'pdf' | 'csv') => {
+    // For reports, we fetch all customers with due balance
+    const allCustomersWithDue = await getCustomersWithDueBalance();
+
+    if (allCustomersWithDue.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data',
@@ -56,7 +68,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = customers.map(c => ({
+    const body = allCustomersWithDue.map(c => ({
         Customer: c.name,
         Phone: c.phone,
         'Due Amount': `$${c.dueBalance.toFixed(2)}`,
@@ -64,7 +76,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
-      doc.text('Pending Receivables Report (Visible Data)', 14, 15);
+      doc.text('Pending Receivables Report', 14, 15);
       doc.text(`As of ${format(new Date(), 'PPP')}`, 14, 22);
       autoTable(doc, {
         startY: 30,
@@ -93,7 +105,7 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
               <CardDescription>A list of all customers with an outstanding balance.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
-                <ReceivePaymentDialog userId={userId}>
+                <ReceivePaymentDialog>
                     <Button>
                         <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
                     </Button>
@@ -120,7 +132,15 @@ export default function ReceivablesManagement({ initialCustomers, initialHasMore
                 </TableRow>
               </TableHeader>
               <TableBody>
-                 {customers.length > 0 ? customers.map((customer) => (
+                 {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : customers.length > 0 ? customers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                         <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">

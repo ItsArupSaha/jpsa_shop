@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getTransactionsPaginated, addTransaction } from '@/lib/actions';
+import { getTransactionsPaginated, addTransaction, getTransactions } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
@@ -25,6 +25,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Skeleton } from './ui/skeleton';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -38,14 +39,12 @@ interface TransactionsManagementProps {
   title: string;
   description: string;
   type: 'Payable';
-  initialTransactions: Transaction[];
-  initialHasMore: boolean;
-  userId: string;
 }
 
-export default function TransactionsManagement({ title, description, type, initialTransactions, initialHasMore, userId }: TransactionsManagementProps) {
-  const [transactions, setTransactions] = React.useState<Transaction[]>(initialTransactions);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function TransactionsManagement({ title, description, type }: TransactionsManagementProps) {
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -53,11 +52,23 @@ export default function TransactionsManagement({ title, description, type, initi
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5 });
+    setTransactions(newTransactions);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, [type]);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastTransactionId = transactions[transactions.length - 1]?.id;
-    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ userId, type, pageLimit: 10, lastVisibleId: lastTransactionId });
+    const { transactions: newTransactions, hasMore: newHasMore } = await getTransactionsPaginated({ type, pageLimit: 5, lastVisibleId: lastTransactionId });
     setTransactions(prev => [...prev, ...newTransactions]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -78,30 +89,30 @@ export default function TransactionsManagement({ title, description, type, initi
 
   const onSubmit = (data: TransactionFormValues) => {
     startTransition(async () => {
-        const newTransaction = await addTransaction(userId, { ...data, type });
+        const newTransaction = await addTransaction({ ...data, type });
         setTransactions(prev => [newTransaction, ...prev]);
         toast({ title: `${type} Added`, description: `The new ${type.toLowerCase()} has been recorded.` });
         setIsDialogOpen(false);
     });
   };
 
-  const getFilteredTransactions = () => {
+  const getFilteredTransactions = async () => {
     if (!dateRange?.from) {
         toast({ variant: "destructive", title: "Please select a start date." });
         return null;
     }
-    
+    const allTrans = await getTransactions(type); // Fetch all for report
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
     to.setHours(23, 59, 59, 999);
-    return transactions.filter(t => {
+    return allTrans.filter(t => {
       const tDate = new Date(t.dueDate);
       return tDate >= from && tDate <= to;
     });
   }
 
-  const handleDownloadPdf = () => {
-    const filteredTransactions = getFilteredTransactions();
+  const handleDownloadPdf = async () => {
+    const filteredTransactions = await getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -122,8 +133,8 @@ export default function TransactionsManagement({ title, description, type, initi
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
-    const filteredTransactions = getFilteredTransactions();
+  const handleDownloadCsv = async () => {
+    const filteredTransactions = await getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
@@ -198,7 +209,15 @@ export default function TransactionsManagement({ title, description, type, initi
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? transactions.map((transaction) => (
+                {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : transactions.length > 0 ? transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>

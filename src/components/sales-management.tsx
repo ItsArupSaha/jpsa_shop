@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
-import { getSalesPaginated, getBooks, addSale } from '@/lib/actions';
+import { getSalesPaginated, getBooks, getCustomers, addSale } from '@/lib/actions';
 
 import type { Sale, Book, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import type { DateRange } from 'react-day-picker';
 import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
 import { DownloadSaleMemo } from './download-sale-memo';
+import { Skeleton } from './ui/skeleton';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -65,26 +66,48 @@ const saleFormSchema = z.object({
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
-interface SalesManagementProps {
-    initialSales: Sale[];
-    initialHasMore: boolean;
-    books: Book[];
-    customers: Customer[];
-    userId: string;
-}
-
-export default function SalesManagement({ initialSales, initialHasMore, books: initialBooks, customers: initialCustomers, userId }: SalesManagementProps) {
-  const [sales, setSales] = React.useState<Sale[]>(initialSales);
-  const [books, setBooks] = React.useState<Book[]>(initialBooks);
-  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+export default function SalesManagement() {
+  const [sales, setSales] = React.useState<Sale[]>([]);
+  const [books, setBooks] = React.useState<Book[]>([]);
+  const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+  const [hasMore, setHasMore] = React.useState(true);
+
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    try {
+        const [{ sales: newSales, hasMore: newHasMore }, booksData, customersData] = await Promise.all([
+            getSalesPaginated({ pageLimit: 5 }),
+            getBooks(),
+            getCustomers(),
+        ]);
+        setSales(newSales);
+        setHasMore(newHasMore);
+        setBooks(booksData);
+        setCustomers(customersData);
+    } catch (error) {
+        console.error("Failed to load initial sales data:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not load data. Please try again later.",
+        });
+    } finally {
+        setIsInitialLoading(false);
+    }
+}, [toast]);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
 
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
@@ -94,7 +117,7 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
     try {
-        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: 10, lastVisibleId: lastSaleId });
+        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ pageLimit: 5, lastVisibleId: lastSaleId });
         setSales(prev => [...prev, ...newSales]);
         setHasMore(newHasMore);
     } catch(e) {
@@ -177,12 +200,13 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
-      const result = await addSale(userId, data);
+      const result = await addSale(data);
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
+        // Instead of refetching all, just add the new sale to the top.
         setSales(prev => [result.sale!, ...prev]);
-        const updatedBooks = await getBooks(userId);
+        const updatedBooks = await getBooks();
         setBooks(updatedBooks);
         setCompletedSale(result.sale);
       } else {
@@ -343,7 +367,18 @@ export default function SalesManagement({ initialSales, initialHasMore, books: i
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.length > 0 ? sales.map((sale) => {
+                {isInitialLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`skeleton-${i}`}>
+                            <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                        </TableRow>
+                    ))
+                ) : sales.length > 0 ? sales.map((sale) => {
                   const customer = customers.find(c => c.id === sale.customerId);
                   return (
                     <TableRow key={sale.id}>

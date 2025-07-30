@@ -1,34 +1,35 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { addPurchase, getPurchasesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
-import { getPurchasesPaginated, addPurchase } from '@/lib/actions';
+import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
+import { useFieldArray, useForm } from 'react-hook-form';
+import * as z from 'zod';
 
-import type { Purchase } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { ScrollArea } from './ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
+import type { Purchase } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -65,15 +66,10 @@ const purchaseFormSchema = z.object({
 
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
-interface PurchaseManagementProps {
-    initialPurchases: Purchase[];
-    initialHasMore: boolean;
-    userId: string;
-}
-
-export default function PurchaseManagement({ initialPurchases, initialHasMore, userId }: PurchaseManagementProps) {
-  const [purchases, setPurchases] = React.useState<Purchase[]>(initialPurchases);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function PurchaseManagement() {
+  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -81,12 +77,29 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore, u
   const [isPending, startTransition] = React.useTransition();
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    try {
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10 });
+      setPurchases(newPurchases);
+      setHasMore(newHasMore);
+    } catch (error) {
+       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastPurchaseId = purchases[purchases.length - 1]?.id;
     try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10, lastVisibleId: lastPurchaseId });
+      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ pageLimit: 10, lastVisibleId: lastPurchaseId });
       setPurchases(prev => [...prev, ...newPurchases]);
       setHasMore(newHasMore);
     } catch (error) {
@@ -144,13 +157,17 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore, u
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
-      const result = await addPurchase(userId, data);
-      if (result?.success && result.purchase) {
+      const purchaseData = {
+        ...data,
+        dueDate: data.dueDate.toISOString()
+      };
+      const result = await addPurchase(purchaseData);
+      if (result?.success) {
         toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
-        setPurchases(prev => [result.purchase!, ...prev]);
+        loadInitialData();
         setIsDialogOpen(false);
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to record purchase.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to record purchase.' });
       }
     });
   };
@@ -283,7 +300,18 @@ export default function PurchaseManagement({ initialPurchases, initialHasMore, u
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchases.length > 0 ? purchases.map((purchase) => (
+                {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : purchases.length > 0 ? purchases.map((purchase) => (
                   <TableRow key={purchase.id}>
                     <TableCell>{format(new Date(purchase.date), 'PPP')}</TableCell>
                     <TableCell className="font-mono">{purchase.purchaseId}</TableCell>

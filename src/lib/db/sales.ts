@@ -2,18 +2,17 @@
 'use server';
 
 import {
-    Timestamp,
-    addDoc,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    runTransaction,
-    startAfter,
-    where
+  Timestamp,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  runTransaction,
+  startAfter,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -21,25 +20,23 @@ import type { Book, Sale, SaleItem } from '../types';
 import { docToSale } from './utils';
 
 // --- Sales Actions ---
-export async function getSales(userId: string): Promise<Sale[]> {
-    if (!db || !userId) return [];
-    const salesRef = collection(db, 'users', userId, 'sales');
-    const snapshot = await getDocs(query(salesRef, orderBy('date', 'desc')));
+export async function getSales(): Promise<Sale[]> {
+    if (!db) return [];
+    const snapshot = await getDocs(query(collection(db, 'sales'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToSale);
 }
 
-export async function getSalesPaginated({ userId, pageLimit = 10, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
-  if (!db || !userId) return { sales: [], hasMore: false };
-  const salesRef = collection(db, 'users', userId, 'sales');
+export async function getSalesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
+  if (!db) return { sales: [], hasMore: false };
 
   let q = query(
-      salesRef,
+      collection(db, 'sales'),
       orderBy('date', 'desc'),
       limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(salesRef, lastVisibleId));
+      const lastVisibleDoc = await getDoc(doc(db, 'sales', lastVisibleId));
       if (lastVisibleDoc.exists()) {
           q = query(q, startAfter(lastVisibleDoc));
       }
@@ -51,7 +48,7 @@ export async function getSalesPaginated({ userId, pageLimit = 10, lastVisibleId 
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
-    const nextQuery = query(salesRef, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextQuery = query(collection(db, 'sales'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
   }
@@ -60,11 +57,10 @@ export async function getSalesPaginated({ userId, pageLimit = 10, lastVisibleId 
 }
 
 
-export async function getSalesForCustomer(userId: string, customerId: string): Promise<Sale[]> {
-  if (!db || !userId) return [];
-  const salesRef = collection(db, 'users', userId, 'sales');
+export async function getSalesForCustomer(customerId: string): Promise<Sale[]> {
+  if (!db) return [];
   const q = query(
-      salesRef,
+      collection(db, 'sales'),
       where('customerId', '==', customerId),
       orderBy('date', 'desc')
   );
@@ -72,13 +68,12 @@ export async function getSalesForCustomer(userId: string, customerId: string): P
   return snapshot.docs.map(docToSale);
 }
 
-export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
-    if (!db || !userId) return [];
-    const salesRef = collection(db, 'users', userId, 'sales');
+export async function getSalesForMonth(year: number, month: number): Promise<Sale[]> {
+    if (!db) return [];
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     const q = query(
-        salesRef,
+        collection(db, 'sales'),
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate)),
         orderBy('date', 'desc')
@@ -88,17 +83,15 @@ export async function getSalesForMonth(userId: string, year: number, month: numb
 }
 
 export async function addSale(
-    userId: string,
     data: Omit<Sale, 'id' | 'date' | 'subtotal' | 'total'>
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
-    if (!db || !userId) return { success: false, error: "Database not configured or user not authenticated." };
+    if (!db) return { success: false, error: "Database not configured." };
   
     try {
       const result = await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', userId);
         const saleDate = new Date();
-        const bookRefs = data.items.map(item => doc(userRef, 'books', item.bookId));
-        const customerRef = doc(userRef, 'customers', data.customerId);
+        const bookRefs = data.items.map(item => doc(db!, 'books', item.bookId));
+        const customerRef = doc(db!, 'customers', data.customerId);
         
         const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
         const customerDoc = await transaction.get(customerRef);
@@ -136,7 +129,7 @@ export async function addSale(
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
         const calculatedTotal = calculatedSubtotal - discountAmount;
   
-        const newSaleRef = doc(collection(userRef, "sales"));
+        const newSaleRef = doc(collection(db!, "sales"));
         const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
           ...data,
           items: itemsWithPrices,
@@ -170,7 +163,7 @@ export async function addSale(
                 type: 'Receivable' as const,
                 customerId: data.customerId
               };
-              const newTransactionRef = doc(collection(userRef, "transactions"));
+              const newTransactionRef = doc(collection(db!, "transactions"));
               transaction.set(newTransactionRef, receivableData);
           }
         }

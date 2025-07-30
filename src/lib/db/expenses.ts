@@ -21,24 +21,23 @@ import type { Expense } from '../types';
 import { docToExpense } from './utils';
 
 // --- Expenses Actions ---
-export async function getExpenses(userId: string): Promise<Expense[]> {
-    if (!db || !userId) return [];
-    const expensesRef = collection(db, 'users', userId, 'expenses');
-    const snapshot = await getDocs(query(expensesRef, orderBy('date', 'desc')));
+export async function getExpenses(): Promise<Expense[]> {
+    if (!db) return [];
+    const snapshot = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToExpense);
 }
 
-export async function getExpensesPaginated({ userId, pageLimit = 10, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
-  if (!db || !userId) return { expenses: [], hasMore: false };
-  const expensesRef = collection(db, 'users', userId, 'expenses');
+export async function getExpensesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
+  if (!db) return { expenses: [], hasMore: false };
+
   let q = query(
-      expensesRef,
+      collection(db, 'expenses'),
       orderBy('date', 'desc'),
       limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(expensesRef, lastVisibleId));
+      const lastVisibleDoc = await getDoc(doc(db, 'expenses', lastVisibleId));
       if (lastVisibleDoc.exists()) {
           q = query(q, startAfter(lastVisibleDoc));
       }
@@ -50,7 +49,7 @@ export async function getExpensesPaginated({ userId, pageLimit = 10, lastVisible
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
-    const nextQuery = query(expensesRef, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextQuery = query(collection(db, 'expenses'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
   }
@@ -58,13 +57,12 @@ export async function getExpensesPaginated({ userId, pageLimit = 10, lastVisible
   return { expenses, hasMore };
 }
 
-export async function getExpensesForMonth(userId: string, year: number, month: number): Promise<Expense[]> {
-    if (!db || !userId) return [];
-    const expensesRef = collection(db, 'users', userId, 'expenses');
+export async function getExpensesForMonth(year: number, month: number): Promise<Expense[]> {
+    if (!db) return [];
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     const q = query(
-        expensesRef,
+        collection(db, 'expenses'),
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate)),
         orderBy('date', 'desc')
@@ -73,24 +71,22 @@ export async function getExpensesForMonth(userId: string, year: number, month: n
     return snapshot.docs.map(docToExpense);
 }
 
-export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
-    if (!db || !userId) throw new Error("Database not connected or user not authenticated.");
-    const expensesRef = collection(db, 'users', userId, 'expenses');
+export async function addExpense(data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
+    if (!db) throw new Error("Database not connected");
     const expenseData = {
         ...data,
         date: Timestamp.fromDate(data.date),
     };
-    const newDocRef = await addDoc(expensesRef, expenseData);
+    const newDocRef = await addDoc(collection(db, 'expenses'), expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
     return { ...data, id: newDocRef.id, date: data.date.toISOString() };
 }
 
-export async function deleteExpense(userId: string, id: string) {
-    if (!db || !userId) return;
-    const expenseRef = doc(db, 'users', userId, 'expenses', id);
-    await deleteDoc(expenseRef);
+export async function deleteExpense(id: string) {
+    if (!db) return;
+    await deleteDoc(doc(db, 'expenses', id));
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');

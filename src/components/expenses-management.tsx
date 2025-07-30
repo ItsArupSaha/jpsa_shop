@@ -1,32 +1,33 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
 import { addExpense, deleteExpense, getExpensesPaginated } from '@/lib/actions';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
+import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
-import type { Expense } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { ScrollArea } from './ui/scroll-area';
+import type { Expense } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 const expenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -37,15 +38,10 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-interface ExpensesManagementProps {
-    initialExpenses: Expense[];
-    initialHasMore: boolean;
-    userId: string;
-}
-
-export default function ExpensesManagement({ initialExpenses, initialHasMore, userId }: ExpensesManagementProps) {
-  const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
-  const [hasMore, setHasMore] = React.useState(initialHasMore);
+export default function ExpensesManagement() {
+  const [expenses, setExpenses] = React.useState<Expense[]>([]);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -53,11 +49,24 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore, us
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
+  const loadInitialData = React.useCallback(async () => {
+    setIsInitialLoading(true);
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5 });
+    setExpenses(newExpenses);
+    setHasMore(newHasMore);
+    setIsInitialLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 10, lastVisibleId: lastExpenseId });
+    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ pageLimit: 5, lastVisibleId: lastExpenseId });
     setExpenses(prev => [...prev, ...newExpenses]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -79,7 +88,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore, us
 
   const handleDelete = (id: string) => {
     startTransition(async () => {
-        await deleteExpense(userId, id);
+        await deleteExpense(id);
         setExpenses(prev => prev.filter(e => e.id !== id));
         toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
@@ -87,7 +96,7 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore, us
 
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
-        const newExpense = await addExpense(userId, data);
+        const newExpense = await addExpense(data);
         setExpenses(prev => [newExpense, ...prev]);
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
         setIsAddDialogOpen(false);
@@ -133,10 +142,10 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore, us
       head: [['Date', 'Description', 'Method', 'Amount']],
       body: filteredExpenses.map(e => [
         format(new Date(e.date), 'yyyy-MM-dd'),
-        e.description,
-        e.paymentMethod,
+        e.description || '',
+        e.paymentMethod || '',
         `$${e.amount.toFixed(2)}`
-      ]),
+      ]).filter(row => row.every(cell => cell !== undefined)),
       foot: [
         [{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, `$${totalExpenses.toFixed(2)}`],
       ],
@@ -248,7 +257,17 @@ export default function ExpensesManagement({ initialExpenses, initialHasMore, us
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses.length > 0 ? expenses.map((expense) => (
+                  {isInitialLoading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`skeleton-${i}`}>
+                          <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : expenses.length > 0 ? expenses.map((expense) => (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">{expense.description}</TableCell>
                       <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>

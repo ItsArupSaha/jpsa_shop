@@ -1,16 +1,15 @@
 
 'use client';
 
-import * as React from 'react';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, type User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { initializeNewUser } from '@/lib/db/database';
-import type { AuthUser } from '@/lib/types';
+import { signOut as firebaseSignOut, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import * as React from 'react';
 
 interface AuthContextType {
-  user: AuthUser | null;
+  user: User | null;
   loading: boolean;
+  isApproved: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -18,53 +17,51 @@ interface AuthContextType {
 const AuthContext = React.createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<AuthUser | null>(null);
+  const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [isApproved, setIsApproved] = React.useState(false);
 
   React.useEffect(() => {
     if (!auth || !db) {
-        console.warn("Firebase not initialized, auth will be disabled.");
-        setLoading(false);
-        return;
+      console.warn('Firebase not configured. Auth functionality will be disabled.');
+      setLoading(false);
+      return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseAuthUser | null) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        
-        // Listen for changes on the user doc, especially for the isApproved flag
-        const unsubUserDoc = onSnapshot(userRef, async (userDocSnap) => {
-            if (userDocSnap.exists()) {
-                setUser(userDocSnap.data() as AuthUser);
-                setLoading(false);
-            } else {
-                 // New user, create their document and initialize their data
-                const newUser: AuthUser = {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email,
-                    displayName: firebaseUser.displayName,
-                    photoURL: firebaseUser.photoURL,
-                    isApproved: false, // Start as not approved
-                    createdAt: serverTimestamp(),
-                };
-                await setDoc(userRef, newUser);
-                await initializeNewUser(firebaseUser.uid);
-                // The onSnapshot will automatically update the user state once isApproved becomes true
-            }
-        });
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUser(user);
+        const userRef = doc(db!, 'users', user.uid);
+        const docSnap = await getDoc(userRef);
 
-        return () => unsubUserDoc();
+        if (docSnap.exists()) {
+          setIsApproved(docSnap.data().isApproved === true);
+        } else {
+          // New user, create their document
+          await setDoc(userRef, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            isApproved: false, // Default to not approved
+            createdAt: serverTimestamp(),
+          });
+          setIsApproved(false);
+        }
       } else {
         setUser(null);
-        setLoading(false);
+        setIsApproved(false);
       }
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
-    if (!auth) return;
+    if (!auth) {
+      throw new Error('Firebase not configured');
+    }
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
@@ -75,7 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    if (!auth) return;
+    if (!auth) {
+      throw new Error('Firebase not configured');
+    }
     try {
       await firebaseSignOut(auth);
     } catch (error) {
@@ -83,13 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = { user, loading, signInWithGoogle, signOut };
+  const value = { user, loading, isApproved, signInWithGoogle, signOut };
 
-  return (
-    <AuthContext.Provider value={value}>
-        {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = (): AuthContextType => {

@@ -1,16 +1,15 @@
 
 'use client';
 
-import * as React from 'react';
+import type { Book, Customer, Sale } from '@/lib/types';
+import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
-import { Button } from './ui/button';
 import { Download, PlusCircle } from 'lucide-react';
-import type { Customer, Sale, Book } from '@/lib/types';
-import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Button } from './ui/button';
+import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Separator } from './ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
 interface SaleMemoProps {
   sale: Sale;
@@ -79,13 +78,13 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
     if (sale.paymentMethod === 'Split') {
         const dueAmount = sale.total - (sale.amountPaid || 0);
         footContent.push(
-            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.amountPaid?.toFixed(2)}`],
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${dueAmount.toFixed(2)}`]
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.amountPaid?.toFixed(2)}`],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${dueAmount.toFixed(2)}`]
         );
     }
      if (sale.paymentMethod === 'Due') {
         footContent.push(
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right', fontStyle: 'normal' } }, `$${sale.total.toFixed(2)}`]
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.total.toFixed(2)}`]
         );
     }
 
@@ -96,7 +95,7 @@ export function SaleMemo({ sale, customer, books, onNewSale }: SaleMemoProps) {
       theme: 'striped',
       headStyles: { fillColor: [48, 103, 84] }, // #306754
       footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
-      foot: footContent,
+      foot: footContent as any,
     });
 
     // Footer

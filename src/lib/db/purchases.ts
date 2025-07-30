@@ -3,7 +3,6 @@
 
 import {
     Timestamp,
-    addDoc,
     collection,
     doc,
     getDoc,
@@ -21,25 +20,23 @@ import type { Book, Metadata, Purchase } from '../types';
 import { docToPurchase } from './utils';
 
 // --- Purchases Actions ---
-export async function getPurchases(userId: string): Promise<Purchase[]> {
-    if (!db || !userId) return [];
-    const purchasesRef = collection(db, 'users', userId, 'purchases');
-    const snapshot = await getDocs(query(purchasesRef, orderBy('date', 'desc')));
+export async function getPurchases(): Promise<Purchase[]> {
+    if (!db) return [];
+    const snapshot = await getDocs(query(collection(db!, 'purchases'), orderBy('date', 'desc')));
     return snapshot.docs.map(docToPurchase);
 }
 
-export async function getPurchasesPaginated({ userId, pageLimit = 10, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
-  if (!db || !userId) return { purchases: [], hasMore: false };
-  const purchasesRef = collection(db, 'users', userId, 'purchases');
+export async function getPurchasesPaginated({ pageLimit = 5, lastVisibleId }: { pageLimit?: number, lastVisibleId?: string }): Promise<{ purchases: Purchase[], hasMore: boolean }> {
+  if (!db) return { purchases: [], hasMore: false };
 
   let q = query(
-      purchasesRef,
+      collection(db!, 'purchases'),
       orderBy('date', 'desc'),
       limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(purchasesRef, lastVisibleId));
+      const lastVisibleDoc = await getDoc(doc(db!, 'purchases', lastVisibleId));
       if (lastVisibleDoc.exists()) {
           q = query(q, startAfter(lastVisibleDoc));
       }
@@ -51,7 +48,7 @@ export async function getPurchasesPaginated({ userId, pageLimit = 10, lastVisibl
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
   if(lastDoc) {
-    const nextQuery = query(purchasesRef, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+    const nextQuery = query(collection(db!, 'purchases'), orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
   }
@@ -59,14 +56,13 @@ export async function getPurchasesPaginated({ userId, pageLimit = 10, lastVisibl
   return { purchases, hasMore };
 }
 
-export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId' | 'dueDate'> & { dueDate: Date }) {
-  if (!db || !userId) return { success: false, error: 'Database not connected or user not authenticated' };
+export async function addPurchase(data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: string }) {
+  if (!db) return { success: false, error: 'Database not connected' };
 
   try {
       const result = await runTransaction(db, async (transaction) => {
-          const userRef = doc(db, 'users', userId);
           const purchaseDate = new Date();
-          const metadataRef = doc(userRef, 'metadata', 'counters');
+          const metadataRef = doc(db!, 'metadata', 'counters');
 
           const metadataDoc = await transaction.get(metadataRef);
           let lastPurchaseNumber = 0;
@@ -81,18 +77,18 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               totalAmount += item.cost * item.quantity;
           }
 
-          const newPurchaseRef = doc(collection(userRef, 'purchases'));
+          const newPurchaseRef = doc(collection(db!, 'purchases'));
           const purchaseData = {
               ...data,
               purchaseId,
               date: Timestamp.fromDate(purchaseDate),
-              dueDate: Timestamp.fromDate(data.dueDate),
+              dueDate: Timestamp.fromDate(new Date(data.dueDate)),
               totalAmount: totalAmount,
           };
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-          const booksCollectionRef = collection(userRef, 'books');
+          const booksCollectionRef = collection(db!, 'books');
           for (const item of data.items) {
               if (item.category === 'Book') {
                   const q = query(booksCollectionRef, where("title", "==", item.itemName));
@@ -116,9 +112,6 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               }
           }
 
-          const transactionsCollectionRef = collection(userRef, 'transactions');
-          const expensesCollectionRef = collection(userRef, 'expenses');
-
           if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
               const expenseData = {
                   description: `Payment for Purchase ${purchaseId}`,
@@ -126,7 +119,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   date: Timestamp.fromDate(new Date()),
                   paymentMethod: data.paymentMethod,
               };
-              transaction.set(doc(expensesCollectionRef), expenseData);
+              transaction.set(doc(collection(db!, 'expenses')), expenseData);
           } else if (data.paymentMethod === 'Split') {
               const amountPaid = data.amountPaid || 0;
               const payableAmount = totalAmount - amountPaid;
@@ -138,31 +131,31 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                       date: Timestamp.fromDate(new Date()),
                       paymentMethod: data.splitPaymentMethod,
                   };
-                  transaction.set(doc(expensesCollectionRef), expenseData);
+                  transaction.set(doc(collection(db!, 'expenses')), expenseData);
               }
 
               if (payableAmount > 0) {
                   const payableData = {
                       description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
                       amount: payableAmount,
-                      dueDate: Timestamp.fromDate(data.dueDate),
+                      dueDate: Timestamp.fromDate(new Date(data.dueDate)),
                       status: 'Pending' as const,
                       type: 'Payable' as const,
                   };
-                  transaction.set(doc(transactionsCollectionRef), payableData);
+                  transaction.set(doc(collection(db!, 'transactions')), payableData);
               }
           } else if (data.paymentMethod === 'Due') {
               const payableData = {
                   description: `Purchase ${purchaseId} from ${data.supplier}`,
                   amount: totalAmount,
-                  dueDate: Timestamp.fromDate(data.dueDate),
+                  dueDate: Timestamp.fromDate(new Date(data.dueDate)),
                   status: 'Pending' as const,
                   type: 'Payable' as const,
               };
-              transaction.set(doc(transactionsCollectionRef), payableData);
+              transaction.set(doc(collection(db!, 'transactions')), payableData);
           }
 
-          return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate.toISOString() } };
+          return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate } };
       });
 
       revalidatePath('/purchases');

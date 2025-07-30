@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -8,27 +7,14 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getBalanceSheetData, getBooks, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
+import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
+import type { Book } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import dynamic from 'next/dynamic';
-import type { ReportAnalysis } from '@/lib/report-generator';
-
-const ReportPreview = dynamic(() => import('./report-preview'), {
-  ssr: false,
-  loading: () => (
-     <div className="max-w-4xl mx-auto animate-pulse">
-        <CardHeader><Skeleton className="h-8 w-1/2" /></CardHeader>
-        <CardContent className="space-y-4">
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-        </CardContent>
-    </div>
-  ),
-});
+import ReportPreview from './report-preview';
 
 const reportSchema = z.object({
   month: z.string({ required_error: 'Please select a month.' }),
@@ -37,72 +23,50 @@ const reportSchema = z.object({
 
 type ReportFormValues = z.infer<typeof reportSchema>;
 
-async function generateReportData(userId: string, year: number, month: number) {
-    const [
-        salesForMonth, 
-        expensesForMonth, 
-        donationsForMonth, 
-        books, 
-        balanceSheet
-      ] = await Promise.all([
-        getSalesForMonth(userId, year, month),
-        getExpensesForMonth(userId, year, month),
-        getDonationsForMonth(userId, year, month),
-        getBooks(userId),
-        getBalanceSheetData(userId),
-      ]);
-
-      const totalSales = salesForMonth.reduce((sum, sale) => sum + sale.total, 0);
-      const grossProfit = salesForMonth.reduce((totalProfit, sale) => {
-        const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
-          const book = books.find(b => b.id === item.bookId);
-          if (book) {
-            return currentSaleProfit + (item.price - book.productionPrice) * item.quantity;
-          }
-          return currentSaleProfit;
-        }, 0);
-        return totalProfit + saleProfit;
-      }, 0);
-
-      const totalExpenses = expensesForMonth.reduce((sum, expense) => sum + expense.amount, 0);
-      const totalDonations = donationsForMonth.reduce((sum, donation) => sum + donation.amount, 0);
-
-      const netProfitOrLoss = grossProfit - totalExpenses + totalDonations;
-
-      return {
-          openingBalances: {
-            cash: balanceSheet.cash,
-            bank: balanceSheet.bank,
-            stockValue: balanceSheet.stockValue,
-          },
-          monthlyActivity: {
-            totalSales,
-            grossProfit,
-            totalExpenses,
-            totalDonations,
-          },
-          netResult: {
-            netProfitOrLoss,
-          },
-      } as ReportAnalysis
+interface ReportDataSource {
+  books: Book[];
+  balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
-export default function ReportGenerator({ userId }: { userId: string}) {
+export default function ReportGenerator() {
+  const [dataSource, setDataSource] = React.useState<ReportDataSource | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [reportData, setReportData] = React.useState<ReportAnalysis | null>(null);
   const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
 
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [books, balanceSheet] = await Promise.all([
+          getBooks(),
+          getBalanceSheetData(),
+        ]);
+        setDataSource({ books, balanceSheet });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Failed to load data",
+          description: "Could not fetch the necessary data for reports. Please try again later.",
+        });
+        console.error("Failed to load report data sources:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [toast]);
+
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportSchema),
-    defaultValues: {
-      month: String(new Date().getMonth()),
-      year: String(new Date().getFullYear()),
-    }
   });
 
   const onSubmit = async (formData: ReportFormValues) => {
+    if (!dataSource) return;
+    
     setIsGenerating(true);
     setReportData(null);
     setFormValues(formData);
@@ -111,7 +75,27 @@ export default function ReportGenerator({ userId }: { userId: string}) {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const result = await generateReportData(userId, selectedYear, selectedMonth);
+      const [salesForMonth, expensesForMonth, donationsForMonth] = await Promise.all([
+        getSalesForMonth(selectedYear, selectedMonth),
+        getExpensesForMonth(selectedYear, selectedMonth),
+        getDonationsForMonth(selectedYear, selectedMonth)
+      ]);
+      
+      const input = {
+        salesData: salesForMonth,
+        expensesData: expensesForMonth,
+        donationsData: donationsForMonth,
+        booksData: dataSource.books,
+        balanceData: {
+            cash: dataSource.balanceSheet.cash,
+            bank: dataSource.balanceSheet.bank,
+            stockValue: dataSource.balanceSheet.stockValue,
+        },
+        month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
+        year: formData.year,
+      };
+
+      const result = generateMonthlyReport(input);
       
       if (result) {
         setReportData(result);
@@ -120,7 +104,7 @@ export default function ReportGenerator({ userId }: { userId: string}) {
           description: "Your monthly report preview is ready below.",
         });
       } else {
-        throw new Error("The report generation failed to return valid data.");
+        throw new Error("The AI model failed to return valid report data.");
       }
     } catch (error) {
       console.error(error);
@@ -151,6 +135,7 @@ export default function ReportGenerator({ userId }: { userId: string}) {
           <CardTitle className="font-headline text-2xl">Monthly Report Generator</CardTitle>
           <CardDescription>
             Select a month and year to generate an automated profit-loss report.
+            The AI will analyze the data and provide a summary with key metrics.
           </CardDescription>
         </CardHeader>
         <Form {...form}>
@@ -204,9 +189,9 @@ export default function ReportGenerator({ userId }: { userId: string}) {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isGenerating}>
-                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isGenerating ? 'Generating...' : 'Generate Report'}
+              <Button type="submit" disabled={isLoading || isGenerating}>
+                {(isLoading || isGenerating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? 'Loading Data...' : isGenerating ? 'Generating...' : 'Generate Report'}
               </Button>
             </CardFooter>
           </form>

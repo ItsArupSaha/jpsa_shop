@@ -18,13 +18,13 @@ import { resetDatabase } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, DatabaseZap } from 'lucide-react';
 
-export function ResetDatabaseButton({ userId }: { userId: string }) {
+export function ResetDatabaseButton() {
   const [isPending, startTransition] = React.useTransition();
   const { toast } = useToast();
 
   const handleReset = () => {
     startTransition(async () => {
-      await resetDatabase(userId);
+      await resetDatabase();
       toast({
         title: 'Database Reset & Seeded',
         description: 'All data has been cleared and replaced with dummy data.',
@@ -45,7 +45,7 @@ export function ResetDatabaseButton({ userId }: { userId: string }) {
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete all your current data and replace it with a set of dummy data for testing.
+            This action cannot be undone. This will permanently delete all current data and replace it with a set of dummy data for testing.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
