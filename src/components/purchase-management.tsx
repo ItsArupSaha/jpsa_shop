@@ -1,4 +1,3 @@
-
 'use client';
 
 import { addPurchase, getPurchasesPaginated, getPurchases } from '@/lib/actions';
@@ -6,8 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
-import Papa from 'papaparse';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -249,14 +248,14 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
+  const handleDownloadXlsx = async () => {
     const filteredPurchases = await getFilteredPurchases();
     if (!filteredPurchases) return;
     if (filteredPurchases.length === 0) {
       toast({ title: 'No Purchases Found', description: 'There are no purchases in the selected date range.' });
       return;
     }
-    const csvData = filteredPurchases.flatMap(p => 
+    const dataToExport = filteredPurchases.flatMap(p => 
       p.items.map(i => ({
         'Date': format(new Date(p.date), 'yyyy-MM-dd'),
         'Purchase ID': p.purchaseId,
@@ -270,14 +269,25 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         'Grand Total': p.totalAmount,
       }))
     );
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Auto-fit columns
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => {
+                const value = row[key as keyof typeof row];
+                return typeof value === 'number' ? String(value).length : (value || '').length;
+            }),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Purchases');
+    XLSX.writeFile(workbook, `purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
 
@@ -319,7 +329,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                         </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                             <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
-                            <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
+                            <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
