@@ -9,7 +9,7 @@ import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet, Loader2 } from 'lu
 import { getCustomersPaginated, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import Link from 'next/link';
 
 import type { Customer } from '@/lib/types';
@@ -213,10 +213,10 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     doc.save(`customer-list-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = () => {
+  const handleDownloadXlsx = () => {
     if (!customers.length) return;
     
-    const csvData = customers.map(c => ({
+    const dataToExport = customers.map(c => ({
       Name: c.name,
       Phone: c.phone,
       WhatsApp: c.whatsapp || '',
@@ -224,18 +224,20 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
       'Due Balance': c.dueBalance || 0,
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `customer-list.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => String(row[key as keyof typeof row]).length),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Customers');
+    XLSX.writeFile(workbook, `customer-list-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
 
@@ -255,8 +257,8 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
               <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
                 <FileText className="mr-2 h-4 w-4" /> Download PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv}>
-                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
+              <Button variant="outline" size="sm" onClick={handleDownloadXlsx}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
               </Button>
             </div>
           </div>
