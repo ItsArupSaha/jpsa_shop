@@ -1,3 +1,4 @@
+
 'use client';
 
 import { addDonation, getDonations, getDonationsPaginated } from '@/lib/actions';
@@ -10,6 +11,7 @@ import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import * as XLSX from 'xlsx';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar";
@@ -154,7 +156,7 @@ export default function DonationsManagement() {
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
+  const handleDownloadXlsx = async () => {
     const filteredDonations = await getFilteredDonations();
     if (!filteredDonations) return;
 
@@ -163,7 +165,7 @@ export default function DonationsManagement() {
       return;
     }
 
-    const csvData = filteredDonations.map(d => ({
+    const dataToExport = filteredDonations.map(d => ({
       Date: format(new Date(d.date), 'yyyy-MM-dd'),
       'Donor Name': d.donorName,
       'Payment Method': d.paymentMethod,
@@ -171,18 +173,21 @@ export default function DonationsManagement() {
       Notes: d.notes || '',
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    
+    // Auto-fit columns
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => String(row[key as keyof typeof row]).length),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Donations');
+    XLSX.writeFile(workbook, `donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
   return (
@@ -222,7 +227,7 @@ export default function DonationsManagement() {
                     </ScrollArea>
                     <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                       <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                      <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                      <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
