@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide-react';
-import Papa from 'papaparse';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useForm } from 'react-hook-form';
