@@ -5,7 +5,7 @@ import * as React from 'react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { DollarSign, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 import ReceivePaymentDialog from './receive-payment-dialog';
 import Link from 'next/link';
@@ -62,7 +62,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     setIsLoadingMore(false);
   };
 
-  const handleDownload = async (formatType: 'pdf' | 'csv') => {
+  const handleDownload = async (formatType: 'pdf' | 'xlsx') => {
     // For reports, we fetch all customers with due balance
     const allCustomersWithDue = await getCustomersWithDueBalance(userId);
 
@@ -76,11 +76,6 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     }
 
     const reportDate = format(new Date(), 'yyyy-MM-dd');
-    const body = allCustomersWithDue.map(c => ({
-        Customer: c.name,
-        Phone: c.phone,
-        'Due Amount': `$${c.dueBalance.toFixed(2)}`,
-    }));
 
     if (formatType === 'pdf') {
       const doc = new jsPDF();
@@ -118,18 +113,33 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       autoTable(doc, {
         startY: 60,
         head: [['Customer', 'Phone', 'Due Amount']],
-        body: body.map(row => Object.values(row)),
+        body: allCustomersWithDue.map(c => [c.name, c.phone, `$${c.dueBalance.toFixed(2)}`]),
       });
       doc.save(`pending-receivables-${reportDate}.pdf`);
     } else {
-      const csv = Papa.unparse(body);
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute('download', `pending-receivables-${reportDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const dataToExport = allCustomersWithDue.map(c => ({
+        'Customer': c.name,
+        'Phone': c.phone,
+        'Due Amount': c.dueBalance,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+      const columnWidths = Object.keys(dataToExport[0]).map(key => {
+          const maxLength = Math.max(
+              ...dataToExport.map(row => {
+                  const value = row[key as keyof typeof row];
+                  return typeof value === 'number' ? String(value).length : (value || '').length;
+              }),
+              key.length
+          );
+          return { wch: maxLength + 2 };
+      });
+      worksheet['!cols'] = columnWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Receivables');
+      XLSX.writeFile(workbook, `pending-receivables-${reportDate}.xlsx`);
     }
   };
 
@@ -151,8 +161,8 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
                     <Button variant="outline" size="sm" onClick={() => handleDownload('pdf')}>
                         <FileText className="mr-2 h-4 w-4" /> Download PDF
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDownload('csv')}>
-                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
+                    <Button variant="outline" size="sm" onClick={() => handleDownload('xlsx')}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
                     </Button>
                 </div>
             </div>
@@ -208,3 +218,5 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       </Card>
   );
 }
+
+    

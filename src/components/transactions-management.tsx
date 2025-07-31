@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { getTransactionsPaginated, addTransaction, getTransactions } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import type { DateRange } from 'react-day-picker';
 
 import type { Transaction } from '@/lib/types';
@@ -168,26 +168,36 @@ export default function TransactionsManagement({ title, description, type, userI
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
+  const handleDownloadXlsx = async () => {
     const filteredTransactions = await getFilteredTransactions();
     if (!filteredTransactions) return;
     if (filteredTransactions.length === 0) {
       toast({ title: `No Pending ${type}s Found`, description: `There are no pending ${type.toLowerCase()}s in the selected date range.` });
       return;
     }
-    const csvData = filteredTransactions.map(t => ({
+    const dataToExport = filteredTransactions.map(t => ({
       'Description': t.description,
       'Due Date': format(new Date(t.dueDate), 'yyyy-MM-dd'),
-      'Amount': t.amount.toFixed(2),
+      'Amount': t.amount,
     }));
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => {
+                const value = row[key as keyof typeof row];
+                return typeof value === 'number' ? String(value).length : (value || '').length;
+            }),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, type);
+    XLSX.writeFile(workbook, `pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
   return (
@@ -228,7 +238,7 @@ export default function TransactionsManagement({ title, description, type, userI
                       </ScrollArea>
                       <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> CSV</Button>
+                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
                       </DialogFooter>
                   </DialogContent>
               </Dialog>
@@ -363,3 +373,5 @@ export default function TransactionsManagement({ title, description, type, userI
     </>
   );
 }
+
+    

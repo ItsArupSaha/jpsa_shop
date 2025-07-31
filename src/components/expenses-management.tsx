@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useForm } from 'react-hook-form';
@@ -191,7 +191,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
     doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
+  const handleDownloadXlsx = async () => {
     const filteredExpenses = await getFilteredExpenses();
     if (!filteredExpenses) return;
 
@@ -200,25 +200,30 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
       return;
     }
 
-    const csvData = filteredExpenses.map(e => ({
-      Date: format(new Date(e.date), 'yyyy-MM-dd'),
-      Description: e.description,
-      Method: e.paymentMethod,
-      Amount: e.amount.toFixed(2),
+    const dataToExport = filteredExpenses.map(e => ({
+      'Date': format(new Date(e.date), 'yyyy-MM-dd'),
+      'Description': e.description,
+      'Method': e.paymentMethod,
+      'Amount': e.amount,
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => {
+                const value = row[key as keyof typeof row];
+                return typeof value === 'number' ? String(value).length : (value || '').length;
+            }),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
+    XLSX.writeFile(workbook, `expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
 
@@ -273,7 +278,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                         </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -443,3 +448,5 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
     </Card>
   );
 }
+
+    
