@@ -194,6 +194,47 @@ export async function addPayment(userId: string, data: { customerId: string, amo
     }
 }
 
+export async function recordTransfer(
+  userId: string, 
+  data: { 
+    amount: number; 
+    from: 'Cash' | 'Bank'; 
+    to: 'Cash' | 'Bank'; 
+    date: Date 
+  }
+) {
+  if (!db || !userId) throw new Error("Database not connected");
+  if (data.from === data.to) throw new Error("Source and destination cannot be the same.");
+
+  const expensesCollection = collection(db, 'users', userId, 'expenses');
+  const donationsCollection = collection(db, 'users', userId, 'donations');
+
+  const batch = runTransaction(db, async (transaction) => {
+    // Create an 'expense' from the source account
+    const expenseData = {
+      description: `Transfer to ${data.to}`,
+      amount: data.amount,
+      date: Timestamp.fromDate(data.date),
+      paymentMethod: data.from
+    };
+    addDoc(expensesCollection, expenseData);
+
+    // Create a 'donation' (inflow) to the destination account
+    const donationData = {
+      donorName: 'Internal Transfer',
+      notes: `Transfer from ${data.from}`,
+      amount: data.amount,
+      date: Timestamp.fromDate(data.date),
+      paymentMethod: data.to
+    };
+    addDoc(donationsCollection, donationData);
+  });
+
+  await batch;
+  revalidatePath('/balance-sheet');
+  revalidatePath('/dashboard');
+}
+
 
 export async function updateTransactionStatus(userId: string, id: string, status: 'Pending' | 'Paid', type: 'Receivable' | 'Payable') {
     if (!db || !userId) return;

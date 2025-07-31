@@ -17,6 +17,7 @@ import {
   Gift,
   LogOut,
   LogIn,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 import {
@@ -43,6 +44,7 @@ const navItems = [
   { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
   { href: '/donations', icon: Gift, label: 'Donations' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
+  { href: '/transfer', icon: ArrowLeftRight, label: 'Transfer' },
   { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },
   { href: '/reports', icon: FileText, label: 'Reports' },
