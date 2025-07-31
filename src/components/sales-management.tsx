@@ -9,7 +9,7 @@ import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
 
 import type { Sale, Book, Customer, AuthUser } from '@/lib/types';
@@ -316,7 +316,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadCsv = async () => {
+  const handleDownloadXlsx = async () => {
     const filteredSales = await getFilteredSales();
     if (!filteredSales) return;
 
@@ -325,27 +325,33 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       return;
     }
 
-    const csvData = filteredSales.map(sale => ({
-      Date: format(new Date(sale.date), 'yyyy-MM-dd'),
+    const dataToExport = filteredSales.map(sale => ({
+      'Date': format(new Date(sale.date), 'yyyy-MM-dd'),
       'Sale ID': sale.saleId,
-      Customer: getCustomerName(sale.customerId),
-      Items: sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('; '),
+      'Customer': getCustomerName(sale.customerId),
+      'Items': sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('; '),
       'Payment Method': sale.paymentMethod,
-      Total: sale.total.toFixed(2),
+      'Total': sale.total,
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Auto-fit columns
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => {
+                const value = row[key as keyof typeof row];
+                return typeof value === 'number' ? String(value).length : (value || '').length;
+            }),
+            key.length
+        );
+        return { wch: maxLength + 2 };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales');
+    XLSX.writeFile(workbook, `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
 
@@ -401,7 +407,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         </ScrollArea>
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                           <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadCsv} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV</Button>
+                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -746,5 +752,3 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     </>
   );
 }
-
-    
