@@ -10,7 +10,7 @@ import { getBooksPaginated, addBook, updateBook, deleteBook, calculateClosingSto
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 
 import type { Book, ClosingStock } from '@/lib/types';
@@ -241,27 +241,30 @@ export default function BookManagement({ userId }: BookManagementProps) {
     doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
   };
 
-  const handleDownloadClosingStockCsv = () => {
+  const handleDownloadClosingStockXlsx = () => {
     if (!closingStockData.length || !closingStockDate) return;
     
-    const csvData = closingStockData.map(book => ({
+    const dataToExport = closingStockData.map(book => ({
       Title: book.title,
       Author: book.author,
       Stock: book.closingStock,
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    // Auto-fit columns
+    const columnWidths = Object.keys(dataToExport[0]).map(key => {
+        const maxLength = Math.max(
+            ...dataToExport.map(row => String(row[key as keyof typeof row]).length),
+            key.length
+        );
+        return { wch: maxLength + 2 }; // +2 for a little padding
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Closing Stock');
+    XLSX.writeFile(workbook, `closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.xlsx`);
   };
 
   return (
@@ -344,8 +347,8 @@ export default function BookManagement({ userId }: BookManagementProps) {
               <Button variant="outline" size="sm" onClick={handleDownloadClosingStockPdf}>
                 <FileText className="mr-2 h-4 w-4" /> Download PDF
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadClosingStockCsv}>
-                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download CSV
+              <Button variant="outline" size="sm" onClick={handleDownloadClosingStockXlsx}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
               </Button>
               <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setClosingStockData([])}>Clear Results</Button>
             </div>
