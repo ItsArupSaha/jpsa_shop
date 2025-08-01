@@ -1,138 +1,228 @@
+'use client';
 
-import CustomerStatementPDF from '@/components/customer-statement-pdf';
-import ReceivePaymentDialog from '@/components/receive-payment-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getBooks, getCustomerById, getSalesForCustomer, getTransactionsForCustomer } from '@/lib/actions';
-import { getAuthUser } from '@/lib/auth';
-import type { Sale, Transaction } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
+import { getCustomerById, getTransactionsForCustomer } from '@/lib/actions';
+import type { Transaction } from '@/lib/types';
 import { format } from 'date-fns';
-import { DollarSign } from 'lucide-react';
-import { notFound } from 'next/navigation';
+import { Book, DollarSign, MapPin, Phone, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
+interface CustomerDetailPageProps {
+  params: Promise<{ id: string }>;
+}
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
-  const customerId = params.id;
-  const user = await getAuthUser();
-  if (!user) return notFound();
-  
-  const customerData = await getCustomerById(user.uid, customerId);
+export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
+  const { user } = useAuth();
+  const [customerData, setCustomerData] = useState<any>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!customerData) {
-    notFound();
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const { id } = await params;
+        
+        if (!user) {
+          setError('User not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        console.log('Customer Detail Page Debug:', { customerId: id, userId: user.uid });
+        
+        // Get customer data
+        const customer = await getCustomerById(user.uid, id);
+        console.log('Customer Data:', customer);
+
+        if (!customer) {
+          setError('Customer not found');
+          setLoading(false);
+          return;
+        }
+
+        // Get transactions for this customer (this query doesn't require complex indexes)
+        const customerTransactions = await getTransactionsForCustomer(user.uid, id, 'Receivable');
+        console.log('Customer Transactions:', customerTransactions);
+
+        setCustomerData(customer);
+        setTransactions(customerTransactions);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading customer data:', err);
+        setError('Failed to load customer data');
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [params, user]);
+
+  if (!user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Book className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Book className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !customerData) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive">Customer Not Found</h1>
+          <p className="text-muted-foreground mt-2">The customer you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    );
+  }
+
   const customer = { ...customerData, dueBalance: customerData.dueBalance || customerData.openingBalance };
 
-
-  const [customerSales, books, customerPayments] = await Promise.all([
-    getSalesForCustomer(user.uid, customerId),
-    getBooks(user.uid),
-    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: false }),
-  ]);
-  
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
-
-  const combinedHistory: (Sale | Transaction)[] = [
-      ...customerSales,
-      ...customerPayments.filter(p => p.status === 'Paid')
-    ];
-
-  combinedHistory.sort((a, b) => {
-    const dateA = new Date('date' in a ? a.date : a.dueDate);
-    const dateB = new Date('date' in b ? b.date : b.dueDate);
-    return dateB.getTime() - dateA.getTime();
-  });
-
   return (
-    <div className="animate-in fade-in-50">
+    <div className="animate-in fade-in-50 space-y-6">
+      {/* Customer Information Card */}
       <Card>
-        <CardHeader className="flex flex-row justify-between items-start">
-          <div>
-            <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>
-            <CardDescription>
-              {customer.phone} <br />
-              {customer.address}
-            </CardDescription>
-            <div className="mt-4">
-                <span className="text-sm">Current Balance:</span>
-                <p className={`font-bold text-2xl ${customer.dueBalance > 0 ? 'text-destructive' : 'text-primary'}`}>
-                    ${customer.dueBalance.toFixed(2)}
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                  <span>{customer.phone}</span>
+                  {customer.whatsapp && (
+                    <>
+                      <span>•</span>
+                      <span>WhatsApp: {customer.whatsapp}</span>
+                    </>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>{customer.address}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Current Balance</p>
+                <p className={`font-bold text-3xl ${
+                  customer.dueBalance > 0 
+                    ? 'text-destructive' 
+                    : customer.dueBalance < 0 
+                    ? 'text-green-600' 
+                    : 'text-primary'
+                }`}>
+                  ${customer.dueBalance.toFixed(2)}
                 </p>
+                <div className="flex gap-2">
+                  {customer.dueBalance > 0 && (
+                    <Badge variant="destructive">Owes Money</Badge>
+                  )}
+                  {customer.dueBalance < 0 && (
+                    <Badge variant="default" className="bg-green-600">Credit Balance</Badge>
+                  )}
+                  {customer.dueBalance === 0 && (
+                    <Badge variant="secondary">Settled</Badge>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col gap-2 items-end">
-            <ReceivePaymentDialog customerId={customer.id} userId={user.uid}>
-                <Button>
-                    <DollarSign className="mr-2 h-4 w-4" /> Receive Payment
-                </Button>
-            </ReceivePaymentDialog>
-             <CustomerStatementPDF customer={customer} sales={customerSales} books={books} />
+        </CardHeader>
+      </Card>
+
+      {/* Transaction History Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="font-headline text-2xl">Transaction History</CardTitle>
+              <CardDescription>
+                All transactions between {customer.name} and your bookstore
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm">
+              <DollarSign className="mr-2 h-4 w-4" />
+              Receive Payment
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <h2 className="text-xl font-semibold mb-4 font-headline">Transaction History</h2>
-          <div className="border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {combinedHistory.length > 0 ? (
-                  combinedHistory.map((item) => (
-                    <TableRow key={'saleId' in item ? item.id : item.id}>
-                      <TableCell>{format(new Date('date' in item ? item.date : item.dueDate), 'PPP')}</TableCell>
-                      
-                      {'items' in item ? ( // It's a Sale
-                        <TableCell className="max-w-[400px] truncate">
-                           Sale #{item.saleId}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
-                           <Badge variant="outline" className="ml-2">{item.paymentMethod}</Badge>
-                        </TableCell>
-                      ) : ( // It's a Transaction (Payment Received)
-                        <TableCell>
-                           {item.description}
-                           {item.status === 'Paid' && <Badge variant="secondary" className="ml-2">{item.paymentMethod}</Badge>}
-                        </TableCell>
-                      )}
-
-                      {'items' in item ? ( // Debit for Sales
-                        <TableCell className="text-right font-medium text-destructive">
-                           ${item.total.toFixed(2)}
-                        </TableCell>
-                      ) : ( 
-                        <TableCell></TableCell>
-                      )}
-                      
-                       {'items' in item ? ( // Credit for upfront payments during a sale
-                        <TableCell className="text-right font-medium text-primary">
-                          { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
-                          { item.paymentMethod === 'Split' && item.amountPaid && `$${item.amountPaid?.toFixed(2)}`}
-                        </TableCell>
-                       ) : ( // Credit for payments received against due
-                        <TableCell className="text-right font-medium text-primary">
-                           {item.status === 'Paid' && `$${item.amount.toFixed(2)}`}
-                        </TableCell>
-                       )}
-                    </TableRow>
-                  ))
-                ) : (
+          {transactions.length > 0 ? (
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      No transactions found for this customer.
-                    </TableCell>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell>
+                        {format(new Date(transaction.dueDate), 'PPP')}
+                      </TableCell>
+                      <TableCell className="max-w-[300px]">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate">{transaction.description}</span>
+                          {transaction.paymentMethod && (
+                            <Badge variant="outline" className="text-xs">
+                              {transaction.paymentMethod}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={transaction.status === 'Paid' ? 'default' : 'secondary'}
+                          className={transaction.status === 'Paid' ? 'bg-green-600' : ''}
+                        >
+                          {transaction.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${transaction.amount.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Book className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Transactions Found</h3>
+              <p className="text-muted-foreground">
+                No transaction history available for this customer yet.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
     </div>
   );
 }
