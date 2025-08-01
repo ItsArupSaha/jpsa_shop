@@ -62,13 +62,17 @@ export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }
 export async function getSalesForCustomer(userId: string, customerId: string): Promise<Sale[]> {
   if (!db || !userId) return [];
   const salesCollection = collection(db, 'users', userId, 'sales');
+  // Remove the orderBy clause to avoid needing a composite index.
+  // We will sort the results in the application code.
   const q = query(
       salesCollection,
-      where('customerId', '==', customerId),
-      orderBy('date', 'desc')
+      where('customerId', '==', customerId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(docToSale);
+  const sales = snapshot.docs.map(docToSale);
+
+  // Sort by date descending in-memory
+  return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
