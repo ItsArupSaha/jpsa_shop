@@ -16,26 +16,33 @@ import { notFound } from 'next/navigation';
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
   const user = await getAuthUser();
-  if (!user) return notFound();
+  if (!user) {
+    // This should be handled by middleware in a real app, but for now, we'll return a 404.
+    return notFound();
+  }
   
   const customerData = await getCustomerById(user.uid, customerId);
 
   if (!customerData) {
-    notFound();
+    return notFound();
   }
-  const customer = { ...customerData, dueBalance: customerData.dueBalance || customerData.openingBalance };
+  // Use the dueBalance from the customer document as the single source of truth.
+  const customer = { ...customerData, dueBalance: customerData.dueBalance };
 
 
   const [customerSales, books, customerPayments] = await Promise.all([
     getSalesForCustomer(user.uid, customerId),
     getBooks(user.uid),
-    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: false }),
+    // Fetch all 'Paid' receivable transactions which represent payments from this customer.
+    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { includePaid: true }),
   ]);
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
+  // Combine sales and payments into a single history list
   const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments.filter(p => p.status === 'Paid')];
   combinedHistory.sort((a, b) => {
+    // Get the date from either a Sale or a Transaction object
     const dateA = new Date('date' in a ? a.date : a.dueDate);
     const dateB = new Date('date' in b ? b.date : b.dueDate);
     return dateB.getTime() - dateA.getTime();
@@ -105,7 +112,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                         <TableCell className="text-right"></TableCell>
                       )}
                       
-                       {'items' in item ? ( // It's a Sale (Credit)
+                       {'items' in item ? ( // A sale is only a credit if it was paid immediately
                         <TableCell className="text-right font-medium text-primary">
                           { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
                           { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}

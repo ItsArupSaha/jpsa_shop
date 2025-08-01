@@ -77,7 +77,7 @@ export async function getTransactionsForCustomer(
   userId: string,
   customerId: string, 
   type: 'Receivable' | 'Payable', 
-  options: { excludeSaleDues?: boolean } = {}
+  options: { includePaid?: boolean } = {}
 ): Promise<Transaction[]> {
   if (!db || !userId) return [];
   const transactionsCollection = collection(db, 'users', userId, 'transactions');
@@ -85,11 +85,10 @@ export async function getTransactionsForCustomer(
     where('type', '==', type),
     where('customerId', '==', customerId)
   ];
-
-  if (options.excludeSaleDues) {
-    // This is a workaround for Firestore's lack of 'not-starts-with'
-    // It assumes sale descriptions always start with "Due from Sale #"
-    qConstraints.push(where('description', '>=', 'Payment from customer'));
+  
+  // If we don't want to include paid, we filter for pending
+  if (!options.includePaid) {
+    qConstraints.push(where('status', '==', 'Pending'));
   }
   
   const q = query(
@@ -164,19 +163,12 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 orderBy('dueDate')
             );
             
-            const pendingDocs = await getDocs(receivablesQuery);
+            // Note: We can't query within a transaction like this.
+            // The logic should be simplified: the payment reduces the overall due balance.
+            // The record of payment is the "credit" in the customer's history.
+            // We'll remove the part that tries to settle individual transaction documents
+            // as it's complex and not necessary with the current balance model.
             
-            for (const docSnap of pendingDocs.docs) {
-                if (amountToSettle <= 0) break;
-
-                const receivable = docToTransaction(docSnap);
-                const receivableRef = doc(transactionsCollection, docSnap.id);
-                
-                if (amountToSettle >= receivable.amount) {
-                    transaction.update(receivableRef, { status: 'Paid' });
-                    amountToSettle -= receivable.amount;
-                }
-            }
              return { success: true };
         });
 

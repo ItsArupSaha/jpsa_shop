@@ -85,17 +85,28 @@ export async function getCustomersWithDueBalance(userId: string): Promise<Custom
 export async function getCustomersWithDueBalancePaginated({ userId, pageLimit = 5, lastVisible }: { userId: string, pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
   if (!db || !userId) return { customersWithDue: [], hasMore: false };
 
-  const allCustomersWithDue = await getCustomersWithDueBalance(userId);
-  
-  let startIndex = 0;
+  const customersCollection = collection(db, 'users', userId, 'customers');
+  let q = query(customersCollection, where('dueBalance', '>', 0), orderBy('dueBalance', 'desc'), limit(pageLimit));
+
   if (lastVisible) {
-      startIndex = allCustomersWithDue.findIndex(c => c.id === lastVisible.id) + 1;
+      const lastVisibleDoc = await getDoc(doc(customersCollection, lastVisible.id));
+      if (lastVisibleDoc.exists()) {
+        q = query(customersCollection, where('dueBalance', '>', 0), orderBy('dueBalance', 'desc'), startAfter(lastVisibleDoc), limit(pageLimit));
+      }
   }
 
-  const paginatedCustomers = allCustomersWithDue.slice(startIndex, startIndex + pageLimit);
-  const hasMore = startIndex + pageLimit < allCustomersWithDue.length;
-
-  return { customersWithDue: paginatedCustomers, hasMore };
+  const snapshot = await getDocs(q);
+  const customersWithDue = snapshot.docs.map(d => ({ ...docToCustomer(d), dueBalance: d.data().dueBalance } as CustomerWithDue));
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if(lastDoc) {
+    const nextQuery = query(customersCollection, where('dueBalance', '>', 0), orderBy('dueBalance', 'desc'), startAfter(lastDoc), limit(1));
+    const nextSnapshot = await getDocs(nextQuery);
+    hasMore = !nextSnapshot.empty;
+  }
+  
+  return { customersWithDue, hasMore };
 }
 
 
@@ -111,8 +122,24 @@ export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'd
 export async function updateCustomer(userId: string, id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db || !userId) return;
   const customerRef = doc(db, 'users', userId, 'customers', id);
-  const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
-  await updateDoc(customerRef, dataWithDue);
+  
+  const customerSnap = await getDoc(customerRef);
+  if (!customerSnap.exists()) return;
+
+  const oldOpeningBalance = customerSnap.data().openingBalance || 0;
+  const oldDueBalance = customerSnap.data().dueBalance || 0;
+  
+  // Recalculate due balance based on the change in opening balance
+  const dueBalanceDifference = data.openingBalance - oldOpeningBalance;
+  const newDueBalance = oldDueBalance + dueBalanceDifference;
+
+  const dataToUpdate = { 
+    ...data, 
+    dueBalance: newDueBalance < 0 ? 0 : newDueBalance,
+  };
+
+  await updateDoc(customerRef, dataToUpdate);
+
   revalidatePath('/customers');
   revalidatePath('/receivables');
   revalidatePath(`/customers/${id}`);
