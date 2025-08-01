@@ -85,17 +85,42 @@ export async function getCustomersWithDueBalance(userId: string): Promise<Custom
 export async function getCustomersWithDueBalancePaginated({ userId, pageLimit = 5, lastVisible }: { userId: string, pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
   if (!db || !userId) return { customersWithDue: [], hasMore: false };
 
-  const allCustomersWithDue = await getCustomersWithDueBalance(userId);
+  const customersCollection = collection(db, 'users', userId, 'customers');
   
-  let startIndex = 0;
+  let q = query(
+      customersCollection,
+      where('dueBalance', '>', 0),
+      orderBy('dueBalance', 'desc'),
+      orderBy('name'),
+      limit(pageLimit)
+  );
+
   if (lastVisible) {
-      startIndex = allCustomersWithDue.findIndex(c => c.id === lastVisible.id) + 1;
+      const lastVisibleDoc = await getDoc(doc(customersCollection, lastVisible.id));
+      if (lastVisibleDoc.exists()) {
+          q = query(q, startAfter(lastVisibleDoc));
+      }
   }
 
-  const paginatedCustomers = allCustomersWithDue.slice(startIndex, startIndex + pageLimit);
-  const hasMore = startIndex + pageLimit < allCustomersWithDue.length;
+  const snapshot = await getDocs(q);
+  const customersWithDue = snapshot.docs.map(d => ({ ...docToCustomer(d), dueBalance: d.data().dueBalance } as CustomerWithDue));
+  
+  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  let hasMore = false;
+  if (lastDoc) {
+      const nextQuery = query(
+          customersCollection,
+          where('dueBalance', '>', 0),
+          orderBy('dueBalance', 'desc'),
+          orderBy('name'),
+          startAfter(lastDoc),
+          limit(1)
+      );
+      const nextSnapshot = await getDocs(nextQuery);
+      hasMore = !nextSnapshot.empty;
+  }
 
-  return { customersWithDue: paginatedCustomers, hasMore };
+  return { customersWithDue, hasMore };
 }
 
 

@@ -1,26 +1,28 @@
 
 'use server';
 
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getBooks } from './books';
 import { getDonations } from './donations';
 import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
+import { docToCustomer } from './utils';
 
 export async function getBalanceSheetData(userId: string) {
     if (!db) {
         throw new Error("Database not connected");
     }
 
-    const [books, sales, expenses, allTransactionsData, purchases, donations] = await Promise.all([
+    const [books, sales, expenses, allTransactionsData, purchases, donations, customersWithDueData] = await Promise.all([
         getBooks(userId),
         getSales(userId),
         getExpenses(userId),
         getDocs(collection(db, 'users', userId, 'transactions')),
         getPurchases(userId),
         getDonations(userId),
+        getDocs(query(collection(db, 'users', userId, 'customers'), where('dueBalance', '>', 0))),
     ]);
 
     const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
@@ -77,9 +79,8 @@ export async function getBalanceSheetData(userId: string) {
         .filter(i => i.category === 'Office Asset')
         .reduce((sum, item) => sum + (item.cost * item.quantity), 0);
 
-    const receivables = allTransactions
-        .filter((t: any) => t.type === 'Receivable' && t.status === 'Pending')
-        .reduce((sum: number, t: any) => sum + t.amount, 0);
+    const customersWithDue = customersWithDueData.docs.map(docToCustomer);
+    const receivables = customersWithDue.reduce((sum, customer) => sum + customer.dueBalance, 0);
 
     const payables = allTransactions
         .filter((t: any) => t.type === 'Payable' && t.status === 'Pending')
