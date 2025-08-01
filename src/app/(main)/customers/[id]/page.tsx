@@ -29,16 +29,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const [customerSales, books, customerPayments] = await Promise.all([
     getSalesForCustomer(user.uid, customerId),
     getBooks(user.uid),
-    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: true }),
+    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: false }),
   ]);
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
-  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments];
+  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments.filter(p => p.status === 'Paid')];
   combinedHistory.sort((a, b) => {
     const dateA = new Date('date' in a ? a.date : a.dueDate);
     const dateB = new Date('date' in b ? b.date : b.dueDate);
-    return dateB.getTime() - dateA.getTime();
+    return dateA.getTime() - dateB.getTime();
   });
 
   return (

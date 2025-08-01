@@ -92,7 +92,7 @@ export async function getDashboardStats(userId: string) {
 
     const netProfit = grossProfitThisMonth - monthlyExpenses;
 
-    const receivablesAmount = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
+    const receivablesAmount = customersWithDue.reduce((sum, c) => sum + (c.dueBalance || 0), 0);
     const pendingReceivablesCount = customersWithDue.length;
 
     return {

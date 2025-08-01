@@ -51,8 +51,9 @@ export async function getBalanceSheetData(userId: string) {
         }
     });
 
+    // This handles payments received from customers for their due balances
     allTransactions.forEach((t: any) => {
-        if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
+        if (t.type === 'Receivable' && t.status === 'Paid') {
             if (t.paymentMethod === 'Cash') {
                 cash += t.amount;
             } else if (t.paymentMethod === 'Bank') {
