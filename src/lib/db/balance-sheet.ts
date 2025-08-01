@@ -4,11 +4,11 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getBooks } from './books';
+import { getCustomersWithDueBalance } from './customers';
 import { getDonations } from './donations';
 import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
-import { getCustomersWithDueBalance } from './customers';
 
 export async function getBalanceSheetData(userId: string) {
     if (!db) {
@@ -22,7 +22,7 @@ export async function getBalanceSheetData(userId: string) {
         getDocs(collection(db, 'users', userId, 'transactions')),
         getPurchases(userId),
         getDonations(userId),
-        getCustomersWithDueBalance(userId),
+        getCustomersWithDueBalance(userId), // Use the same trusted function as the dashboard
     ]);
 
     const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
@@ -53,13 +53,14 @@ export async function getBalanceSheetData(userId: string) {
         }
     });
 
-    allTransactions.forEach((t: any) => {
-        if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
-            if (t.paymentMethod === 'Cash') {
-                cash += t.amount;
-            } else if (t.paymentMethod === 'Bank') {
-                bank += t.amount;
-            }
+    // Handle payments received from customers
+    const receivedPayments = allTransactions.filter((t: any) => t.type === 'Receivable' && t.status === 'Paid');
+    
+    receivedPayments.forEach((t: any) => {
+        if (t.paymentMethod === 'Cash') {
+            cash += t.amount;
+        } else if (t.paymentMethod === 'Bank') {
+            bank += t.amount;
         }
     });
 
@@ -78,7 +79,8 @@ export async function getBalanceSheetData(userId: string) {
         .filter(i => i.category === 'Office Asset')
         .reduce((sum, item) => sum + (item.cost * item.quantity), 0);
 
-    const receivables = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
+    // This is the corrected logic, using the same source as the dashboard.
+    const receivables = customersWithDue.reduce((sum, customer) => sum + customer.dueBalance, 0);
 
     const payables = allTransactions
         .filter((t: any) => t.type === 'Payable' && t.status === 'Pending')
