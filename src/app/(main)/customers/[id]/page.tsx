@@ -92,16 +92,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                         </TableCell>
                       ) : ( // It's a Transaction
                         <TableCell>
-                           {item.description}
+                           Payment Received
                            {item.status === 'Paid' && <Badge variant="secondary" className="ml-2">{item.paymentMethod}</Badge>}
                         </TableCell>
                       )}
 
                       {'items' in item ? ( // It's a Sale
                         <TableCell className="text-right font-medium text-destructive">
-                           { (item.paymentMethod === 'Due' || item.paymentMethod === 'Split') &&
-                             `$${(item.total - (item.amountPaid || 0)).toFixed(2)}`
-                           }
+                           {`$${item.total.toFixed(2)}`}
                         </TableCell>
                       ) : ( // It's a Transaction (These are payments received, so no debit)
                         <TableCell className="text-right font-medium text-destructive"></TableCell>
@@ -109,8 +107,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       
                        {'items' in item ? ( // It's a Sale
                         <TableCell className="text-right font-medium text-primary">
-                          { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
-                          { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
+                           { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
+                           { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
                         </TableCell>
                        ) : ( // It's a Transaction
                         <TableCell className="text-right font-medium text-primary">

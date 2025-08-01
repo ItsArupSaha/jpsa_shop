@@ -85,12 +85,6 @@ export async function getTransactionsForCustomer(
     where('type', '==', type),
     where('customerId', '==', customerId)
   ];
-
-  if (options.excludeSaleDues) {
-    // This is a workaround for Firestore's lack of 'not-starts-with'
-    // It assumes sale descriptions always start with "Due from Sale #"
-    qConstraints.push(where('description', '>=', 'Payment from customer'));
-  }
   
   const q = query(
       transactionsCollection,
@@ -99,6 +93,10 @@ export async function getTransactionsForCustomer(
 
   const snapshot = await getDocs(q);
   let transactions = snapshot.docs.map(docToTransaction);
+
+  if (options.excludeSaleDues) {
+    transactions = transactions.filter(t => t.status === 'Paid');
+  }
 
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
@@ -154,30 +152,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             const newTransactionRef = doc(transactionsCollection);
             transaction.set(newTransactionRef, paymentTransactionData);
 
-            // Settle pending receivables if any
-            let amountToSettle = data.amount;
-            const receivablesQuery = query(
-                transactionsCollection,
-                where('type', '==', 'Receivable'),
-                where('status', '==', 'Pending'),
-                where('customerId', '==', data.customerId),
-                orderBy('dueDate')
-            );
-            
-            const pendingDocs = await getDocs(receivablesQuery);
-            
-            for (const docSnap of pendingDocs.docs) {
-                if (amountToSettle <= 0) break;
-
-                const receivable = docToTransaction(docSnap);
-                const receivableRef = doc(transactionsCollection, docSnap.id);
-                
-                if (amountToSettle >= receivable.amount) {
-                    transaction.update(receivableRef, { status: 'Paid' });
-                    amountToSettle -= receivable.amount;
-                }
-            }
-             return { success: true };
+            return { success: true };
         });
 
         revalidatePath('/receivables');
