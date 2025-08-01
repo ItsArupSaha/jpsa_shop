@@ -13,8 +13,8 @@ import { DollarSign } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: customerId } = await params;
+export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+  const customerId = params.id;
   const user = await getAuthUser();
   if (!user) return notFound();
   
@@ -29,12 +29,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const [customerSales, books, customerPayments] = await Promise.all([
     getSalesForCustomer(user.uid, customerId),
     getBooks(user.uid),
-    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: true }),
+    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: false }),
   ]);
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
-  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments];
+  const combinedHistory: (Sale | Transaction)[] = [
+      ...customerSales,
+      ...customerPayments.filter(p => p.status === 'Paid')
+    ];
+
   combinedHistory.sort((a, b) => {
     const dateA = new Date('date' in a ? a.date : a.dueDate);
     const dateB = new Date('date' in b ? b.date : b.dueDate);
@@ -82,37 +86,35 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <TableBody>
                 {combinedHistory.length > 0 ? (
                   combinedHistory.map((item) => (
-                    <TableRow key={'date' in item ? item.id : item.id}>
+                    <TableRow key={'saleId' in item ? item.id : item.id}>
                       <TableCell>{format(new Date('date' in item ? item.date : item.dueDate), 'PPP')}</TableCell>
                       
                       {'items' in item ? ( // It's a Sale
                         <TableCell className="max-w-[400px] truncate">
-                           Sale #{'saleId' in item && item.saleId}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
+                           Sale #{item.saleId}: {item.items.map((i) => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
                            <Badge variant="outline" className="ml-2">{item.paymentMethod}</Badge>
                         </TableCell>
-                      ) : ( // It's a Transaction
+                      ) : ( // It's a Transaction (Payment Received)
                         <TableCell>
                            {item.description}
                            {item.status === 'Paid' && <Badge variant="secondary" className="ml-2">{item.paymentMethod}</Badge>}
                         </TableCell>
                       )}
 
-                      {'items' in item ? ( // It's a Sale
+                      {'items' in item ? ( // Debit for Sales
                         <TableCell className="text-right font-medium text-destructive">
-                           { (item.paymentMethod === 'Due' || item.paymentMethod === 'Split') &&
-                             `$${(item.total - (item.amountPaid || 0)).toFixed(2)}`
-                           }
+                           ${item.total.toFixed(2)}
                         </TableCell>
-                      ) : ( // It's a Transaction (These are payments received, so no debit)
-                        <TableCell className="text-right font-medium text-destructive"></TableCell>
+                      ) : ( 
+                        <TableCell></TableCell>
                       )}
                       
-                       {'items' in item ? ( // It's a Sale
+                       {'items' in item ? ( // Credit for upfront payments during a sale
                         <TableCell className="text-right font-medium text-primary">
                           { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
-                          { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
+                          { item.paymentMethod === 'Split' && item.amountPaid && `$${item.amountPaid?.toFixed(2)}`}
                         </TableCell>
-                       ) : ( // It's a Transaction
+                       ) : ( // Credit for payments received against due
                         <TableCell className="text-right font-medium text-primary">
                            {item.status === 'Paid' && `$${item.amount.toFixed(2)}`}
                         </TableCell>
