@@ -99,8 +99,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               </TableHeader>
               <TableBody>
                 {combinedHistory.length > 0 ? (
-                  combinedHistory.map((item) => {
-                    const key = item.type === 'Sale' ? `sale-${item.data.id}` : `payment-${item.data.id}`;
+                  combinedHistory.map((item, index) => {
+                    const key = `${item.type}-${'id' in item.data ? item.data.id : index}`;
                     return (
                       <TableRow key={key}>
                         {/* Date Column */}
@@ -129,7 +129,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                            {/* For sales paid immediately, they are a credit as well */}
                            {item.type === 'Sale' && (item.data as Sale).paymentMethod === 'Cash' && `$${(item.data as Sale).total.toFixed(2)}`}
                            {item.type === 'Sale' && (item.data as Sale).paymentMethod === 'Bank' && `$${(item.data as Sale).total.toFixed(2)}`}
-                           {item.type === 'Sale' && (item.data as Sale).paymentMethod === 'Split' && `$${(item.data as Sale).amountPaid?.toFixed(2)}`}
+                           {item.type === 'Sale' && (item.data as Sale).paymentMethod === 'Split' && `$${(item.data as Sale).amountPaid?.toFixed(2) || '0.00'}`}
                         </TableCell>
                       </TableRow>
                     )

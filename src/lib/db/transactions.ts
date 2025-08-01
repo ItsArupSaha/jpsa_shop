@@ -152,22 +152,6 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             };
             const newTransactionRef = doc(transactionsCollection);
             transaction.set(newTransactionRef, paymentTransactionData);
-
-            // Settle pending receivables if any
-            let amountToSettle = data.amount;
-            const receivablesQuery = query(
-                transactionsCollection,
-                where('type', '==', 'Receivable'),
-                where('status', '==', 'Pending'),
-                where('customerId', '==', data.customerId),
-                orderBy('dueDate')
-            );
-            
-            // Note: We can't query within a transaction like this.
-            // The logic should be simplified: the payment reduces the overall due balance.
-            // The record of payment is the "credit" in the customer's history.
-            // We'll remove the part that tries to settle individual transaction documents
-            // as it's complex and not necessary with the current balance model.
             
              return { success: true };
         });
