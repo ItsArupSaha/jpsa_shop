@@ -29,16 +29,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const [customerSales, books, customerPayments] = await Promise.all([
     getSalesForCustomer(user.uid, customerId),
     getBooks(user.uid),
-    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: false }),
+    getTransactionsForCustomer(user.uid, customerId, 'Receivable', { excludeSaleDues: true }),
   ]);
   
   const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
 
-  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments.filter(p => p.status === 'Paid')];
+  const combinedHistory: (Sale | Transaction)[] = [...customerSales, ...customerPayments];
   combinedHistory.sort((a, b) => {
     const dateA = new Date('date' in a ? a.date : a.dueDate);
     const dateB = new Date('date' in b ? b.date : b.dueDate);
-    return dateA.getTime() - dateB.getTime();
+    return dateB.getTime() - dateA.getTime();
   });
 
   return (
@@ -92,14 +92,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                         </TableCell>
                       ) : ( // It's a Transaction
                         <TableCell>
-                           Payment Received
+                           {item.description}
                            {item.status === 'Paid' && <Badge variant="secondary" className="ml-2">{item.paymentMethod}</Badge>}
                         </TableCell>
                       )}
 
                       {'items' in item ? ( // It's a Sale
                         <TableCell className="text-right font-medium text-destructive">
-                           {`$${item.total.toFixed(2)}`}
+                           { (item.paymentMethod === 'Due' || item.paymentMethod === 'Split') &&
+                             `$${(item.total - (item.amountPaid || 0)).toFixed(2)}`
+                           }
                         </TableCell>
                       ) : ( // It's a Transaction (These are payments received, so no debit)
                         <TableCell className="text-right font-medium text-destructive"></TableCell>
@@ -107,8 +109,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       
                        {'items' in item ? ( // It's a Sale
                         <TableCell className="text-right font-medium text-primary">
-                           { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
-                           { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
+                          { (item.paymentMethod === 'Cash' || item.paymentMethod === 'Bank') && `$${item.total.toFixed(2)}`}
+                          { item.paymentMethod === 'Split' && `$${item.amountPaid?.toFixed(2)}`}
                         </TableCell>
                        ) : ( // It's a Transaction
                         <TableCell className="text-right font-medium text-primary">

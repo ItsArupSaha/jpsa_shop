@@ -1,28 +1,28 @@
 
 'use server';
 
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getBooks } from './books';
 import { getDonations } from './donations';
 import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
-import { docToCustomer } from './utils';
+import { getCustomersWithDueBalance } from './customers';
 
 export async function getBalanceSheetData(userId: string) {
     if (!db) {
         throw new Error("Database not connected");
     }
 
-    const [books, sales, expenses, allTransactionsData, purchases, donations, customersWithDueData] = await Promise.all([
+    const [books, sales, expenses, allTransactionsData, purchases, donations, customersWithDue] = await Promise.all([
         getBooks(userId),
         getSales(userId),
         getExpenses(userId),
         getDocs(collection(db, 'users', userId, 'transactions')),
         getPurchases(userId),
         getDonations(userId),
-        getDocs(query(collection(db, 'users', userId, 'customers'), where('dueBalance', '>', 0))),
+        getCustomersWithDueBalance(userId),
     ]);
 
     const allTransactions = allTransactionsData.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
@@ -53,9 +53,8 @@ export async function getBalanceSheetData(userId: string) {
         }
     });
 
-    // This handles payments received from customers for their due balances
     allTransactions.forEach((t: any) => {
-        if (t.type === 'Receivable' && t.status === 'Paid') {
+        if (t.type === 'Receivable' && t.status === 'Paid' && t.description.includes('Payment from customer')) {
             if (t.paymentMethod === 'Cash') {
                 cash += t.amount;
             } else if (t.paymentMethod === 'Bank') {
@@ -79,8 +78,7 @@ export async function getBalanceSheetData(userId: string) {
         .filter(i => i.category === 'Office Asset')
         .reduce((sum, item) => sum + (item.cost * item.quantity), 0);
 
-    const customersWithDue = customersWithDueData.docs.map(docToCustomer);
-    const receivables = customersWithDue.reduce((sum, customer) => sum + customer.dueBalance, 0);
+    const receivables = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
 
     const payables = allTransactions
         .filter((t: any) => t.type === 'Payable' && t.status === 'Pending')
