@@ -89,6 +89,23 @@ export async function completeOnboarding(userId: string, data: any) {
 }
 
 
+export async function updateCompanyDetails(userId: string, data: Partial<AuthUser>) {
+    if (!db || !userId) return;
+    const userDocRef = doc(db, 'users', userId);
+    
+    // Construct the data object with only the fields we want to update
+    const updateData: { [key: string]: any } = {};
+    if (data.companyName) updateData.companyName = data.companyName;
+    if (data.address) updateData.address = data.address;
+    if (data.phone) updateData.phone = data.phone;
+    if (data.bkashNumber !== undefined) updateData.bkashNumber = data.bkashNumber;
+    if (data.bankInfo !== undefined) updateData.bankInfo = data.bankInfo;
+
+    await updateDoc(userDocRef, updateData);
+    revalidatePath('/dashboard', 'layout');
+}
+
+
 // --- Database Seeding/Resetting for a specific user ---
 export async function resetDatabase(userId: string) {
   if (!db || !userId) {

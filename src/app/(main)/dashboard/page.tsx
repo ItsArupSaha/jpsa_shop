@@ -2,17 +2,19 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Book, ShoppingCart, DollarSign, ArrowRightLeft } from 'lucide-react';
+import { Book, ShoppingCart, DollarSign, ArrowRightLeft, Settings } from 'lucide-react';
 import { getDashboardStats } from '@/lib/db/dashboard';
 import { MonthlySummaryChart } from '@/components/dashboard-charts';
 import * as React from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { EditCompanyDetailsDialog } from '@/components/edit-company-details-dialog';
 
 type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, authUser } = useAuth();
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -25,7 +27,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  if (isLoading || !stats) {
+  if (isLoading || !stats || !authUser) {
     return (
         <div className="flex flex-col gap-6 animate-in fade-in-50">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
@@ -61,6 +63,12 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6 animate-in fade-in-50">
       <div className="flex justify-between items-start">
         <h1 className="font-headline text-3xl font-semibold">Dashboard</h1>
+        <EditCompanyDetailsDialog user={authUser}>
+          <Button variant="outline">
+            <Settings className="mr-2 h-4 w-4" />
+            Edit Store Details
+          </Button>
+        </EditCompanyDetailsDialog>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
