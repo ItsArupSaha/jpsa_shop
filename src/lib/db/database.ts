@@ -50,7 +50,7 @@ export async function completeOnboarding(userId: string, data: any) {
   const userDocRef = doc(db, 'users', userId);
   
   // 1. Update user document with company info and mark onboarding as complete
-  const userData = {
+  const userData: Partial<AuthUser> = {
     companyName: data.companyName,
     subtitle: data.subtitle,
     address: data.address,
@@ -59,6 +59,11 @@ export async function completeOnboarding(userId: string, data: any) {
     bankInfo: data.bankInfo,
     onboardingComplete: true,
   };
+
+  if (data.secretKey) {
+    userData.secretKey = data.secretKey;
+  }
+
   await updateDoc(userDocRef, userData);
 
   // 2. Record initial capital

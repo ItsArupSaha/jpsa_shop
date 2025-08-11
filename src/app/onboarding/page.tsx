@@ -37,6 +37,7 @@ const onboardingSchema = z.object({
   phone: z.string().min(5, 'Please enter a valid phone number.'),
   bkashNumber: z.string().optional(),
   bankInfo: z.string().optional(),
+  secretKey: z.string().optional(),
   initialCash: z.coerce.number().min(0).default(0),
   initialBank: z.coerce.number().min(0).default(0),
 });
@@ -58,6 +59,7 @@ export default function OnboardingPage() {
       phone: '',
       bkashNumber: '',
       bankInfo: '',
+      secretKey: '',
       initialCash: 0,
       initialBank: 0,
     },
@@ -209,6 +211,23 @@ export default function OnboardingPage() {
                     </FormControl>
                      <FormDescription>
                         This can be useful for your records and reports.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="secretKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Secret Key (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="Your secret key" {...field} />
+                    </FormControl>
+                     <FormDescription>
+                        This key will be used for future integrations.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -16,6 +16,7 @@ export type AuthUser = {
   bkashNumber?: string;
   bankInfo?: string;
   onboardingComplete?: boolean;
+  secretKey?: string;
 };
 
 export type Customer = {
