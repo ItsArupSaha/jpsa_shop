@@ -60,9 +60,10 @@ export type Sale = {
   discountType: 'none' | 'percentage' | 'amount';
   discountValue: number;
   total: number;
-  paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
+  paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split' | 'Paid by Credit';
   amountPaid?: number;
   splitPaymentMethod?: 'Cash' | 'Bank';
+  creditApplied?: number;
 };
 
 export type SalesReturnItem = {

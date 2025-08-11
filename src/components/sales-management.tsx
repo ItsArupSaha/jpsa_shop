@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -44,9 +45,10 @@ const saleFormSchema = z.object({
   items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
   discountType: z.enum(['none', 'percentage', 'amount']),
   discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
-  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split'], { required_error: 'Payment method is required.'}),
+  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split', 'Paid by Credit'], { required_error: 'Payment method is required.'}),
   amountPaid: z.coerce.number().optional(),
   splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
+  creditApplied: z.coerce.number().optional(),
 }).refine(data => {
     if (data.discountType === 'percentage') {
         return data.discountValue >= 0 && data.discountValue <= 100;
@@ -149,6 +151,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       paymentMethod: 'Cash',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
+      creditApplied: 0,
     },
   });
 
@@ -162,6 +165,10 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const watchDiscountValue = form.watch('discountValue');
   const watchPaymentMethod = form.watch('paymentMethod');
   const watchAmountPaid = form.watch('amountPaid');
+  const watchCustomerId = form.watch('customerId');
+  
+  const selectedCustomer = React.useMemo(() => customers.find(c => c.id === watchCustomerId), [customers, watchCustomerId]);
+  const customerCredit = React.useMemo(() => (selectedCustomer && selectedCustomer.dueBalance < 0) ? Math.abs(selectedCustomer.dueBalance) : 0, [selectedCustomer]);
 
   const subtotal = watchItems.reduce((acc, item) => {
     const price = item.price || 0;
@@ -179,11 +186,25 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
   const total = subtotal - discountAmount;
   
+  const creditToApply = Math.min(total, customerCredit);
+  
+  const totalAfterCredit = total - creditToApply;
+
+  React.useEffect(() => {
+    form.setValue('creditApplied', creditToApply);
+    if (totalAfterCredit <= 0) {
+      form.setValue('paymentMethod', 'Paid by Credit');
+    } else if (form.getValues('paymentMethod') === 'Paid by Credit') {
+      form.setValue('paymentMethod', 'Cash');
+    }
+  }, [totalAfterCredit, creditToApply, form]);
+
+
   let dueAmount = 0;
   if (watchPaymentMethod === 'Due') {
-    dueAmount = total;
+    dueAmount = totalAfterCredit;
   } else if (watchPaymentMethod === 'Split') {
-    dueAmount = total - (watchAmountPaid || 0);
+    dueAmount = totalAfterCredit - (watchAmountPaid || 0);
   }
 
   const handleAddNew = () => {
@@ -196,6 +217,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       paymentMethod: 'Cash',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
+      creditApplied: 0,
     });
     setCompletedSale(null);
     setIsDialogOpen(true);
@@ -229,6 +251,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
             return book;
         });
         setBooks(updatedBooks);
+        
+        loadInitialData(); // Reload customers to get updated balance
 
         setCompletedSale(newSale);
 
@@ -525,6 +549,11 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                               </SelectContent>
                             </SelectPortal>
                           </Select>
+                           {customerCredit > 0 && (
+                            <p className="text-sm text-green-600 mt-2">
+                                Customer has ${customerCredit.toFixed(2)} credit available.
+                            </p>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -649,6 +678,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                             />
                         </div>
                       </div>
+                      { totalAfterCredit > 0 &&
                        <FormField
                           control={form.control}
                           name="paymentMethod"
@@ -683,8 +713,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                             </FormItem>
                           )}
                         />
+                      }
                     </div>
-                     {watchPaymentMethod === 'Split' && (
+                     {watchPaymentMethod === 'Split' && totalAfterCredit > 0 && (
                         <div className='flex gap-4 items-end'>
                             <FormField
                                 control={form.control}
@@ -727,9 +758,15 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                             <span>Discount</span>
                             <span>-${discountAmount.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between font-bold text-base">
+                        {creditToApply > 0 && (
+                           <div className="flex justify-between text-green-600">
+                                <span>Credit Applied</span>
+                                <span>-${creditToApply.toFixed(2)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between font-bold text-base border-t pt-2">
                             <span>Total</span>
-                            <span>${total.toFixed(2)}</span>
+                            <span>${totalAfterCredit.toFixed(2)}</span>
                         </div>
                         { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
                             <div className="flex justify-between font-semibold text-destructive">

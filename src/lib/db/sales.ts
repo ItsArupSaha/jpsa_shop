@@ -60,15 +60,13 @@ export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }
 
 
 export async function getSalesForCustomer(userId: string, customerId: string): Promise<Sale[]> {
-  if (!db || !userId) return [];
-  const salesCollection = collection(db, 'users', userId, 'sales');
-  const q = query(
-      salesCollection,
-      where('customerId', '==', customerId),
-      orderBy('date', 'desc')
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(docToSale);
+    if (!db || !userId) return [];
+    const salesCollection = collection(db, 'users', userId, 'sales');
+    const q = query(salesCollection, where('customerId', '==', customerId));
+    const snapshot = await getDocs(q);
+    const sales = snapshot.docs.map(docToSale);
+    // Sort in application code to avoid needing a composite index
+    return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
@@ -88,7 +86,7 @@ export async function getSalesForMonth(userId: string, year: number, month: numb
 
 export async function addSale(
     userId: string,
-    data: Omit<Sale, 'id' | 'saleId' | 'date' | 'subtotal' | 'total'>
+    data: Omit<Sale, 'id' | 'saleId' | 'date' | 'subtotal' | 'total'> & { creditApplied?: number }
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db || !userId) return { success: false, error: "Database not configured." };
   
@@ -146,16 +144,21 @@ export async function addSale(
           discountAmount = data.discountValue;
         }
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
-        const calculatedTotal = calculatedSubtotal - discountAmount;
-  
+        const totalAfterDiscount = calculatedSubtotal - discountAmount;
+        
+        const creditApplied = data.creditApplied || 0;
+        const finalTotal = totalAfterDiscount - creditApplied;
+
         const newSaleRef = doc(salesCollection);
-        const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp } = {
+        const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp, creditApplied?: number } = {
           ...data,
           saleId,
           items: itemsWithPrices,
           subtotal: calculatedSubtotal,
-          total: calculatedTotal,
+          total: totalAfterDiscount, // The sale total before credit
           date: Timestamp.fromDate(saleDate),
+          creditApplied: creditApplied,
+          paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
         };
         transaction.set(newSaleRef, saleDataToSave);
         transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
@@ -165,29 +168,34 @@ export async function addSale(
           const newStock = bookDocs[i].data()!.stock - saleItem.quantity;
           transaction.update(bookRefs[i], { stock: newStock });
         }
+
+        const currentDue = customerDoc.data()?.dueBalance || 0;
+        let finalDue = currentDue;
+
+        // Apply credit
+        if (creditApplied > 0) {
+            finalDue += creditApplied;
+        }
   
         if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-          let dueAmount = calculatedTotal;
+          let dueAmount = finalTotal;
           if(data.paymentMethod === 'Split' && data.amountPaid) {
-            dueAmount = calculatedTotal - data.amountPaid;
+            dueAmount = finalTotal - data.amountPaid;
 
-            // Record the asset from the partial payment
             const paymentTransactionData = {
                 description: `Partial payment for ${saleId}`,
                 amount: data.amountPaid,
                 dueDate: Timestamp.fromDate(new Date()),
                 status: 'Paid' as const,
                 type: 'Receivable' as const,
-                paymentMethod: data.splitPaymentMethod, // Use the selected method
+                paymentMethod: data.splitPaymentMethod,
                 customerId: data.customerId
             };
             transaction.set(doc(transactionsCollection), paymentTransactionData);
           }
 
           if (dueAmount > 0) {
-              const currentDue = customerDoc.data()?.dueBalance || 0;
-              transaction.update(customerRef, { dueBalance: currentDue + dueAmount });
-
+              finalDue += dueAmount;
               const receivableData = {
                 description: `Due from ${saleId}`,
                 amount: dueAmount,
@@ -199,10 +207,16 @@ export async function addSale(
               transaction.set(doc(transactionsCollection), receivableData);
           }
         }
+        
+        // Update customer balance if it changed
+        if (finalDue !== currentDue) {
+            transaction.update(customerRef, { dueBalance: finalDue });
+        }
   
         const saleForClient: Sale = {
           id: newSaleRef.id,
           ...saleDataToSave,
+          total: finalTotal, // Final total for client view
           date: saleDate.toISOString(),
         };
   
