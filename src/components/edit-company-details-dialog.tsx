@@ -18,6 +18,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,6 +34,7 @@ import { useRouter } from 'next/navigation';
 
 const companyDetailsSchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
+  subtitle: z.string().optional(),
   address: z.string().min(5, 'Please enter a valid address.'),
   phone: z.string().min(5, 'Please enter a valid phone number.'),
   bkashNumber: z.string().optional(),
@@ -56,6 +58,7 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
     resolver: zodResolver(companyDetailsSchema),
     defaultValues: {
       companyName: user.companyName || '',
+      subtitle: user.subtitle || '',
       address: user.address || '',
       phone: user.phone || '',
       bkashNumber: user.bkashNumber || '',
@@ -98,7 +101,7 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-4 py-1">
               <FormField
                 control={form.control}
                 name="companyName"
@@ -112,7 +115,22 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                   </FormItem>
                 )}
               />
-
+              <FormField
+                control={form.control}
+                name="subtitle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sub-title (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="A cozy corner for book lovers" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                        A short, descriptive tagline for your store.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}

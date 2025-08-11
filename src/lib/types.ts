@@ -10,6 +10,7 @@ export type AuthUser = {
   
   // Onboarding fields
   companyName?: string;
+  subtitle?: string;
   address?: string;
   phone?: string;
   bkashNumber?: string;

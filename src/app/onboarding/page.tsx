@@ -32,6 +32,7 @@ import { useRouter } from 'next/navigation';
 
 const onboardingSchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
+  subtitle: z.string().optional(),
   address: z.string().min(5, 'Please enter a valid address.'),
   phone: z.string().min(5, 'Please enter a valid phone number.'),
   bkashNumber: z.string().optional(),
@@ -52,6 +53,7 @@ export default function OnboardingPage() {
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       companyName: '',
+      subtitle: '',
       address: '',
       phone: '',
       bkashNumber: '',
@@ -137,7 +139,22 @@ export default function OnboardingPage() {
                   </FormItem>
                 )}
               />
-
+              <FormField
+                control={form.control}
+                name="subtitle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sub-title (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., A cozy corner for book lovers" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                        A short, descriptive tagline for your store.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}

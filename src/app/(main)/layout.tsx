@@ -106,7 +106,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                  <Book className="h-6 w-6 text-primary-foreground" />
               </div>
-              <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Bookstore'}</h1>
+              <div className="flex flex-col">
+                <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Bookstore'}</h1>
+                {authUser?.subtitle && <p className="text-xs text-muted-foreground">{authUser.subtitle}</p>}
+              </div>
             </div>
           </SidebarHeader>
           <SidebarContent className="p-4">

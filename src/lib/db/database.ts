@@ -52,6 +52,7 @@ export async function completeOnboarding(userId: string, data: any) {
   // 1. Update user document with company info and mark onboarding as complete
   const userData = {
     companyName: data.companyName,
+    subtitle: data.subtitle,
     address: data.address,
     phone: data.phone,
     bkashNumber: data.bkashNumber,
@@ -96,6 +97,7 @@ export async function updateCompanyDetails(userId: string, data: Partial<AuthUse
     // Construct the data object with only the fields we want to update
     const updateData: { [key: string]: any } = {};
     if (data.companyName) updateData.companyName = data.companyName;
+    if (data.subtitle !== undefined) updateData.subtitle = data.subtitle;
     if (data.address) updateData.address = data.address;
     if (data.phone) updateData.phone = data.phone;
     if (data.bkashNumber !== undefined) updateData.bkashNumber = data.bkashNumber;
