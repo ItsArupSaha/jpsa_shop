@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { PlusCircle, Trash2, Loader2, RotateCcw } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getBooks, getCustomers, addSalesReturn, getSalesReturnsPaginated } from '@/lib/actions';
 
@@ -19,7 +19,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from './ui/skeleton';
 
 const salesReturnItemSchema = z.object({
@@ -31,7 +30,6 @@ const salesReturnItemSchema = z.object({
 const salesReturnFormSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
   items: z.array(salesReturnItemSchema).min(1, 'At least one item is required.'),
-  refundMethod: z.enum(['Adjust Due', 'Cash', 'Bank'], { required_error: 'Refund method is required.'}),
 });
 
 type SalesReturnFormValues = z.infer<typeof salesReturnFormSchema>;
@@ -96,7 +94,6 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
     resolver: zodResolver(salesReturnFormSchema),
     defaultValues: {
       items: [{ bookId: '', quantity: 1, price: 0 }],
-      refundMethod: 'Adjust Due',
     },
   });
 
@@ -116,7 +113,6 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
     form.reset({
       customerId: '',
       items: [{ bookId: '', quantity: 1, price: 0 }],
-      refundMethod: 'Adjust Due',
     });
     setIsDialogOpen(true);
   };
@@ -141,7 +137,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="font-headline text-2xl">Sales Returns</CardTitle>
-              <CardDescription>Manage customer returns and refunds.</CardDescription>
+              <CardDescription>Manage customer returns and update their balance.</CardDescription>
             </div>
             <Button onClick={handleAddNew}>
               <PlusCircle className="mr-2 h-4 w-4" /> Record New Return
@@ -156,8 +152,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                   <TableHead>Date</TableHead>
                   <TableHead>Return ID</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>Refund</TableHead>
+                  <TableHead>Items Returned</TableHead>
                   <TableHead className="text-right">Total Value</TableHead>
                 </TableRow>
               </TableHeader>
@@ -168,7 +163,6 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                             <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
                             <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                         </TableRow>
@@ -181,12 +175,11 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                     <TableCell className="max-w-[300px] truncate">
                       {r.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
                     </TableCell>
-                    <TableCell>{r.refundMethod}</TableCell>
                     <TableCell className="text-right font-medium">${r.totalReturnValue.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No returns recorded yet.</TableCell>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No returns recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -206,7 +199,9 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-headline">Record a Sales Return</DialogTitle>
-            <DialogDescription>Select customer, items being returned, and refund method.</DialogDescription>
+            <DialogDescription>
+              Select the customer and items being returned. The value will be credited to their account.
+            </DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -277,26 +272,8 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                 </Button>
                 <Separator />
-                <FormField
-                  control={form.control}
-                  name="refundMethod"
-                  render={({ field }) => (
-                    <FormItem className="space-y-3">
-                      <FormLabel>Refund Method</FormLabel>
-                      <FormControl>
-                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-wrap gap-4">
-                          <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Adjust Due" /></FormControl><FormLabel className="font-normal">Adjust Due Balance</FormLabel></FormItem>
-                          <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash Refund</FormLabel></FormItem>
-                          <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" /></FormControl><FormLabel className="font-normal">Bank Refund</FormLabel></FormItem>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <Separator />
                  <div className="flex justify-between font-bold text-base pr-4">
-                    <span>Total Return Value</span>
+                    <span>Total Return Credit</span>
                     <span>${totalReturnValue.toFixed(2)}</span>
                 </div>
               </div>

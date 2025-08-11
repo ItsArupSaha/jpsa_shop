@@ -78,7 +78,6 @@ export type SalesReturn = {
   customerId: string;
   items: SalesReturnItem[];
   totalReturnValue: number;
-  refundMethod: 'Adjust Due' | 'Cash' | 'Bank';
 };
 
 

@@ -3,7 +3,6 @@
 
 import {
   Timestamp,
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -71,8 +70,7 @@ export async function addSalesReturn(
         const booksCollection = collection(userRef, 'books');
         const customersCollection = collection(userRef, 'customers');
         const returnsCollection = collection(userRef, 'sales_returns');
-        const expensesCollection = collection(userRef, 'expenses');
-
+        
         const returnDate = new Date();
         const bookRefs = data.items.map(item => doc(booksCollection, item.bookId));
         const customerRef = doc(customersCollection, data.customerId);
@@ -107,7 +105,8 @@ export async function addSalesReturn(
   
         const newReturnRef = doc(returnsCollection);
         const returnDataToSave = {
-          ...data,
+          customerId: data.customerId,
+          items: data.items,
           returnId,
           totalReturnValue,
           date: Timestamp.fromDate(returnDate),
@@ -115,18 +114,9 @@ export async function addSalesReturn(
         transaction.set(newReturnRef, returnDataToSave);
         transaction.set(metadataRef, { lastReturnNumber: newReturnNumber }, { merge: true });
 
-        if (data.refundMethod === 'Adjust Due') {
-            const currentDue = customerDoc.data()?.dueBalance || 0;
-            transaction.update(customerRef, { dueBalance: currentDue - totalReturnValue });
-        } else { // Cash or Bank Refund
-            const expenseData = {
-                description: `Refund for Return ${returnId}`,
-                amount: totalReturnValue,
-                date: Timestamp.fromDate(returnDate),
-                paymentMethod: data.refundMethod,
-            };
-            transaction.set(doc(expensesCollection), expenseData);
-        }
+        // Always adjust the customer's due balance
+        const currentDue = customerDoc.data()?.dueBalance || 0;
+        transaction.update(customerRef, { dueBalance: currentDue - totalReturnValue });
   
         const salesReturnForClient: SalesReturn = {
           id: newReturnRef.id,
