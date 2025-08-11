@@ -198,7 +198,7 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                     <FormItem>
                       <FormLabel>Secret Key (Set Once)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter your secret key" {...field} />
+                        <Input type="password" placeholder="Enter your secret key" {...field} />
                       </FormControl>
                       <FormDescription>
                         This key is for future integrations and can only be set once. It cannot be changed later.
