@@ -107,6 +107,9 @@ export async function updateCompanyDetails(userId: string, data: Partial<AuthUse
     if (data.phone) updateData.phone = data.phone;
     if (data.bkashNumber !== undefined) updateData.bkashNumber = data.bkashNumber;
     if (data.bankInfo !== undefined) updateData.bankInfo = data.bankInfo;
+    // Only add secretKey to the update object if it's provided.
+    // The UI should prevent this from being sent if a key already exists.
+    if (data.secretKey) updateData.secretKey = data.secretKey;
 
     await updateDoc(userDocRef, updateData);
     revalidatePath('/dashboard', 'layout');

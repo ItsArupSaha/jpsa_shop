@@ -39,6 +39,7 @@ const companyDetailsSchema = z.object({
   phone: z.string().min(5, 'Please enter a valid phone number.'),
   bkashNumber: z.string().optional(),
   bankInfo: z.string().optional(),
+  secretKey: z.string().optional(),
 });
 
 type CompanyDetailsFormValues = z.infer<typeof companyDetailsSchema>;
@@ -63,6 +64,7 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
       phone: user.phone || '',
       bkashNumber: user.bkashNumber || '',
       bankInfo: user.bankInfo || '',
+      secretKey: '', // Always start empty, user will fill it if they need to
     },
   });
 
@@ -187,6 +189,25 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                   </FormItem>
                 )}
               />
+
+              {!user.secretKey && (
+                <FormField
+                  control={form.control}
+                  name="secretKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Secret Key (Set Once)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your secret key" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        This key is for future integrations and can only be set once. It cannot be changed later.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
             
             <DialogFooter className="pt-4 border-t">
