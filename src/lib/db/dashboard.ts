@@ -3,7 +3,7 @@
 
 import { collection, doc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { docToBook, docToExpense, docToSale } from './utils';
+import { docToBook, docToExpense, docToSale, docToSalesReturn } from './utils';
 import { getCustomersWithDueBalance } from './customers';
 
 export async function getDashboardStats(userId: string) {
@@ -24,6 +24,7 @@ export async function getDashboardStats(userId: string) {
     const userRef = doc(db, 'users', userId);
     const booksCollection = collection(userRef, 'books');
     const salesCollection = collection(userRef, 'sales');
+    const returnsCollection = collection(userRef, 'sales_returns');
     const expensesCollection = collection(userRef, 'expenses');
 
     const now = new Date();
@@ -34,6 +35,12 @@ export async function getDashboardStats(userId: string) {
 
     const salesQuery = query(
         salesCollection,
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate))
+    );
+    
+    const returnsQuery = query(
+        returnsCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
@@ -57,17 +64,20 @@ export async function getDashboardStats(userId: string) {
     const [
         booksSnapshot, 
         salesSnapshot, 
+        returnsSnapshot,
         expensesSnapshot, 
         customersWithDue
     ] = await Promise.all([
         safeGetDocs(query(booksCollection)),
         safeGetDocs(salesQuery),
+        safeGetDocs(returnsQuery),
         safeGetDocs(expensesQuery),
         getCustomersWithDueBalance(userId)
     ]);
 
     const books = booksSnapshot.docs.map(docToBook);
     const salesThisMonth = salesSnapshot.docs.map(docToSale);
+    const returnsThisMonth = returnsSnapshot.docs.map(docToSalesReturn);
     const expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
 
     const totalBooksInStock = books.reduce((sum, book) => sum + book.stock, 0);
@@ -90,7 +100,19 @@ export async function getDashboardStats(userId: string) {
         return totalProfit + saleProfit;
     }, 0);
 
-    const netProfit = grossProfitThisMonth - monthlyExpenses;
+    const totalReturnCost = returnsThisMonth.reduce((totalCost, saleReturn) => {
+        const returnCost = saleReturn.items.reduce((currentReturnCost, item) => {
+            const book = books.find(b => b.id === item.bookId);
+            if (book) {
+                const itemCost = book.productionPrice * item.quantity;
+                return currentReturnCost + itemCost;
+            }
+            return currentReturnCost;
+        }, 0);
+        return totalCost + returnCost;
+    }, 0);
+
+    const netProfit = grossProfitThisMonth - monthlyExpenses - totalReturnCost;
 
     const receivablesAmount = customersWithDue.reduce((sum, c) => sum + c.dueBalance, 0);
     const pendingReceivablesCount = customersWithDue.length;

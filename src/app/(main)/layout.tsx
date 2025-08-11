@@ -18,6 +18,7 @@ import {
   LogOut,
   LogIn,
   ArrowLeftRight,
+  RotateCcw,
 } from 'lucide-react';
 
 import {
@@ -41,6 +42,7 @@ const navItems = [
   { href: '/books', icon: Book, label: 'Books' },
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
+  { href: '/sales-returns', icon: RotateCcw, label: 'Sales Returns' },
   { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
   { href: '/donations', icon: Gift, label: 'Donations' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },

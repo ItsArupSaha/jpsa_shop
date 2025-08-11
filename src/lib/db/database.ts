@@ -34,7 +34,7 @@ export async function initializeNewUser(userId: string) {
   // Create metadata for counters
   const metadataCollection = collection(userDocRef, 'metadata');
   const countersRef = doc(metadataCollection, 'counters');
-  batch.set(countersRef, { lastPurchaseNumber: 0, lastSaleNumber: 0 });
+  batch.set(countersRef, { lastPurchaseNumber: 0, lastSaleNumber: 0, lastReturnNumber: 0 });
   
   // Mark user as initialized (but onboarding not yet complete)
   batch.set(userDocRef, { initialized: true }, { merge: true });
@@ -100,7 +100,7 @@ export async function resetDatabase(userId: string) {
   const userRef = doc(db, 'users', userId);
   const batch = writeBatch(db);
 
-  const collectionsToDelete = ['books', 'customers', 'sales', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
+  const collectionsToDelete = ['books', 'customers', 'sales', 'sales_returns', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
   for (const coll of collectionsToDelete) {
     const snapshot = await getDocs(collection(userRef, coll));
     snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -114,6 +114,6 @@ export async function resetDatabase(userId: string) {
   console.log(`Database reset and re-initialized for user: ${userId}`);
 
   // Revalidate all paths
-  const paths = ['/dashboard', '/books', '/customers', '/sales', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
+  const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
 }

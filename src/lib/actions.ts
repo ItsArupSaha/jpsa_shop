@@ -6,6 +6,7 @@
 export * from './db/books';
 export * from './db/customers';
 export * from './db/sales';
+export * from './db/sales-returns';
 export * from './db/purchases';
 export * from './db/expenses';
 export * from './db/donations';

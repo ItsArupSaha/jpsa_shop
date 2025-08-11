@@ -65,6 +65,23 @@ export type Sale = {
   splitPaymentMethod?: 'Cash' | 'Bank';
 };
 
+export type SalesReturnItem = {
+  bookId: string;
+  quantity: number;
+  price: number; // The price at which the item was sold, used for credit.
+};
+
+export type SalesReturn = {
+  id: string;
+  returnId: string;
+  date: string;
+  customerId: string;
+  items: SalesReturnItem[];
+  totalReturnValue: number;
+  refundMethod: 'Adjust Due' | 'Cash' | 'Bank';
+};
+
+
 export type PurchaseItem = {
     itemName: string;
     category: 'Book' | 'Office Asset';
@@ -118,4 +135,5 @@ export type Transaction = {
 export type Metadata = {
   lastPurchaseNumber: number;
   lastSaleNumber: number;
+  lastReturnNumber: number;
 }
