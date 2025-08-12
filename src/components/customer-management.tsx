@@ -1,27 +1,19 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { addCustomer, deleteCustomer, getCustomers, getCustomersPaginated, updateCustomer } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { getCustomersPaginated, addCustomer, updateCustomer, deleteCustomer } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Search, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as XLSX from 'xlsx';
+import * as z from 'zod';
 
-import type { Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import {
   Form,
   FormControl,
@@ -39,12 +30,21 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { Textarea } from './ui/textarea';
-import { Skeleton } from './ui/skeleton';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import type { Customer } from '@/lib/types';
 import { format } from 'date-fns';
+import { Skeleton } from './ui/skeleton';
+import { Textarea } from './ui/textarea';
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -63,13 +63,26 @@ interface CustomerManagementProps {
 export default function CustomerManagement({ userId }: CustomerManagementProps) {
   const { authUser } = useAuth();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [allCustomers, setAllCustomers] = React.useState<Customer[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [isSearching, setIsSearching] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+
+  // Load all customers for search functionality
+  const loadAllCustomers = React.useCallback(async () => {
+    try {
+      const allCustomersData = await getCustomers(userId);
+      setAllCustomers(allCustomersData);
+    } catch (error) {
+      console.error("Failed to load all customers for search:", error);
+    }
+  }, [userId]);
 
   const loadInitialCustomers = React.useCallback(async () => {
       setIsInitialLoading(true);
@@ -92,26 +105,129 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
   React.useEffect(() => {
     if(userId) {
         loadInitialCustomers();
+        loadAllCustomers(); // Load all customers for search
     }
-  }, [userId, loadInitialCustomers]);
+  }, [userId, loadInitialCustomers, loadAllCustomers]);
+
+  // Search functionality
+  const performSearch = React.useCallback((query: string) => {
+    if (!query.trim()) {
+      // If search is empty, return to normal pagination
+      loadInitialCustomers();
+      return;
+    }
+
+    setIsSearching(true);
+    
+    const searchTerms = query.toLowerCase().trim().split(' ').filter(term => term.length > 0);
+    
+    if (searchTerms.length === 0) {
+      loadInitialCustomers();
+      return;
+    }
+
+    // Filter customers based on search terms
+    const searchResults = allCustomers.filter(customer => {
+      const customerName = customer.name.toLowerCase();
+      
+      // Check if customer name contains all search terms
+      return searchTerms.every(term => customerName.includes(term));
+    });
+
+    // Sort results by relevance (names starting with search terms get highest priority)
+    const sortedResults = searchResults.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      
+      // Names starting with the FIRST search term get highest priority
+      const aStartsWithFirstTerm = aName.startsWith(searchTerms[0]);
+      const bStartsWithFirstTerm = bName.startsWith(searchTerms[0]);
+      
+      if (aStartsWithFirstTerm && !bStartsWithFirstTerm) return -1;
+      if (!aStartsWithFirstTerm && bStartsWithFirstTerm) return 1;
+      
+      // Then prioritize names starting with ANY search term
+      const aStartsWithAnyTerm = searchTerms.some(term => aName.startsWith(term));
+      const bStartsWithAnyTerm = searchTerms.some(term => bName.startsWith(term));
+      
+      if (aStartsWithAnyTerm && !bStartsWithAnyTerm) return -1;
+      if (!aStartsWithAnyTerm && bStartsWithAnyTerm) return 1;
+      
+      // Then prioritize names that contain the first term at the beginning of words
+      const aHasFirstTermAtWordStart = aName.includes(` ${searchTerms[0]}`) || aName.startsWith(searchTerms[0]);
+      const bHasFirstTermAtWordStart = bName.includes(` ${searchTerms[0]}`) || bName.startsWith(searchTerms[0]);
+      
+      if (aHasFirstTermAtWordStart && !bHasFirstTermAtWordStart) return -1;
+      if (!aHasFirstTermAtWordStart && bHasFirstTermAtWordStart) return 1;
+      
+      // Finally sort alphabetically
+      return aName.localeCompare(bName);
+    });
+
+    // Limit to top 10 results for performance
+    const limitedResults = sortedResults.slice(0, 10);
+    
+    setCustomers(limitedResults);
+    setHasMore(sortedResults.length > 10);
+    setIsSearching(false);
+  }, [allCustomers, loadInitialCustomers]);
+
+  // Debounced search effect
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 300); // 300ms delay for better performance
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, performSearch]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    loadInitialCustomers();
+  };
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
-    setIsLoadingMore(true);
-    const lastCustomerId = customers[customers.length - 1]?.id;
-    try {
-        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 5, lastVisibleId: lastCustomerId });
-        setCustomers(prev => [...prev, ...newCustomers]);
-        setHasMore(newHasMore);
-    } catch (error) {
-        console.error("Failed to load more customers:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load more customers.",
-        });
-    } finally {
-        setIsLoadingMore(false);
+    
+    if (searchQuery.trim()) {
+      // For search results, load more from all customers
+      const searchTerms = searchQuery.toLowerCase().trim().split(' ').filter(term => term.length > 0);
+      const searchResults = allCustomers.filter(customer => {
+        const customerName = customer.name.toLowerCase();
+        return searchTerms.every(term => customerName.includes(term));
+      });
+      
+      const currentCount = customers.length;
+      const nextBatch = searchResults.slice(currentCount, currentCount + 5);
+      
+      if (nextBatch.length > 0) {
+        setCustomers(prev => [...prev, ...nextBatch]);
+        setHasMore(currentCount + nextBatch.length < searchResults.length);
+      } else {
+        setHasMore(false);
+      }
+    } else {
+      // Normal pagination for non-search results
+      setIsLoadingMore(true);
+      const lastCustomerId = customers[customers.length - 1]?.id;
+      try {
+          const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 5, lastVisibleId: lastCustomerId });
+          setCustomers(prev => [...prev, ...newCustomers]);
+          setHasMore(newHasMore);
+      } catch (error) {
+          console.error("Failed to load more customers:", error);
+          toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Could not load more customers.",
+          });
+      } finally {
+          setIsLoadingMore(false);
+      }
     }
   };
 
@@ -142,7 +258,13 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     startTransition(async () => {
         try {
             await deleteCustomer(userId, id);
-            await loadInitialCustomers();
+            // Refresh both search results and all customers
+            if (searchQuery.trim()) {
+              performSearch(searchQuery);
+            } else {
+              await loadInitialCustomers();
+            }
+            await loadAllCustomers();
             toast({ title: "Customer Deleted", description: "The customer has been removed." });
         } catch(e) {
              toast({ variant: "destructive", title: "Error", description: "Could not delete customer." });
@@ -160,7 +282,13 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
                 await addCustomer(userId, data);
                 toast({ title: "Customer Added", description: "The new customer has been added." });
             }
-            await loadInitialCustomers();
+            // Refresh both search results and all customers
+            if (searchQuery.trim()) {
+              performSearch(searchQuery);
+            } else {
+              await loadInitialCustomers();
+            }
+            await loadAllCustomers();
             setIsDialogOpen(false);
             setEditingCustomer(null);
         } catch(e) {
@@ -240,6 +368,9 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     XLSX.writeFile(workbook, `customer-list-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
+  // Determine what to display in the table
+  const displayCustomers = customers;
+  const showLoadMore = hasMore && customers.length > 0;
 
   return (
     <Card className="animate-in fade-in-50">
@@ -253,6 +384,26 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
             <Button onClick={handleAddNew}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Customer
             </Button>
+            {/* Search Input */}
+            <div className="relative w-auto">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search customers by name..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="pl-10 pr-10 min-w-[180px] max-w-[220px]"
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6"
+                  onClick={clearSearch}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
                 <FileText className="mr-2 h-4 w-4" /> Download PDF
@@ -265,6 +416,20 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         </div>
       </CardHeader>
       <CardContent>
+        {/* Search Status */}
+        {searchQuery.trim() && (
+          <div className="mb-4 p-3 bg-muted rounded-md">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {isSearching ? 'Searching...' : `Found ${customers.length} customer${customers.length !== 1 ? 's' : ''} matching "${searchQuery}"`}
+              </span>
+              <Button variant="ghost" size="sm" onClick={clearSearch}>
+                Clear Search
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <div className="border rounded-md">
           <Table>
             <TableHeader>
@@ -287,8 +452,8 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
                     <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : (
-                customers.map((customer) => (
+              ) : displayCustomers.length > 0 ? (
+                displayCustomers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
                       <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
@@ -308,11 +473,17 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
                     </TableCell>
                   </TableRow>
                 ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    {searchQuery.trim() ? 'No customers found matching your search.' : 'No customers recorded yet.'}
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
-        {hasMore && (
+        {showLoadMore && (
           <div className="flex justify-center mt-4">
             <Button onClick={handleLoadMore} disabled={isLoadingMore}>
               {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
