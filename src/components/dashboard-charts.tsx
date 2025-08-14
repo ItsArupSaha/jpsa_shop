@@ -1,21 +1,20 @@
 'use client';
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  Cell
+    Bar,
+    BarChart,
+    Cell,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
 } from 'recharts';
 
 interface MonthlySummaryChartProps {
@@ -49,7 +48,7 @@ export function MonthlySummaryChart({ income, expenses, profit }: MonthlySummary
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `৳${value}`}
               />
               <YAxis 
                 type="category" 
@@ -65,7 +64,7 @@ export function MonthlySummaryChart({ income, expenses, profit }: MonthlySummary
                   border: '1px solid hsl(var(--border))',
                 }}
                 cursor={{ fill: 'hsl(var(--muted))' }}
-                formatter={(value: number) => `$${value.toFixed(2)}`}
+                formatter={(value: number) => `৳${value.toFixed(2)}`}
               />
               <Bar dataKey="value" barSize={60}>
                  {data.map((entry, index) => (

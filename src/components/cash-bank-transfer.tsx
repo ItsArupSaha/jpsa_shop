@@ -86,7 +86,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
             await recordTransfer(userId, data);
             toast({
                 title: 'Transfer Successful',
-                description: `Successfully transferred $${data.amount} from ${data.from} to ${data.to}.`,
+                description: `Successfully transferred ৳${data.amount} from ${data.from} to ${data.to}.`,
             });
             form.reset({ amount: 0, from: undefined, to: undefined, date: new Date() });
             await fetchBalances(); // Re-fetch balances after transfer
@@ -102,7 +102,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
         }
     };
     
-    const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
+    const formatCurrency = (amount: number) => `৳${amount.toFixed(2)}`;
 
     return (
         <div className="flex justify-center items-start pt-8">

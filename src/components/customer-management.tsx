@@ -335,7 +335,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     autoTable(doc, {
       startY: 60,
       head: [['Name', 'Phone', 'Address', 'Due Balance']],
-      body: customers.map(c => [c.name, c.phone, c.address, `$${(c.dueBalance || 0).toFixed(2)}`]),
+      body: customers.map(c => [c.name, c.phone, c.address, `৳${(c.dueBalance || 0).toFixed(2)}`]),
     });
     
     doc.save(`customer-list-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
@@ -462,7 +462,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
                     </TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell>{customer.address}</TableCell>
-                    <TableCell className="text-right">${(customer.dueBalance || 0).toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">৳{(customer.dueBalance || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
                         <Edit className="h-4 w-4" />

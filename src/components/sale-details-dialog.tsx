@@ -53,8 +53,8 @@ export function SaleDetailsDialog({ sale, books, children }: SaleDetailsDialogPr
                         <TableRow key={index}>
                             <TableCell className="font-medium">{getBookTitle(item.bookId)}</TableCell>
                             <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">${(item.quantity * item.price).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">৳{item.price.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">৳{(item.quantity * item.price).toFixed(2)}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
@@ -63,15 +63,15 @@ export function SaleDetailsDialog({ sale, books, children }: SaleDetailsDialogPr
             <div className="space-y-2 text-sm pr-4">
                 <div className="flex justify-between">
                     <span>Subtotal</span>
-                    <span>${sale.subtotal.toFixed(2)}</span>
+                    <span>৳{sale.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                     <span>Discount</span>
-                    <span>-${(sale.subtotal - sale.total).toFixed(2)}</span>
+                    <span>-৳{(sale.subtotal - sale.total).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-base">
                     <span>Total</span>
-                    <span>${sale.total.toFixed(2)}</span>
+                    <span>৳{sale.total.toFixed(2)}</span>
                 </div>
             </div>
         </div>

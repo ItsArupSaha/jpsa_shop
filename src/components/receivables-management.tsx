@@ -1,23 +1,23 @@
 
 'use client';
 
-import * as React from 'react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { DollarSign, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
-import ReceivePaymentDialog from './receive-payment-dialog';
 import Link from 'next/link';
+import * as React from 'react';
+import * as XLSX from 'xlsx';
+import ReceivePaymentDialog from './receive-payment-dialog';
 
-import type { CustomerWithDue } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
-import { getCustomersWithDueBalancePaginated, getCustomersWithDueBalance } from '@/lib/actions';
-import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import { getCustomersWithDueBalance, getCustomersWithDueBalancePaginated } from '@/lib/actions';
+import type { CustomerWithDue } from '@/lib/types';
+import { Skeleton } from './ui/skeleton';
 
 interface ReceivablesManagementProps {
     userId: string;
@@ -113,7 +113,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       autoTable(doc, {
         startY: 60,
         head: [['Customer', 'Phone', 'Due Amount']],
-        body: allCustomersWithDue.map(c => [c.name, c.phone, `$${c.dueBalance.toFixed(2)}`]),
+        body: allCustomersWithDue.map(c => [c.name, c.phone, `৳${c.dueBalance.toFixed(2)}`]),
       });
       doc.save(`pending-receivables-${reportDate}.pdf`);
     } else {
@@ -195,7 +195,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
                         </Link>
                     </TableCell>
                     <TableCell>{customer.phone}</TableCell>
-                    <TableCell className="text-right font-bold text-destructive">${customer.dueBalance.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-bold text-destructive">৳{customer.dueBalance.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>

@@ -175,7 +175,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                     <TableCell className="max-w-[300px] truncate">
                       {r.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
                     </TableCell>
-                    <TableCell className="text-right font-medium">${r.totalReturnValue.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">৳{r.totalReturnValue.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -274,7 +274,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                 <Separator />
                  <div className="flex justify-between font-bold text-base pr-4">
                     <span>Total Return Credit</span>
-                    <span>${totalReturnValue.toFixed(2)}</span>
+                                            <span>৳{totalReturnValue.toFixed(2)}</span>
                 </div>
               </div>
               <DialogFooter>

@@ -1,18 +1,18 @@
 
 'use client';
 
-import * as React from 'react';
-import { getBalanceSheetData } from '@/lib/actions';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
+import { getBalanceSheetData } from '@/lib/actions';
+import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
-import { useAuth } from '@/hooks/use-auth';
+import { Download } from 'lucide-react';
+import * as React from 'react';
 
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
@@ -38,10 +38,10 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   }, [userId]);
 
   const formatCurrency = (amount: number) => {
-    return amount.toLocaleString(undefined, {
-      style: 'currency',
-      currency: 'USD',
-    });
+    return `৳${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   const handleDownloadPdf = () => {

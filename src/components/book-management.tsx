@@ -1,28 +1,21 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { addBook, calculateClosingStock, deleteBook, getBooksPaginated, updateBook } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Edit, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { getBooksPaginated, addBook, updateBook, deleteBook, calculateClosingStock } from '@/lib/actions';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download, Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
+import * as z from 'zod';
 
 
-import type { Book, ClosingStock } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +25,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import {
   Form,
   FormControl,
@@ -41,11 +33,19 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { Calendar } from '@/components/ui/calendar';
-import { Skeleton } from './ui/skeleton';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import type { Book, ClosingStock } from '@/lib/types';
+import { Skeleton } from './ui/skeleton';
 
 const bookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -384,7 +384,7 @@ export default function BookManagement({ userId }: BookManagementProps) {
                   <TableRow key={book.id}>
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
-                    <TableCell className="text-right">${book.sellingPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">৳{book.sellingPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{book.stock}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>

@@ -134,7 +134,7 @@ export default function ReceivePaymentDialog({ customerId, userId, children }: R
                       <SelectContent>
                         {customersWithDue.length > 0 ? customersWithDue.map(c => (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name} - (Due: ${c.dueBalance.toFixed(2)})
+                            {c.name} - (Due: ৳{c.dueBalance.toFixed(2)})
                           </SelectItem>
                         )) : (
                            <p className="p-4 text-sm text-muted-foreground">No customers with due balance found.</p>

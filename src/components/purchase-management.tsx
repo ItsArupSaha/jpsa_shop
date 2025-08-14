@@ -242,7 +242,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         p.purchaseId,
         p.supplier,
         p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
-        `$${p.totalAmount.toFixed(2)}`
+        `৳${p.totalAmount.toFixed(2)}`
       ]),
     });
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
@@ -370,7 +370,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                       {purchase.items.map(i => `${i.quantity}x ${i.itemName}`).join(', ')}
                     </TableCell>
                     <TableCell>{purchase.paymentMethod}</TableCell>
-                    <TableCell className="text-right font-medium">${purchase.totalAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">৳{purchase.totalAmount.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -606,12 +606,12 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                   <div className="space-y-2 text-sm">
                       <div className="flex justify-between font-bold text-base">
                           <span>Total Amount</span>
-                          <span>${totalAmount.toFixed(2)}</span>
+                          <span>৳{totalAmount.toFixed(2)}</span>
                       </div>
                       { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
                           <div className="flex justify-between font-semibold text-destructive">
                               <span>Due Amount</span>
-                              <span>${dueAmount.toFixed(2)}</span>
+                              <span>৳{dueAmount.toFixed(2)}</span>
                           </div>
                       )}
                   </div>

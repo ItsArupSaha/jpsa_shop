@@ -174,10 +174,10 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
         d.donorName,
         d.paymentMethod,
         d.notes || '',
-        `$${d.amount.toFixed(2)}`
+        `৳${d.amount.toFixed(2)}`
       ]),
       foot: [
-        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `$${totalDonations.toFixed(2)}`],
+        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `৳${totalDonations.toFixed(2)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
@@ -295,7 +295,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
                   <TableCell className="font-medium">{donation.donorName}</TableCell>
                   <TableCell>{donation.notes}</TableCell>
                   <TableCell>{donation.paymentMethod}</TableCell>
-                  <TableCell className="text-right">${donation.amount.toFixed(2)}</TableCell>
+                                          <TableCell className="text-right">৳{donation.amount.toFixed(2)}</TableCell>
                 </TableRow>
               )) : (
                 <TableRow>

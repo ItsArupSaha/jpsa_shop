@@ -66,7 +66,7 @@ export default function CustomerStatementPDF({ customer, sales, books }: Custome
         format(new Date(sale.date), 'yyyy-MM-dd'),
         itemsString,
         sale.paymentMethod,
-        `$${sale.total.toFixed(2)}`
+        `৳${sale.total.toFixed(2)}`
       ];
     });
 

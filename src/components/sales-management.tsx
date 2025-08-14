@@ -1,38 +1,38 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { addSale, getBooks, getCustomers, getSales, getSalesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Trash2, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import * as React from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
-import { getSalesPaginated, getBooks, getCustomers, addSale, getSales } from '@/lib/actions';
+import * as z from 'zod';
 
-import type { Sale, Book, Customer, AuthUser } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import type { Book, Customer, Sale } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
+import { DownloadSaleMemo } from './download-sale-memo';
 import { SaleDetailsDialog } from './sale-details-dialog';
+import { SaleMemo } from './sale-memo';
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
-import type { DateRange } from 'react-day-picker';
-import { SaleMemo } from './sale-memo';
 import { ScrollArea } from './ui/scroll-area';
-import { DownloadSaleMemo } from './download-sale-memo';
 import { Skeleton } from './ui/skeleton';
-import { useAuth } from '@/hooks/use-auth';
 
 const saleItemSchema = z.object({
   bookId: z.string().min(1, 'Book is required'),
@@ -332,7 +332,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         getCustomerName(sale.customerId),
         sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', '),
         sale.paymentMethod,
-        `$${sale.total.toFixed(2)}`
+        `৳${sale.total.toFixed(2)}`
       ]),
     });
     
@@ -488,7 +488,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         )}
                       </TableCell>
                       <TableCell>{sale.paymentMethod}</TableCell>
-                      <TableCell className="text-right font-medium">${sale.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         {customer && authUser && (
                           <DownloadSaleMemo sale={sale} customer={customer} books={books} user={authUser} />
@@ -551,7 +551,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                           </Select>
                            {customerCredit > 0 && (
                             <p className="text-sm text-green-600 mt-2">
-                                Customer has ${customerCredit.toFixed(2)} credit available.
+                                Customer has ৳{customerCredit.toFixed(2)} credit available.
                             </p>
                           )}
                           <FormMessage />
@@ -752,26 +752,26 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     <div className="space-y-2 text-sm pr-4">
                         <div className="flex justify-between">
                             <span>Subtotal</span>
-                            <span>${subtotal.toFixed(2)}</span>
+                            <span>৳{subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-muted-foreground">
                             <span>Discount</span>
-                            <span>-${discountAmount.toFixed(2)}</span>
+                            <span>-৳{discountAmount.toFixed(2)}</span>
                         </div>
                         {creditToApply > 0 && (
                            <div className="flex justify-between text-green-600">
                                 <span>Credit Applied</span>
-                                <span>-${creditToApply.toFixed(2)}</span>
+                                <span>-৳{creditToApply.toFixed(2)}</span>
                             </div>
                         )}
                         <div className="flex justify-between font-bold text-base border-t pt-2">
                             <span>Total</span>
-                            <span>${totalAfterCredit.toFixed(2)}</span>
+                            <span>৳{totalAfterCredit.toFixed(2)}</span>
                         </div>
                         { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
                             <div className="flex justify-between font-semibold text-destructive">
                                 <span>Due Amount</span>
-                                <span>${dueAmount.toFixed(2)}</span>
+                                <span>৳{dueAmount.toFixed(2)}</span>
                             </div>
                         )}
                     </div>

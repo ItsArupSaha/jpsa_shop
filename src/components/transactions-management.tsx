@@ -1,33 +1,33 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { addTransaction, getTransactions, getTransactionsPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getTransactionsPaginated, addTransaction, getTransactions } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide-react';
+import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
+import { useForm } from 'react-hook-form';
+import * as XLSX from 'xlsx';
+import * as z from 'zod';
 
-import type { Transaction } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Skeleton } from './ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import type { Transaction } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -162,7 +162,7 @@ export default function TransactionsManagement({ title, description, type, userI
       body: filteredTransactions.map(t => [
         t.description,
         format(new Date(t.dueDate), 'yyyy-MM-dd'),
-        `$${t.amount.toFixed(2)}`
+        `৳${t.amount.toFixed(2)}`
       ]),
     });
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
@@ -268,7 +268,7 @@ export default function TransactionsManagement({ title, description, type, userI
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>{format(new Date(transaction.dueDate), 'PPP')}</TableCell>
-                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">৳{transaction.amount.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>

@@ -62,26 +62,26 @@ export function DownloadSaleMemo({ sale, customer, books, user }: DownloadSaleMe
     const tableData = sale.items.map(item => [
       getBookTitle(item.bookId),
       item.quantity,
-      `$${item.price.toFixed(2)}`,
-      `$${(item.quantity * item.price).toFixed(2)}`
+              `৳${item.price.toFixed(2)}`,
+              `৳${(item.quantity * item.price).toFixed(2)}`
     ]);
     
     const footContent = [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
+        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `৳${sale.subtotal.toFixed(2)}`],
+        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-৳${(sale.subtotal - sale.total).toFixed(2)}`],
+        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `৳${sale.total.toFixed(2)}`],
     ];
 
     if (sale.paymentMethod === 'Split') {
         const dueAmount = sale.total - (sale.amountPaid || 0);
         footContent.push(
-            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.amountPaid?.toFixed(2)}`],
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${dueAmount.toFixed(2)}`]
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const } }, `৳${sale.amountPaid?.toFixed(2)}`],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `৳${dueAmount.toFixed(2)}`]
         );
     }
      if (sale.paymentMethod === 'Due') {
         footContent.push(
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.total.toFixed(2)}`]
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `৳${sale.total.toFixed(2)}`]
         );
     }
 

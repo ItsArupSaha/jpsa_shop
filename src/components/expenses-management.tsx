@@ -180,10 +180,10 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
         format(new Date(e.date), 'yyyy-MM-dd'),
         e.description || '',
         e.paymentMethod || '',
-        `$${e.amount.toFixed(2)}`
+        `৳${e.amount.toFixed(2)}`
       ]).filter(row => row.every(cell => cell !== undefined)),
       foot: [
-        [{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, `$${totalExpenses.toFixed(2)}`],
+        [{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, `৳${totalExpenses.toFixed(2)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
@@ -313,7 +313,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                       <TableCell className="font-medium">{expense.description}</TableCell>
                       <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
                       <TableCell>{expense.paymentMethod}</TableCell>
-                      <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
                           <Trash2 className="h-4 w-4 text-destructive" />
