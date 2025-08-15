@@ -1,12 +1,12 @@
 
 'use client';
 
-import { addItem, calculateClosingStock, deleteItem, getItemsPaginated, updateItem } from '@/lib/actions';
+import { addItem, calculateClosingStock, deleteItem, getItemsPaginated, updateItem, getItemCategories, addItemCategory } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Download, Edit, FileSpreadsheet, FileText, Loader2, Plus, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
@@ -44,9 +44,10 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Item, ClosingStockItem } from '@/lib/types';
+import type { Item, ClosingStockItem, ItemCategory } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -68,7 +69,12 @@ const itemSchema = z.object({
     path: ['author'],
 });
 
+const newCategorySchema = z.object({
+    name: z.string().min(2, 'Category name must be at least 2 characters.'),
+});
+
 type ItemFormValues = z.infer<typeof itemSchema>;
+type NewCategoryFormValues = z.infer<typeof newCategorySchema>;
 
 interface ItemManagementProps {
     userId: string;
@@ -77,6 +83,9 @@ interface ItemManagementProps {
 export default function ItemManagement({ userId }: ItemManagementProps) {
   const { authUser } = useAuth();
   const [items, setItems] = React.useState<Item[]>([]);
+  const [categories, setCategories] = React.useState<ItemCategory[]>([{id: '1', name: 'Book'}, {id: '2', name: 'Accessory'}]);
+  const [isCategoryPopoverOpen, setIsCategoryPopoverOpen] = React.useState(false);
+
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -92,9 +101,13 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5 });
+        const [{ items: newItems, hasMore: newHasMore }, fetchedCategories] = await Promise.all([
+            getItemsPaginated({ userId, pageLimit: 5 }),
+            getItemCategories(userId)
+        ]);
         setItems(newItems);
         setHasMore(newHasMore);
+        setCategories(prev => [...prev, ...fetchedCategories]);
     } catch (error) {
         console.error("Failed to load items:", error);
         toast({
@@ -146,6 +159,11 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     },
   });
 
+  const categoryForm = useForm<NewCategoryFormValues>({
+      resolver: zodResolver(newCategorySchema),
+      defaultValues: { name: '' },
+  });
+
   const watchCategory = form.watch('category');
 
   const handleEdit = (item: Item) => {
@@ -156,7 +174,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
   const handleAddNew = () => {
     setEditingItem(null);
-    form.reset({ title: '', author: '', category: 'Book', productionPrice: 0, sellingPrice: 0, stock: 0 });
+    form.reset({ title: '', author: '', category: 'Accessory', productionPrice: 0, sellingPrice: 0, stock: 0 });
     setIsDialogOpen(true);
   };
   
@@ -190,6 +208,22 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
       }
     });
   };
+
+  const onAddCategory = async (data: NewCategoryFormValues) => {
+    try {
+        const newCategory = await addItemCategory(userId, data.name);
+        setCategories(prev => [...prev, newCategory]);
+        toast({ title: "Category Added", description: `"${data.name}" is now available.` });
+        categoryForm.reset();
+        setIsCategoryPopoverOpen(false);
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Error adding category",
+            description: error instanceof Error ? error.message : "An unknown error occurred.",
+        });
+    }
+  }
   
   const handleCalculateClosingStock = async () => {
     if (!closingStockDate) {
@@ -453,18 +487,52 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                <SelectItem value="Book">Book</SelectItem>
-                                <SelectItem value="Accessory">Accessory</SelectItem>
-                                <SelectItem value="Electronics">Electronics</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a category" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {categories.map((cat) => (
+                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Popover open={isCategoryPopoverOpen} onOpenChange={setIsCategoryPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button type="button" variant="outline" size="icon" className="shrink-0">
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-60">
+                                    <Form {...categoryForm}>
+                                        <form onSubmit={categoryForm.handleSubmit(onAddCategory)} className="space-y-4">
+                                            <div className="space-y-1">
+                                                <h4 className="font-medium text-sm">Add New Category</h4>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Create a new category for your items.
+                                                </p>
+                                            </div>
+                                             <FormField
+                                                control={categoryForm.control}
+                                                name="name"
+                                                render={({ field }) => (
+                                                <FormItem>
+                                                    <FormControl>
+                                                        <Input placeholder="e.g., Electronics" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                                )}
+                                            />
+                                            <Button type="submit" size="sm" className="w-full">Save</Button>
+                                        </form>
+                                    </Form>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
                         <FormMessage />
                         </FormItem>
                     )}

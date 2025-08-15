@@ -1,3 +1,4 @@
+
 'use client';
 
 import { addPurchase, getPurchasesPaginated, getPurchases } from '@/lib/actions';
@@ -33,7 +34,7 @@ import { useAuth } from '@/hooks/use-auth';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
-  category: z.enum(['Book', 'Office Asset'], { required_error: 'Category is required' }),
+  category: z.string().min(1, 'Category is required'),
   author: z.string().optional(),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
@@ -441,7 +442,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                         <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             <SelectItem value="Book">Book</SelectItem>
-                                            <SelectItem value="Office Asset">Office Asset</SelectItem>
+                                            <SelectItem value="Accessory">Accessory</SelectItem>
                                         </SelectContent>
                                         </Select>
                                         <FormMessage />

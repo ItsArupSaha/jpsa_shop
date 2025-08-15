@@ -43,6 +43,11 @@ export type Item = {
   stock: number;
 };
 
+export type ItemCategory = {
+  id: string;
+  name: string;
+}
+
 export type ClosingStockItem = Item & {
   closingStock: number;
 };
@@ -87,7 +92,7 @@ export type SalesReturn = {
 
 export type PurchaseItem = {
     itemName: string;
-    category: 'Book' | 'Office Asset';
+    category: string;
     author?: string; // Optional, only for books
     quantity: number;
     cost: number;
