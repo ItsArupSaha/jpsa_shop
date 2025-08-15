@@ -33,21 +33,22 @@ export type CustomerWithDue = Customer & {
   dueBalance: number;
 };
 
-export type Book = {
+export type Item = {
   id: string;
   title: string;
-  author: string;
+  category: string;
+  author?: string;
   productionPrice: number;
   sellingPrice: number;
   stock: number;
 };
 
-export type ClosingStock = Book & {
+export type ClosingStockItem = Item & {
   closingStock: number;
 };
 
 export type SaleItem = {
-    bookId: string;
+    itemId: string;
     quantity: number;
     price: number; // This is the selling price at the time of sale
 };
@@ -69,7 +70,7 @@ export type Sale = {
 };
 
 export type SalesReturnItem = {
-  bookId: string;
+  itemId: string;
   quantity: number;
   price: number; // The price at which the item was sold, used for credit.
 };

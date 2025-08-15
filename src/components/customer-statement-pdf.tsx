@@ -7,18 +7,18 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { FileText } from 'lucide-react';
-import type { AuthUser, Customer, Sale, Book } from '@/lib/types';
+import type { AuthUser, Customer, Sale, Item } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
 
 interface CustomerStatementPDFProps {
   customer: Customer;
   sales: Sale[];
-  books: Book[];
+  items: Item[];
 }
 
-export default function CustomerStatementPDF({ customer, sales, books }: CustomerStatementPDFProps) {
+export default function CustomerStatementPDF({ customer, sales, items }: CustomerStatementPDFProps) {
   const { authUser } = useAuth();
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
 
   const generatePdf = () => {
     if (!authUser) return;
@@ -61,7 +61,7 @@ export default function CustomerStatementPDF({ customer, sales, books }: Custome
 
     // Table
     const tableData = sales.map(sale => {
-      const itemsString = sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('\n');
+      const itemsString = sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('\n');
       return [
         format(new Date(sale.date), 'yyyy-MM-dd'),
         itemsString,

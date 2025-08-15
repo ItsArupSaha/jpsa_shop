@@ -1,30 +1,30 @@
 
 'use server';
 
-import type { Book, ClosingStock } from '../types';
-import { getBooks } from './books';
+import type { Item, ClosingStockItem } from '../types';
+import { getItems } from './items';
 import { getSales } from './sales';
 
 /**
- * Calculates the closing stock for all books up to a specific date.
+ * Calculates the closing stock for all items up to a specific date.
  * This is a heavy operation and should be called from a server action.
  * @param closingStockDate The date to calculate the closing stock for.
- * @returns A promise that resolves to an array of books with their closing stock.
+ * @returns A promise that resolves to an array of items with their closing stock.
  */
-export async function calculateClosingStock(userId: string, closingStockDate: Date): Promise<ClosingStock[]> {
-    const [allBooks, allSales] = await Promise.all([getBooks(userId), getSales(userId)]);
+export async function calculateClosingStock(userId: string, closingStockDate: Date): Promise<ClosingStockItem[]> {
+    const [allItems, allSales] = await Promise.all([getItems(userId), getSales(userId)]);
 
     const salesAfterDate = allSales.filter(s => new Date(s.date) > closingStockDate);
 
-    const calculatedData = allBooks.map(book => {
+    const calculatedData = allItems.map(item => {
         const quantitySoldAfter = salesAfterDate.reduce((total, sale) => {
-            const item = sale.items.find(i => i.bookId === book.id);
-            return total + (item ? item.quantity : 0);
+            const saleItem = sale.items.find(i => i.itemId === item.id);
+            return total + (saleItem ? saleItem.quantity : 0);
         }, 0);
         
         return {
-            ...book,
-            closingStock: book.stock + quantitySoldAfter
+            ...item,
+            closingStock: item.stock + quantitySoldAfter
         }
     });
 

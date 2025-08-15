@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addSale, getBooks, getCustomers, getSales, getSalesPaginated } from '@/lib/actions';
+import { addSale, getItems, getCustomers, getSales, getSalesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -23,7 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Book, Customer, Sale } from '@/lib/types';
+import type { Item, Customer, Sale } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
 import { DownloadSaleMemo } from './download-sale-memo';
@@ -35,7 +35,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
 
 const saleItemSchema = z.object({
-  bookId: z.string().min(1, 'Book is required'),
+  itemId: z.string().min(1, 'Item is required'),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   price: z.number(),
 });
@@ -76,7 +76,7 @@ interface SalesManagementProps {
 export default function SalesManagement({ userId }: SalesManagementProps) {
   const { authUser } = useAuth();
   const [sales, setSales] = React.useState<Sale[]>([]);
-  const [books, setBooks] = React.useState<Book[]>([]);
+  const [items, setItems] = React.useState<Item[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
@@ -91,14 +91,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const [{ sales: newSales, hasMore: newHasMore }, booksData, customersData] = await Promise.all([
+        const [{ sales: newSales, hasMore: newHasMore }, itemsData, customersData] = await Promise.all([
             getSalesPaginated({ userId, pageLimit: 5 }),
-            getBooks(userId),
+            getItems(userId),
             getCustomers(userId),
         ]);
         setSales(newSales);
         setHasMore(newHasMore);
-        setBooks(booksData);
+        setItems(itemsData);
         setCustomers(customersData);
     } catch (error) {
         console.error("Failed to load initial sales data:", error);
@@ -119,7 +119,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   }, [userId, loadInitialData]);
 
 
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   const handleLoadMore = async () => {
@@ -145,7 +145,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
-      items: [{ bookId: '', quantity: 1, price: 0 }],
+      items: [{ itemId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
       paymentMethod: 'Cash',
@@ -211,7 +211,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
     form.reset({
       customerId: walkInCustomer?.id || '',
-      items: [{ bookId: '', quantity: 1, price: 0 }],
+      items: [{ itemId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
       paymentMethod: 'Cash',
@@ -242,15 +242,15 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         // Add the newly created sale to the local state to avoid a full refresh
         setSales(prev => [newSale, ...prev]);
 
-        // Update local book stock
-        const updatedBooks = books.map(book => {
-            const soldItem = newSale.items.find(item => item.bookId === book.id);
+        // Update local item stock
+        const updatedItems = items.map(item => {
+            const soldItem = newSale.items.find(i => i.itemId === item.id);
             if (soldItem) {
-                return { ...book, stock: book.stock - soldItem.quantity };
+                return { ...item, stock: item.stock - soldItem.quantity };
             }
-            return book;
+            return item;
         });
-        setBooks(updatedBooks);
+        setItems(updatedItems);
         
         loadInitialData(); // Reload customers to get updated balance
 
@@ -330,7 +330,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         format(new Date(sale.date), 'yyyy-MM-dd'),
         sale.saleId,
         getCustomerName(sale.customerId),
-        sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', '),
+        sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', '),
         sale.paymentMethod,
         `৳${sale.total.toFixed(2)}`
       ]),
@@ -352,7 +352,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       'Date': format(new Date(sale.date), 'yyyy-MM-dd'),
       'Sale ID': sale.saleId,
       'Customer': getCustomerName(sale.customerId),
-      'Items': sale.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join('; '),
+      'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
       'Payment Method': sale.paymentMethod,
       'Total': sale.total,
     }));
@@ -475,10 +475,10 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         {sale.items.length > 0 && (
                             <div className="flex items-center gap-2">
                                 <span>
-                                    {sale.items[0].quantity}x {getBookTitle(sale.items[0].bookId)}
+                                    {sale.items[0].quantity}x {getItemTitle(sale.items[0].itemId)}
                                 </span>
                                 {sale.items.length > 1 && (
-                                    <SaleDetailsDialog sale={sale} books={books}>
+                                    <SaleDetailsDialog sale={sale} items={items}>
                                         <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
                                             +{sale.items.length - 1} more
                                         </Badge>
@@ -491,7 +491,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         {customer && authUser && (
-                          <DownloadSaleMemo sale={sale} customer={customer} books={books} user={authUser} />
+                          <DownloadSaleMemo sale={sale} customer={customer} items={items} user={authUser} />
                         )}
                       </TableCell>
                     </TableRow>
@@ -517,12 +517,12 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-2xl">
           {completedSale && authUser ? (
-             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} books={books} onNewSale={handleAddNew} user={authUser}/>
+             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} items={items} onNewSale={handleAddNew} user={authUser}/>
           ) : (
             <>
               <DialogHeader>
                 <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
-                <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
+                <DialogDescription>Select a customer and items to create a new sale.</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -561,31 +561,31 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     <Separator />
                     <FormLabel>Items</FormLabel>
                     {fields.map((field, index) => {
-                      const selectedBook = books.find(b => b.id === watchItems[index]?.bookId);
+                      const selectedItem = items.find(b => b.id === watchItems[index]?.itemId);
                       return (
                         <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
                           <div className="flex-1 grid grid-cols-5 gap-3">
                             <FormField
                               control={form.control}
-                              name={`items.${index}.bookId`}
+                              name={`items.${index}.itemId`}
                               render={({ field }) => (
                                 <FormItem className="col-span-3">
-                                  <FormLabel className="text-xs">Book</FormLabel>
+                                  <FormLabel className="text-xs">Item</FormLabel>
                                   <Select onValueChange={(value) => {
-                                    const book = books.find(b => b.id === value);
+                                    const item = items.find(b => b.id === value);
                                     field.onChange(value);
-                                    form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
+                                    form.setValue(`items.${index}.price`, item?.sellingPrice || 0);
                                   }} defaultValue={field.value}>
                                     <FormControl>
                                       <SelectTrigger>
-                                        <SelectValue placeholder="Select a book" />
+                                        <SelectValue placeholder="Select an item" />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectPortal>
                                       <SelectContent>
-                                        {books.map(book => (
-                                          <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
-                                            {book.title}
+                                        {items.map(item => (
+                                          <SelectItem key={item.id} value={item.id} disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}>
+                                            {item.title}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
@@ -602,14 +602,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                 <FormItem className="col-span-2">
                                   <div className="flex justify-between items-center">
                                     <FormLabel className="text-xs">Quantity</FormLabel>
-                                    {selectedBook && (
+                                    {selectedItem && (
                                       <span className="text-xs text-muted-foreground">
-                                        In stock: {selectedBook.stock}
+                                        In stock: {selectedItem.stock}
                                       </span>
                                     )}
                                   </div>
                                   <FormControl>
-                                    <Input type="number" min="1" max={selectedBook?.stock} placeholder="1" {...field} />
+                                    <Input type="number" min="1" max={selectedItem?.stock} placeholder="1" {...field} />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -633,7 +633,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => append({ bookId: '', quantity: 1, price: 0 })}
+                      onClick={() => append({ itemId: '', quantity: 1, price: 0 })}
                     >
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
@@ -657,7 +657,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                       <SelectContent>
                                         <SelectItem value="none">None</SelectItem>
                                         <SelectItem value="percentage">%</SelectItem>
-                                        <SelectItem value="amount">$</SelectItem>
+                                        <SelectItem value="amount">৳</SelectItem>
                                       </SelectContent>
                                     </SelectPortal>
                                   </Select>

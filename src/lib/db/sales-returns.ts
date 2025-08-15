@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Book, Metadata, SalesReturn } from '../types';
+import type { Item, Metadata, SalesReturn } from '../types';
 import { docToSalesReturn } from './utils';
 
 // --- Sales Returns Actions ---
@@ -67,18 +67,18 @@ export async function addSalesReturn(
       const result = await runTransaction(db, async (transaction) => {
         const userRef = doc(db!, 'users', userId);
         const metadataRef = doc(userRef, 'metadata', 'counters');
-        const booksCollection = collection(userRef, 'books');
+        const itemsCollection = collection(userRef, 'items');
         const customersCollection = collection(userRef, 'customers');
         const returnsCollection = collection(userRef, 'sales_returns');
         
         const returnDate = new Date();
-        const bookRefs = data.items.map(item => doc(booksCollection, item.bookId));
+        const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
         const customerRef = doc(customersCollection, data.customerId);
         
-        const [metadataDoc, customerDoc, ...bookDocs] = await Promise.all([
+        const [metadataDoc, customerDoc, ...itemDocs] = await Promise.all([
             transaction.get(metadataRef),
             transaction.get(customerRef),
-            ...bookRefs.map(ref => transaction.get(ref)),
+            ...itemRefs.map(ref => transaction.get(ref)),
         ]);
         
         if (!customerDoc.exists()) throw new Error(`Customer with id ${data.customerId} does not exist!`);
@@ -91,14 +91,14 @@ export async function addSalesReturn(
         let totalReturnValue = 0;
   
         for (let i = 0; i < data.items.length; i++) {
-          const bookDoc = bookDocs[i];
+          const itemDoc = itemDocs[i];
           const returnItem = data.items[i];
   
-          if (!bookDoc.exists()) throw new Error(`Book with id ${returnItem.bookId} does not exist!`);
+          if (!itemDoc.exists()) throw new Error(`Item with id ${returnItem.itemId} does not exist!`);
           
-          const bookData = bookDoc.data() as Book;
-          const newStock = bookData.stock + returnItem.quantity;
-          transaction.update(bookRefs[i], { stock: newStock });
+          const itemData = itemDoc.data() as Item;
+          const newStock = itemData.stock + returnItem.quantity;
+          transaction.update(itemRefs[i], { stock: newStock });
           
           totalReturnValue += returnItem.price * returnItem.quantity;
         }
@@ -129,7 +129,7 @@ export async function addSalesReturn(
 
       revalidatePath('/sales-returns');
       revalidatePath('/dashboard');
-      revalidatePath('/books');
+      revalidatePath('/items');
       revalidatePath('/receivables');
       revalidatePath('/balance-sheet');
       if (data.customerId) {

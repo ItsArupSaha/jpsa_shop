@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addBook, calculateClosingStock, deleteBook, getBooksPaginated, updateBook } from '@/lib/actions';
+import { addItem, calculateClosingStock, deleteItem, getItemsPaginated, updateItem } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -44,37 +44,47 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Book, ClosingStock } from '@/lib/types';
+import type { Item, ClosingStockItem } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-const bookSchema = z.object({
+const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  author: z.string().min(1, 'Author is required'),
+  category: z.string().min(1, 'Category is required'),
+  author: z.string().optional(),
   productionPrice: z.coerce.number().min(0, 'Production price must be positive'),
   sellingPrice: z.coerce.number().min(0, 'Selling price must be positive'),
   stock: z.coerce.number().int().min(0, 'Stock must be a non-negative integer'),
 }).refine(data => data.sellingPrice >= data.productionPrice, {
   message: "Selling price cannot be less than production price.",
   path: ["sellingPrice"],
+}).refine(data => {
+    if (data.category === 'Book') {
+        return !!data.author && data.author.length > 0;
+    }
+    return true;
+}, {
+    message: "Author is required for books.",
+    path: ['author'],
 });
 
-type BookFormValues = z.infer<typeof bookSchema>;
+type ItemFormValues = z.infer<typeof itemSchema>;
 
-interface BookManagementProps {
+interface ItemManagementProps {
     userId: string;
 }
 
-export default function BookManagement({ userId }: BookManagementProps) {
+export default function ItemManagement({ userId }: ItemManagementProps) {
   const { authUser } = useAuth();
-  const [books, setBooks] = React.useState<Book[]>([]);
+  const [items, setItems] = React.useState<Item[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
-  const [editingBook, setEditingBook] = React.useState<Book | null>(null);
+  const [editingItem, setEditingItem] = React.useState<Item | null>(null);
   const [closingStockDate, setClosingStockDate] = React.useState<Date | undefined>(new Date());
-  const [closingStockData, setClosingStockData] = React.useState<ClosingStock[]>([]);
+  const [closingStockData, setClosingStockData] = React.useState<ClosingStockItem[]>([]);
   const [isCalculating, setIsCalculating] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
@@ -82,15 +92,15 @@ export default function BookManagement({ userId }: BookManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ userId, pageLimit: 5 });
-        setBooks(newBooks);
+        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5 });
+        setItems(newItems);
         setHasMore(newHasMore);
     } catch (error) {
-        console.error("Failed to load books:", error);
+        console.error("Failed to load items:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load book data. Please try again later.",
+            description: "Could not load item data. Please try again later.",
         });
     } finally {
         setIsInitialLoading(false);
@@ -107,73 +117,76 @@ export default function BookManagement({ userId }: BookManagementProps) {
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
-    const lastBookId = books[books.length - 1]?.id;
+    const lastItemId = items[items.length - 1]?.id;
     try {
-        const { books: newBooks, hasMore: newHasMore } = await getBooksPaginated({ userId, pageLimit: 5, lastVisibleId: lastBookId });
-        setBooks(prev => [...prev, ...newBooks]);
+        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5, lastVisibleId: lastItemId });
+        setItems(prev => [...prev, ...newItems]);
         setHasMore(newHasMore);
     } catch (error) {
-        console.error("Failed to load more books:", error);
+        console.error("Failed to load more items:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load more books.",
+            description: "Could not load more items.",
         });
     } finally {
         setIsLoadingMore(false);
     }
   };
 
-  const form = useForm<BookFormValues>({
-    resolver: zodResolver(bookSchema),
+  const form = useForm<ItemFormValues>({
+    resolver: zodResolver(itemSchema),
     defaultValues: {
       title: '',
       author: '',
+      category: 'Book',
       productionPrice: 0,
       sellingPrice: 0,
       stock: 0,
     },
   });
 
-  const handleEdit = (book: Book) => {
-    setEditingBook(book);
-    form.reset(book);
+  const watchCategory = form.watch('category');
+
+  const handleEdit = (item: Item) => {
+    setEditingItem(item);
+    form.reset(item);
     setIsDialogOpen(true);
   };
 
   const handleAddNew = () => {
-    setEditingBook(null);
-    form.reset({ title: '', author: '', productionPrice: 0, sellingPrice: 0, stock: 0 });
+    setEditingItem(null);
+    form.reset({ title: '', author: '', category: 'Book', productionPrice: 0, sellingPrice: 0, stock: 0 });
     setIsDialogOpen(true);
   };
   
   const handleDelete = (id: string) => {
     startTransition(async () => {
       try {
-        await deleteBook(userId, id);
+        await deleteItem(userId, id);
         await loadInitialData(); // Reload data to reflect deletion
-        toast({ title: "Book Deleted", description: "The book has been removed from the inventory." });
+        toast({ title: "Item Deleted", description: "The item has been removed from the inventory." });
       } catch (error) {
-         toast({ variant: "destructive", title: "Error", description: "Could not delete the book." });
+         toast({ variant: "destructive", title: "Error", description: "Could not delete the item." });
       }
     });
   }
 
-  const onSubmit = (data: BookFormValues) => {
+  const onSubmit = (data: ItemFormValues) => {
     startTransition(async () => {
       try {
-        if (editingBook) {
-          await updateBook(userId, editingBook.id, data);
-          toast({ title: "Book Updated", description: "The book details have been saved." });
+        if (editingItem) {
+          await updateItem(userId, editingItem.id, data);
+          toast({ title: "Item Updated", description: "The item details have been saved." });
         } else {
-          await addBook(userId, data);
-          toast({ title: "Book Added", description: "The new book is now in your inventory." });
+          await addItem(userId, data);
+          toast({ title: "Item Added", description: "The new item is now in your inventory." });
         }
         await loadInitialData(); // Reload to show the changes
         setIsDialogOpen(false);
-        setEditingBook(null);
+        setEditingItem(null);
       } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to save the book." });
+        toast({ variant: "destructive", title: "Error", description: "Failed to save the item." });
       }
     });
   };
@@ -235,7 +248,7 @@ export default function BookManagement({ userId }: BookManagementProps) {
     autoTable(doc, {
       startY: 60,
       head: [['Title', 'Author', 'Stock']],
-      body: closingStockData.map(book => [book.title, book.author, book.closingStock]),
+      body: closingStockData.map(item => [item.title, item.author, item.closingStock]),
     });
     
     doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
@@ -244,10 +257,10 @@ export default function BookManagement({ userId }: BookManagementProps) {
   const handleDownloadClosingStockXlsx = () => {
     if (!closingStockData.length || !closingStockDate) return;
     
-    const dataToExport = closingStockData.map(book => ({
-      Title: book.title,
-      Author: book.author,
-      Stock: book.closingStock,
+    const dataToExport = closingStockData.map(item => ({
+      Title: item.title,
+      Author: item.author,
+      Stock: item.closingStock,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -272,12 +285,12 @@ export default function BookManagement({ userId }: BookManagementProps) {
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="font-headline text-2xl">Book Inventory</CardTitle>
-            <CardDescription>Manage your book catalog, prices, and stock levels.</CardDescription>
+            <CardTitle className="font-headline text-2xl">Item Inventory</CardTitle>
+            <CardDescription>Manage your item catalog, prices, and stock levels.</CardDescription>
           </div>
           <div className="flex flex-col gap-2 items-end">
              <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Book
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
             </Button>
             <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
                 <DialogTrigger asChild>
@@ -288,7 +301,7 @@ export default function BookManagement({ userId }: BookManagementProps) {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Calculate Closing Stock</DialogTitle>
-                        <DialogDescription>Select a date to calculate the closing stock for all books up to that day.</DialogDescription>
+                        <DialogDescription>Select a date to calculate the closing stock for all items up to that day.</DialogDescription>
                     </DialogHeader>
                     <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
                         <div className="flex flex-col items-center gap-4">
@@ -333,11 +346,11 @@ export default function BookManagement({ userId }: BookManagementProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {closingStockData.map(book => (
-                    <TableRow key={book.id}>
-                      <TableCell className="font-medium">{book.title}</TableCell>
-                      <TableCell>{book.author}</TableCell>
-                      <TableCell className="text-right">{book.closingStock}</TableCell>
+                  {closingStockData.map(item => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.title}</TableCell>
+                      <TableCell>{item.author}</TableCell>
+                      <TableCell className="text-right">{item.closingStock}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -380,17 +393,17 @@ export default function BookManagement({ userId }: BookManagementProps) {
                   </TableRow>
                 ))
               ) : (
-                books.map((book) => (
-                  <TableRow key={book.id}>
-                    <TableCell className="font-medium">{book.title}</TableCell>
-                    <TableCell>{book.author}</TableCell>
-                    <TableCell className="text-right">৳{book.sellingPrice.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{book.stock}</TableCell>
+                items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.title}</TableCell>
+                    <TableCell>{item.author}</TableCell>
+                    <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.stock}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(book)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                       <Button variant="ghost" size="icon" onClick={() => handleDelete(book.id)} disabled={isPending}>
+                       <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} disabled={isPending}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
@@ -412,9 +425,9 @@ export default function BookManagement({ userId }: BookManagementProps) {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="font-headline">{editingBook ? 'Edit Book' : 'Add New Book'}</DialogTitle>
+            <DialogTitle className="font-headline">{editingItem ? 'Edit Item' : 'Add New Item'}</DialogTitle>
             <DialogDescription>
-              {editingBook ? 'Update the details of this book.' : 'Enter the details for the new book.'}
+              {editingItem ? 'Update the details of this item.' : 'Enter the details for the new item.'}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -434,19 +447,43 @@ export default function BookManagement({ userId }: BookManagementProps) {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="author"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Author</FormLabel>
-                      <FormControl>
-                        <Input placeholder="F. Scott Fitzgerald" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                 <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="Book">Book</SelectItem>
+                                <SelectItem value="Accessory">Accessory</SelectItem>
+                                <SelectItem value="Electronics">Electronics</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                {watchCategory === 'Book' && (
+                    <FormField
+                    control={form.control}
+                    name="author"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Author</FormLabel>
+                        <FormControl>
+                            <Input placeholder="F. Scott Fitzgerald" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}

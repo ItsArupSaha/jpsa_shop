@@ -7,9 +7,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, getBooks, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
+import { getBalanceSheetData, getItems, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
-import type { Book } from '@/lib/types';
+import type { Item } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import * as React from 'react';
@@ -25,7 +25,7 @@ const reportSchema = z.object({
 type ReportFormValues = z.infer<typeof reportSchema>;
 
 interface ReportDataSource {
-  books: Book[];
+  items: Item[];
   balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
@@ -47,11 +47,11 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
       if (!userId) return;
       setIsLoading(true);
       try {
-        const [books, balanceSheet] = await Promise.all([
-          getBooks(userId),
+        const [items, balanceSheet] = await Promise.all([
+          getItems(userId),
           getBalanceSheetData(userId),
         ]);
-        setDataSource({ books, balanceSheet });
+        setDataSource({ items, balanceSheet });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -91,7 +91,7 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
         salesData: salesForMonth,
         expensesData: expensesForMonth,
         donationsData: donationsForMonth,
-        booksData: dataSource.books,
+        itemsData: dataSource.items,
         balanceData: {
             cash: dataSource.balanceSheet.cash,
             bank: dataSource.balanceSheet.bank,

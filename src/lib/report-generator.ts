@@ -1,4 +1,5 @@
-import type { Book, Donation, Expense, Sale } from './types';
+
+import type { Item, Donation, Expense, Sale } from './types';
 
 export interface ReportAnalysis {
   openingBalances: {
@@ -21,7 +22,7 @@ export interface ReportInput {
   salesData: Sale[];
   expensesData: Expense[];
   donationsData: Donation[];
-  booksData: Book[];
+  itemsData: Item[];
   balanceData: {
     cash: number;
     bank: number;
@@ -32,7 +33,7 @@ export interface ReportInput {
 }
 
 export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
-  const { salesData, expensesData, donationsData, booksData, balanceData } = input;
+  const { salesData, expensesData, donationsData, itemsData, balanceData } = input;
 
   // Calculate opening balances
   const openingBalances = {
@@ -46,10 +47,10 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
   
   // Calculate gross profit (Total Sales - Cost of Goods Sold)
   const grossProfit = salesData.reduce((totalProfit, sale) => {
-    const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
-      const book = booksData.find(b => b.id === item.bookId);
-      if (book) {
-        const itemProfit = (item.price - book.productionPrice) * item.quantity;
+    const saleProfit = sale.items.reduce((currentSaleProfit, saleItem) => {
+      const item = itemsData.find(b => b.id === saleItem.itemId);
+      if (item) {
+        const itemProfit = (saleItem.price - item.productionPrice) * saleItem.quantity;
         return currentSaleProfit + itemProfit;
       }
       return currentSaleProfit;

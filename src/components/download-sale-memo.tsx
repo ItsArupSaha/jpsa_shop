@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { AuthUser, Book, Customer, Sale } from '@/lib/types';
+import type { AuthUser, Item, Customer, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -11,12 +11,12 @@ import { Button } from './ui/button';
 interface DownloadSaleMemoProps {
   sale: Sale;
   customer: Customer;
-  books: Book[];
+  items: Item[];
   user: AuthUser;
 }
 
-export function DownloadSaleMemo({ sale, customer, books, user }: DownloadSaleMemoProps) {
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMemoProps) {
+  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
 
   const generatePdf = () => {
     const doc = new jsPDF();
@@ -60,7 +60,7 @@ export function DownloadSaleMemo({ sale, customer, books, user }: DownloadSaleMe
 
     // Table
     const tableData = sale.items.map(item => [
-      getBookTitle(item.bookId),
+      getItemTitle(item.itemId),
       item.quantity,
               `৳${item.price.toFixed(2)}`,
               `৳${(item.quantity * item.price).toFixed(2)}`

@@ -3,7 +3,7 @@
 
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getBooks } from './books';
+import { getItems } from './items';
 import { getCustomersWithDueBalance } from './customers';
 import { getDonations } from './donations';
 import { getExpenses } from './expenses';
@@ -15,8 +15,8 @@ export async function getBalanceSheetData(userId: string) {
         throw new Error("Database not connected");
     }
 
-    const [books, sales, expenses, allTransactionsData, purchases, donations, customersWithDue] = await Promise.all([
-        getBooks(userId),
+    const [items, sales, expenses, allTransactionsData, purchases, donations, customersWithDue] = await Promise.all([
+        getItems(userId),
         getSales(userId),
         getExpenses(userId),
         getDocs(collection(db, 'users', userId, 'transactions')),
@@ -72,7 +72,7 @@ export async function getBalanceSheetData(userId: string) {
         }
     });
 
-    const stockValue = books.reduce((sum, book) => sum + (book.productionPrice * book.stock), 0);
+    const stockValue = items.reduce((sum, item) => sum + (item.productionPrice * item.stock), 0);
 
     const officeAssetsValue = purchases
         .flatMap(p => p.items)

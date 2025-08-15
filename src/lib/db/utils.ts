@@ -1,9 +1,9 @@
 
-import type { Book, Customer, Donation, Expense, Purchase, Sale, SalesReturn, Transaction } from '../types';
+import type { Item, Customer, Donation, Expense, Purchase, Sale, SalesReturn, Transaction } from '../types';
 
 // Helper to convert Firestore docs to our types
-export function docToBook(d: any): Book {
-  return { id: d.id, ...d.data() } as Book;
+export function docToItem(d: any): Item {
+  return { id: d.id, ...d.data() } as Item;
 }
 export function docToCustomer(d: any): Customer {
   return { id: d.id, ...d.data() } as Customer;

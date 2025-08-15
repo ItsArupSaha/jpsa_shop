@@ -7,9 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getBooks, getCustomers, addSalesReturn, getSalesReturnsPaginated } from '@/lib/actions';
+import { getItems, getCustomers, addSalesReturn, getSalesReturnsPaginated } from '@/lib/actions';
 
-import type { SalesReturn, Book, Customer } from '@/lib/types';
+import type { SalesReturn, Item, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,7 +22,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from './ui/skeleton';
 
 const salesReturnItemSchema = z.object({
-  bookId: z.string().min(1, 'Book is required'),
+  itemId: z.string().min(1, 'Item is required'),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   price: z.number(), // This is the original selling price
 });
@@ -40,7 +40,7 @@ interface SalesReturnManagementProps {
 
 export default function SalesReturnManagement({ userId }: SalesReturnManagementProps) {
   const [returns, setReturns] = React.useState<SalesReturn[]>([]);
-  const [books, setBooks] = React.useState<Book[]>([]);
+  const [items, setItems] = React.useState<Item[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const { toast } = useToast();
@@ -52,14 +52,14 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const [{ returns: newReturns, hasMore: newHasMore }, booksData, customersData] = await Promise.all([
+        const [{ returns: newReturns, hasMore: newHasMore }, itemsData, customersData] = await Promise.all([
             getSalesReturnsPaginated({ userId, pageLimit: 10 }),
-            getBooks(userId),
+            getItems(userId),
             getCustomers(userId),
         ]);
         setReturns(newReturns);
         setHasMore(newHasMore);
-        setBooks(booksData);
+        setItems(itemsData);
         setCustomers(customersData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not load data." });
@@ -72,7 +72,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
     if(userId) loadInitialData();
   }, [userId, loadInitialData]);
 
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   const handleLoadMore = async () => {
@@ -93,7 +93,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
   const form = useForm<SalesReturnFormValues>({
     resolver: zodResolver(salesReturnFormSchema),
     defaultValues: {
-      items: [{ bookId: '', quantity: 1, price: 0 }],
+      items: [{ itemId: '', quantity: 1, price: 0 }],
     },
   });
 
@@ -112,7 +112,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
   const handleAddNew = () => {
     form.reset({
       customerId: '',
-      items: [{ bookId: '', quantity: 1, price: 0 }],
+      items: [{ itemId: '', quantity: 1, price: 0 }],
     });
     setIsDialogOpen(true);
   };
@@ -173,7 +173,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                     <TableCell className="font-mono">{r.returnId}</TableCell>
                     <TableCell className="font-medium">{getCustomerName(r.customerId)}</TableCell>
                     <TableCell className="max-w-[300px] truncate">
-                      {r.items.map(i => `${i.quantity}x ${getBookTitle(i.bookId)}`).join(', ')}
+                      {r.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', ')}
                     </TableCell>
                     <TableCell className="text-right font-medium">৳{r.totalReturnValue.toFixed(2)}</TableCell>
                   </TableRow>
@@ -229,20 +229,20 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <FormField
                         control={form.control}
-                        name={`items.${index}.bookId`}
+                        name={`items.${index}.itemId`}
                         render={({ field }) => (
                           <FormItem className="col-span-2">
-                            <FormLabel className="text-xs">Book</FormLabel>
+                            <FormLabel className="text-xs">Item</FormLabel>
                             <Select onValueChange={(value) => {
-                              const book = books.find(b => b.id === value);
+                              const item = items.find(b => b.id === value);
                               field.onChange(value);
-                              form.setValue(`items.${index}.price`, book?.sellingPrice || 0);
+                              form.setValue(`items.${index}.price`, item?.sellingPrice || 0);
                             }} defaultValue={field.value}>
-                              <FormControl><SelectTrigger><SelectValue placeholder="Select a book" /></SelectTrigger></FormControl>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger></FormControl>
                               <SelectPortal><SelectContent>
-                                {books.map(book => (
-                                  <SelectItem key={book.id} value={book.id} disabled={watchItems.some((i, itemIndex) => i.bookId === book.id && itemIndex !== index)}>
-                                    {book.title}
+                                {items.map(item => (
+                                  <SelectItem key={item.id} value={item.id} disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}>
+                                    {item.title}
                                   </SelectItem>
                                 ))}
                               </SelectContent></SelectPortal>
@@ -268,7 +268,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                     </Button>
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => append({ bookId: '', quantity: 1, price: 0 })}>
+                <Button type="button" variant="outline" size="sm" onClick={() => append({ itemId: '', quantity: 1, price: 0 })}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                 </Button>
                 <Separator />

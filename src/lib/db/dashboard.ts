@@ -3,7 +3,7 @@
 
 import { collection, doc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { docToBook, docToExpense, docToSale, docToSalesReturn } from './utils';
+import { docToItem, docToExpense, docToSale, docToSalesReturn } from './utils';
 import { getCustomersWithDueBalance } from './customers';
 
 export async function getDashboardStats(userId: string) {
@@ -22,7 +22,7 @@ export async function getDashboardStats(userId: string) {
     }
 
     const userRef = doc(db, 'users', userId);
-    const booksCollection = collection(userRef, 'books');
+    const itemsCollection = collection(userRef, 'items');
     const salesCollection = collection(userRef, 'sales');
     const returnsCollection = collection(userRef, 'sales_returns');
     const expensesCollection = collection(userRef, 'expenses');
@@ -62,26 +62,26 @@ export async function getDashboardStats(userId: string) {
     };
 
     const [
-        booksSnapshot, 
+        itemsSnapshot, 
         salesSnapshot, 
         returnsSnapshot,
         expensesSnapshot, 
         customersWithDue
     ] = await Promise.all([
-        safeGetDocs(query(booksCollection)),
+        safeGetDocs(query(itemsCollection)),
         safeGetDocs(salesQuery),
         safeGetDocs(returnsQuery),
         safeGetDocs(expensesQuery),
         getCustomersWithDueBalance(userId)
     ]);
 
-    const books = booksSnapshot.docs.map(docToBook);
+    const items = itemsSnapshot.docs.map(docToItem);
     const salesThisMonth = salesSnapshot.docs.map(docToSale);
     const returnsThisMonth = returnsSnapshot.docs.map(docToSalesReturn);
     const expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
 
-    const totalBooksInStock = books.reduce((sum, book) => sum + book.stock, 0);
-    const totalBookTitles = books.length;
+    const totalBooksInStock = items.reduce((sum, item) => sum + item.stock, 0);
+    const totalBookTitles = items.length;
     
     const monthlySalesValue = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
     const monthlySalesCount = salesThisMonth.length;
@@ -89,10 +89,10 @@ export async function getDashboardStats(userId: string) {
     const monthlyExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
 
     const grossProfitThisMonth = salesThisMonth.reduce((totalProfit, sale) => {
-        const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
-            const book = books.find(b => b.id === item.bookId);
-            if (book) {
-                const itemProfit = (item.price - book.productionPrice) * item.quantity;
+        const saleProfit = sale.items.reduce((currentSaleProfit, saleItem) => {
+            const item = items.find(b => b.id === saleItem.itemId);
+            if (item) {
+                const itemProfit = (saleItem.price - item.productionPrice) * saleItem.quantity;
                 return currentSaleProfit + itemProfit;
             }
             return currentSaleProfit;
@@ -101,10 +101,10 @@ export async function getDashboardStats(userId: string) {
     }, 0);
 
     const totalReturnCost = returnsThisMonth.reduce((totalCost, saleReturn) => {
-        const returnCost = saleReturn.items.reduce((currentReturnCost, item) => {
-            const book = books.find(b => b.id === item.bookId);
-            if (book) {
-                const itemCost = book.productionPrice * item.quantity;
+        const returnCost = saleReturn.items.reduce((currentReturnCost, returnItem) => {
+            const item = items.find(b => b.id === returnItem.itemId);
+            if (item) {
+                const itemCost = item.productionPrice * returnItem.quantity;
                 return currentReturnCost + itemCost;
             }
             return currentReturnCost;

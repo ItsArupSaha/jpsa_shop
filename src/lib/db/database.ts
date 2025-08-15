@@ -127,7 +127,7 @@ export async function resetDatabase(userId: string) {
   const userRef = doc(db, 'users', userId);
   const batch = writeBatch(db);
 
-  const collectionsToDelete = ['books', 'customers', 'sales', 'sales_returns', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
+  const collectionsToDelete = ['items', 'customers', 'sales', 'sales_returns', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
   for (const coll of collectionsToDelete) {
     const snapshot = await getDocs(collection(userRef, coll));
     snapshot.docs.forEach(doc => batch.delete(doc.ref));
@@ -141,6 +141,6 @@ export async function resetDatabase(userId: string) {
   console.log(`Database reset and re-initialized for user: ${userId}`);
 
   // Revalidate all paths
-  const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
+  const paths = ['/dashboard', '/items', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
 }

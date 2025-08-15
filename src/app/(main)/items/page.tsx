@@ -1,11 +1,11 @@
 
 'use client';
 
-import BookManagement from '@/components/book-management';
+import ItemManagement from '@/components/item-management';
 import { useAuth } from '@/hooks/use-auth';
 import { Book } from 'lucide-react';
 
-export default function BooksPage() {
+export default function ItemsPage() {
     const { user } = useAuth();
     if (!user) {
         return (
@@ -14,5 +14,5 @@ export default function BooksPage() {
           </div>
         );
       }
-  return <BookManagement userId={user.uid} />;
+  return <ItemManagement userId={user.uid} />;
 }

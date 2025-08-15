@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Book, Metadata, Sale, SaleItem } from '../types';
+import type { Item, Metadata, Sale, SaleItem } from '../types';
 import { docToSale } from './utils';
 
 // --- Sales Actions ---
@@ -94,18 +94,18 @@ export async function addSale(
       const result = await runTransaction(db, async (transaction) => {
         const userRef = doc(db!, 'users', userId);
         const metadataRef = doc(userRef, 'metadata', 'counters');
-        const booksCollection = collection(userRef, 'books');
+        const itemsCollection = collection(userRef, 'items');
         const customersCollection = collection(userRef, 'customers');
         const salesCollection = collection(userRef, 'sales');
         const transactionsCollection = collection(userRef, 'transactions');
 
         const saleDate = new Date();
-        const bookRefs = data.items.map(item => doc(booksCollection, item.bookId));
+        const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
         const customerRef = doc(customersCollection, data.customerId);
         
-        const [metadataDoc, ...bookDocs] = await Promise.all([
+        const [metadataDoc, ...itemDocs] = await Promise.all([
             transaction.get(metadataRef),
-            ...bookRefs.map(ref => transaction.get(ref)),
+            ...itemRefs.map(ref => transaction.get(ref)),
         ]);
         const customerDoc = await transaction.get(customerRef);
 
@@ -121,18 +121,18 @@ export async function addSale(
         const itemsWithPrices: SaleItem[] = [];
   
         for (let i = 0; i < data.items.length; i++) {
-          const bookDoc = bookDocs[i];
+          const itemDoc = itemDocs[i];
           const saleItem = data.items[i];
   
-          if (!bookDoc.exists()) {
-            throw new Error(`Book with id ${saleItem.bookId} does not exist!`);
+          if (!itemDoc.exists()) {
+            throw new Error(`Item with id ${saleItem.itemId} does not exist!`);
           }
-          const bookData = bookDoc.data() as Book;
-          if (bookData.stock < saleItem.quantity) {
-            throw new Error(`Not enough stock for ${bookData.title}. Available: ${bookData.stock}, Requested: ${saleItem.quantity}`);
+          const itemData = itemDoc.data() as Item;
+          if (itemData.stock < saleItem.quantity) {
+            throw new Error(`Not enough stock for ${itemData.title}. Available: ${itemData.stock}, Requested: ${saleItem.quantity}`);
           }
           
-          const price = bookData.sellingPrice;
+          const price = itemData.sellingPrice;
           calculatedSubtotal += price * saleItem.quantity;
           itemsWithPrices.push({ ...saleItem, price });
         }
@@ -163,10 +163,10 @@ export async function addSale(
         transaction.set(newSaleRef, saleDataToSave);
         transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
   
-        for (let i = 0; i < bookDocs.length; i++) {
+        for (let i = 0; i < itemDocs.length; i++) {
           const saleItem = data.items[i];
-          const newStock = bookDocs[i].data()!.stock - saleItem.quantity;
-          transaction.update(bookRefs[i], { stock: newStock });
+          const newStock = itemDocs[i].data()!.stock - saleItem.quantity;
+          transaction.update(itemRefs[i], { stock: newStock });
         }
 
         const currentDue = customerDoc.data()?.dueBalance || 0;
@@ -225,7 +225,7 @@ export async function addSale(
 
       revalidatePath('/sales');
       revalidatePath('/dashboard');
-      revalidatePath('/books');
+      revalidatePath('/items');
       revalidatePath('/receivables');
       revalidatePath('/balance-sheet');
       if (data.customerId) {

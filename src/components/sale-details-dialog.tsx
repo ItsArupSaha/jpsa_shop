@@ -1,6 +1,7 @@
+
 'use client';
 
-import type { Book, Sale } from '@/lib/types';
+import type { Item, Sale } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -21,12 +22,12 @@ import { Separator } from './ui/separator';
 
 interface SaleDetailsDialogProps {
   sale: Sale;
-  books: Book[];
+  items: Item[];
   children: React.ReactNode;
 }
 
-export function SaleDetailsDialog({ sale, books, children }: SaleDetailsDialogProps) {
-  const getBookTitle = (bookId: string) => books.find(b => b.id === bookId)?.title || 'Unknown Book';
+export function SaleDetailsDialog({ sale, items, children }: SaleDetailsDialogProps) {
+  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
   
   return (
     <Dialog>
@@ -42,7 +43,7 @@ export function SaleDetailsDialog({ sale, books, children }: SaleDetailsDialogPr
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Book Title</TableHead>
+                        <TableHead>Item Title</TableHead>
                         <TableHead className="text-center">Qty</TableHead>
                         <TableHead className="text-right">Price</TableHead>
                         <TableHead className="text-right">Total</TableHead>
@@ -51,7 +52,7 @@ export function SaleDetailsDialog({ sale, books, children }: SaleDetailsDialogPr
                 <TableBody>
                     {sale.items.map((item, index) => (
                         <TableRow key={index}>
-                            <TableCell className="font-medium">{getBookTitle(item.bookId)}</TableCell>
+                            <TableCell className="font-medium">{getItemTitle(item.itemId)}</TableCell>
                             <TableCell className="text-center">{item.quantity}</TableCell>
                             <TableCell className="text-right">৳{item.price.toFixed(2)}</TableCell>
                             <TableCell className="text-right">৳{(item.quantity * item.price).toFixed(2)}</TableCell>

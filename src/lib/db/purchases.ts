@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Book, Metadata, Purchase } from '../types';
+import type { Item, Metadata, Purchase } from '../types';
 import { docToPurchase } from './utils';
 
 // --- Purchases Actions ---
@@ -66,7 +66,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           const userRef = doc(db!, 'users', userId);
           const metadataRef = doc(userRef, 'metadata', 'counters');
           const purchasesCollection = collection(userRef, 'purchases');
-          const booksCollection = collection(userRef, 'books');
+          const itemsCollection = collection(userRef, 'items');
           const expensesCollection = collection(userRef, 'expenses');
           const transactionsCollection = collection(userRef, 'transactions');
           
@@ -98,23 +98,24 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
           for (const item of data.items) {
               if (item.category === 'Book') {
-                  const q = query(booksCollection, where("title", "==", item.itemName));
-                  const bookSnapshot = await getDocs(q); 
+                  const q = query(itemsCollection, where("title", "==", item.itemName));
+                  const itemSnapshot = await getDocs(q); 
 
-                  if (!bookSnapshot.empty) {
-                      const bookDoc = bookSnapshot.docs[0];
-                      const currentStock = bookDoc.data().stock || 0;
-                      transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
+                  if (!itemSnapshot.empty) {
+                      const itemDoc = itemSnapshot.docs[0];
+                      const currentStock = itemDoc.data().stock || 0;
+                      transaction.update(itemDoc.ref, { stock: currentStock + item.quantity });
                   } else {
-                      const newBookRef = doc(booksCollection);
-                      const newBookData: Omit<Book, 'id'> = {
+                      const newItemRef = doc(itemsCollection);
+                      const newItemData: Omit<Item, 'id'> = {
                           title: item.itemName,
                           author: item.author || 'Unknown',
+                          category: 'Book',
                           stock: item.quantity,
                           productionPrice: item.cost,
                           sellingPrice: item.cost * 1.5,
                       };
-                      transaction.set(newBookRef, newBookData);
+                      transaction.set(newItemRef, newItemData);
                   }
               }
           }
@@ -166,7 +167,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
       });
 
       revalidatePath('/purchases');
-      revalidatePath('/books');
+      revalidatePath('/items');
       revalidatePath('/payables');
       revalidatePath('/expenses');
       revalidatePath('/dashboard');
