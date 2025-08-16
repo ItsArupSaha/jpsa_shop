@@ -7,7 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, getItems, getDonationsForMonth, getExpensesForMonth, getSalesForMonth } from '@/lib/actions';
+import { getBalanceSheetData, getDonationsForMonth, getExpensesForMonth, getItems, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
 import type { Item } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -81,10 +81,11 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
       
-      const [salesForMonth, expensesForMonth, donationsForMonth] = await Promise.all([
+      const [salesForMonth, expensesForMonth, donationsForMonth, transactionsForMonth] = await Promise.all([
         getSalesForMonth(userId, selectedYear, selectedMonth),
         getExpensesForMonth(userId, selectedYear, selectedMonth),
-        getDonationsForMonth(userId, selectedYear, selectedMonth)
+        getDonationsForMonth(userId, selectedYear, selectedMonth),
+        getTransactionsForMonth(userId, selectedYear, selectedMonth)
       ]);
       
       const input = {
@@ -99,6 +100,7 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
         },
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
+        transactionsData: transactionsForMonth,
       };
 
       const result = generateMonthlyReport(input);
@@ -141,7 +143,7 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
           <CardTitle className="font-headline text-2xl">Monthly Report Generator</CardTitle>
           <CardDescription>
             Select a month and year to generate an automated profit-loss report.
-            The AI will analyze the data and provide a summary with key metrics.
+            Profit is calculated only from paid sales and partial payments received in the selected month.
           </CardDescription>
         </CardHeader>
         <Form {...form}>

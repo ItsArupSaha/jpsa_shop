@@ -1,14 +1,13 @@
 
 'use client';
 
-import * as React from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import type { Customer, Item, Sale } from '@/lib/types';
+import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
-import { Button } from './ui/button';
 import { FileText } from 'lucide-react';
-import type { AuthUser, Customer, Sale, Item } from '@/lib/types';
-import { useAuth } from '@/hooks/use-auth';
+import { Button } from './ui/button';
 
 interface CustomerStatementPDFProps {
   customer: Customer;
@@ -18,7 +17,7 @@ interface CustomerStatementPDFProps {
 
 export default function CustomerStatementPDF({ customer, sales, items }: CustomerStatementPDFProps) {
   const { authUser } = useAuth();
-  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
 
   const generatePdf = () => {
     if (!authUser) return;

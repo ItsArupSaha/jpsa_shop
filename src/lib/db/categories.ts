@@ -1,35 +1,74 @@
-
 'use server';
 
 import {
     addDoc,
     collection,
+    deleteDoc,
+    doc,
     getDocs,
     orderBy,
     query,
-    where
+    updateDoc
 } from 'firebase/firestore';
-import { db } from '../firebase';
-import type { ItemCategory } from '../types';
+import { revalidatePath } from 'next/cache';
 
-export async function getItemCategories(userId: string): Promise<ItemCategory[]> {
+import { db } from '../firebase';
+import type { Category } from '../types';
+
+// --- Categories Actions ---
+export async function getCategories(userId: string): Promise<Category[]> {
   if (!db || !userId) return [];
   const categoriesCollection = collection(db, 'users', userId, 'categories');
   const snapshot = await getDocs(query(categoriesCollection, orderBy('name')));
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemCategory));
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      name: data.name,
+      description: data.description,
+      createdAt: data.createdAt?.toDate?.() || new Date()
+    } as Category;
+  });
 }
 
-export async function addItemCategory(userId: string, categoryName: string): Promise<ItemCategory> {
-  if (!db || !userId) throw new Error('Database not connected.');
+export async function addCategory(userId: string, data: Omit<Category, 'id' | 'createdAt'>) {
+  if (!db || !userId) return;
   const categoriesCollection = collection(db, 'users', userId, 'categories');
+  const newDocRef = await addDoc(categoriesCollection, {
+    ...data,
+    createdAt: new Date()
+  });
+  revalidatePath('/items');
+  return { id: newDocRef.id, ...data, createdAt: new Date() };
+}
 
-  // Check if category already exists
-  const q = query(categoriesCollection, where("name", "==", categoryName));
-  const existing = await getDocs(q);
-  if (!existing.empty) {
-    throw new Error(`Category "${categoryName}" already exists.`);
+export async function updateCategory(userId: string, id: string, data: Partial<Omit<Category, 'id' | 'createdAt'>>) {
+  if (!db || !userId) return;
+  const categoryRef = doc(db, 'users', userId, 'categories', id);
+  await updateDoc(categoryRef, data);
+  revalidatePath('/items');
+}
+
+export async function deleteCategory(userId: string, id: string) {
+  if (!db || !userId) return;
+  const categoryRef = doc(db, 'users', userId, 'categories', id);
+  await deleteDoc(categoryRef);
+  revalidatePath('/items');
+}
+
+// Initialize default categories for new users
+export async function initializeDefaultCategories(userId: string) {
+  if (!db || !userId) return;
+  
+  const categoriesCollection = collection(db, 'users', userId, 'categories');
+  const snapshot = await getDocs(categoriesCollection);
+  
+  // Only add default categories if none exist
+  if (snapshot.empty) {
+    await addDoc(categoriesCollection, {
+      name: 'Accessories',
+      description: 'General accessories and supplies',
+      createdAt: new Date()
+    });
   }
-
-  const newDocRef = await addDoc(categoriesCollection, { name: categoryName });
-  return { id: newDocRef.id, name: categoryName };
 }

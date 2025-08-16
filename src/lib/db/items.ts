@@ -1,4 +1,3 @@
-
 'use server';
 
 import {
@@ -18,14 +17,16 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from '../firebase';
 import type { Item } from '../types';
-import { docToItem } from './utils';
 
 // --- Items Actions ---
 export async function getItems(userId: string): Promise<Item[]> {
   if (!db || !userId) return [];
   const itemsCollection = collection(db, 'users', userId, 'items');
   const snapshot = await getDocs(query(itemsCollection, orderBy('title')));
-  return snapshot.docs.map(docToItem);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Item));
 }
 
 export async function getItemsPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ items: Item[], hasMore: boolean }> {
@@ -46,7 +47,10 @@ export async function getItemsPaginated({ userId, pageLimit = 5, lastVisibleId }
   }
 
   const snapshot = await getDocs(q);
-  const items = snapshot.docs.map(docToItem);
+  const items = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Item));
   
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;

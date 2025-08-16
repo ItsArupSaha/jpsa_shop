@@ -2,20 +2,19 @@
 'use server';
 
 import {
-    Timestamp,
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    runTransaction,
-    startAfter,
-    updateDoc,
-    where
+  Timestamp,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  runTransaction,
+  startAfter,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -160,16 +159,19 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 transactionsCollection,
                 where('type', '==', 'Receivable'),
                 where('status', '==', 'Pending'),
-                where('customerId', '==', data.customerId),
-                orderBy('dueDate')
+                where('customerId', '==', data.customerId)
             );
             
             const pendingDocs = await getDocs(receivablesQuery);
             
-            for (const docSnap of pendingDocs.docs) {
+            // Sort by dueDate in application code to avoid needing composite index
+            const sortedPendingDocs = pendingDocs.docs
+                .map(doc => ({ doc, data: docToTransaction(doc) }))
+                .sort((a, b) => new Date(a.data.dueDate).getTime() - new Date(b.data.dueDate).getTime());
+            
+            for (const { doc: docSnap, data: receivable } of sortedPendingDocs) {
                 if (amountToSettle <= 0) break;
 
-                const receivable = docToTransaction(docSnap);
                 const receivableRef = doc(transactionsCollection, docSnap.id);
                 
                 if (amountToSettle >= receivable.amount) {
@@ -206,31 +208,20 @@ export async function recordTransfer(
   if (!db || !userId) throw new Error("Database not connected");
   if (data.from === data.to) throw new Error("Source and destination cannot be the same.");
 
-  const expensesCollection = collection(db, 'users', userId, 'expenses');
-  const donationsCollection = collection(db, 'users', userId, 'donations');
-
-  const batch = runTransaction(db, async (transaction) => {
-    // Create an 'expense' from the source account
-    const expenseData = {
-      description: `Transfer to ${data.to}`,
-      amount: data.amount,
-      date: Timestamp.fromDate(data.date),
-      paymentMethod: data.from
-    };
-    addDoc(expensesCollection, expenseData);
-
-    // Create a 'donation' (inflow) to the destination account
-    const donationData = {
-      donorName: 'Internal Transfer',
-      notes: `Transfer from ${data.from}`,
-      amount: data.amount,
-      date: Timestamp.fromDate(data.date),
-      paymentMethod: data.to
-    };
-    addDoc(donationsCollection, donationData);
-  });
-
-  await batch;
+  // Simple transfer: just record it in a transfers collection for audit purposes
+  // No fake expenses or donations - just track the movement
+  const transfersCollection = collection(db, 'users', userId, 'transfers');
+  
+  const transferData = {
+    amount: data.amount,
+    from: data.from,
+    to: data.to,
+    date: Timestamp.fromDate(data.date),
+    description: `Transfer from ${data.from} to ${data.to}`
+  };
+  
+  await addDoc(transfersCollection, transferData);
+  
   revalidatePath('/balance-sheet');
   revalidatePath('/dashboard');
 }
@@ -262,4 +253,21 @@ export async function deleteTransaction(userId: string, id: string, type: 'Recei
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
+}
+
+export async function getTransactionsForMonth(userId: string, year: number, month: number): Promise<Transaction[]> {
+    if (!db || !userId) return [];
+    const transactionsCollection = collection(db, 'users', userId, 'transactions');
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const q = query(
+        transactionsCollection,
+        where('dueDate', '>=', Timestamp.fromDate(startDate)),
+        where('dueDate', '<=', Timestamp.fromDate(endDate))
+    );
+    const snapshot = await getDocs(q);
+    // Sort by dueDate in application code to avoid needing composite index
+    return snapshot.docs
+        .map(docToTransaction)
+        .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }

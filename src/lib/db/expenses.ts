@@ -25,7 +25,10 @@ export async function getExpenses(userId: string): Promise<Expense[]> {
     if (!db || !userId) return [];
     const expensesCollection = collection(db, 'users', userId, 'expenses');
     const snapshot = await getDocs(query(expensesCollection, orderBy('date', 'desc')));
-    return snapshot.docs.map(docToExpense);
+    const expenses = snapshot.docs.map(docToExpense);
+    
+    // Filter out transfer-related expenses (they shouldn't affect profit calculation)
+    return expenses.filter(expense => !expense.description.startsWith('Transfer to'));
 }
 
 export async function getExpensesPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ expenses: Expense[], hasMore: boolean }> {
@@ -71,7 +74,10 @@ export async function getExpensesForMonth(userId: string, year: number, month: n
         orderBy('date', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToExpense);
+    const expenses = snapshot.docs.map(docToExpense);
+    
+    // Filter out transfer-related expenses (they shouldn't affect profit calculation)
+    return expenses.filter(expense => !expense.description.startsWith('Transfer to'));
 }
 
 export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {

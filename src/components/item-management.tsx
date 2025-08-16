@@ -1,7 +1,6 @@
-
 'use client';
 
-import { addItem, calculateClosingStock, deleteItem, getItemsPaginated, updateItem, getItemCategories, addItemCategory } from '@/lib/actions';
+import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, initializeDefaultCategories, updateCategory, updateItem } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -11,7 +10,6 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
 import * as z from 'zod';
-
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -35,6 +33,13 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -44,14 +49,12 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Item, ClosingStockItem, ItemCategory } from '@/lib/types';
+import type { Category, ClosingStock, Item } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  category: z.string().min(1, 'Category is required'),
+  categoryId: z.string().min(1, 'Category is required'),
   author: z.string().optional(),
   productionPrice: z.coerce.number().min(0, 'Production price must be positive'),
   sellingPrice: z.coerce.number().min(0, 'Selling price must be positive'),
@@ -59,22 +62,15 @@ const itemSchema = z.object({
 }).refine(data => data.sellingPrice >= data.productionPrice, {
   message: "Selling price cannot be less than production price.",
   path: ["sellingPrice"],
-}).refine(data => {
-    if (data.category === 'Book') {
-        return !!data.author && data.author.length > 0;
-    }
-    return true;
-}, {
-    message: "Author is required for books.",
-    path: ['author'],
 });
 
-const newCategorySchema = z.object({
-    name: z.string().min(2, 'Category name must be at least 2 characters.'),
+const categorySchema = z.object({
+  name: z.string().min(1, 'Category name is required'),
+  description: z.string().optional(),
 });
 
 type ItemFormValues = z.infer<typeof itemSchema>;
-type NewCategoryFormValues = z.infer<typeof newCategorySchema>;
+type CategoryFormValues = z.infer<typeof categorySchema>;
 
 interface ItemManagementProps {
     userId: string;
@@ -83,17 +79,17 @@ interface ItemManagementProps {
 export default function ItemManagement({ userId }: ItemManagementProps) {
   const { authUser } = useAuth();
   const [items, setItems] = React.useState<Item[]>([]);
-  const [categories, setCategories] = React.useState<ItemCategory[]>([{id: '1', name: 'Book'}, {id: '2', name: 'Accessory'}]);
-  const [isCategoryPopoverOpen, setIsCategoryPopoverOpen] = React.useState(false);
-
+  const [categories, setCategories] = React.useState<Category[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
   const [editingItem, setEditingItem] = React.useState<Item | null>(null);
+  const [editingCategory, setEditingCategory] = React.useState<Category | null>(null);
   const [closingStockDate, setClosingStockDate] = React.useState<Date | undefined>(new Date());
-  const [closingStockData, setClosingStockData] = React.useState<ClosingStockItem[]>([]);
+  const [closingStockData, setClosingStockData] = React.useState<ClosingStock[]>([]);
   const [isCalculating, setIsCalculating] = React.useState(false);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
@@ -101,19 +97,19 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const [{ items: newItems, hasMore: newHasMore }, fetchedCategories] = await Promise.all([
-            getItemsPaginated({ userId, pageLimit: 5 }),
-            getItemCategories(userId)
-        ]);
+        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5 });
         setItems(newItems);
         setHasMore(newHasMore);
-        setCategories(prev => [...prev, ...fetchedCategories]);
+        
+        // Load categories
+        const categoriesData = await getCategories(userId);
+        setCategories(categoriesData);
     } catch (error) {
-        console.error("Failed to load items:", error);
+        console.error("Failed to load data:", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not load item data. Please try again later.",
+            description: "Could not load data. Please try again later.",
         });
     } finally {
         setIsInitialLoading(false);
@@ -122,10 +118,12 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
   React.useEffect(() => {
     if(userId) {
-        loadInitialData();
+        // Initialize default categories first
+        initializeDefaultCategories(userId).then(() => {
+            loadInitialData();
+        });
     }
   }, [userId, loadInitialData]);
-
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
@@ -147,42 +145,65 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     }
   };
 
-  const form = useForm<ItemFormValues>({
+  const itemForm = useForm<ItemFormValues>({
     resolver: zodResolver(itemSchema),
     defaultValues: {
       title: '',
+      categoryId: '',
       author: '',
-      category: 'Book',
       productionPrice: 0,
       sellingPrice: 0,
       stock: 0,
     },
   });
 
-  const categoryForm = useForm<NewCategoryFormValues>({
-      resolver: zodResolver(newCategorySchema),
-      defaultValues: { name: '' },
+  const categoryForm = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: {
+      name: '',
+      description: '',
+    },
   });
-
-  const watchCategory = form.watch('category');
 
   const handleEdit = (item: Item) => {
     setEditingItem(item);
-    form.reset(item);
+    itemForm.reset({
+      title: item.title,
+      categoryId: item.categoryId,
+      author: item.author || '',
+      productionPrice: item.productionPrice,
+      sellingPrice: item.sellingPrice,
+      stock: item.stock,
+    });
     setIsDialogOpen(true);
   };
 
   const handleAddNew = () => {
     setEditingItem(null);
-    form.reset({ title: '', author: '', category: 'Accessory', productionPrice: 0, sellingPrice: 0, stock: 0 });
+    itemForm.reset({ title: '', categoryId: '', author: '', productionPrice: 0, sellingPrice: 0, stock: 0 });
     setIsDialogOpen(true);
+  };
+
+  const handleAddCategory = () => {
+    setEditingCategory(null);
+    categoryForm.reset({ name: '', description: '' });
+    setIsCategoryDialogOpen(true);
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    categoryForm.reset({
+      name: category.name,
+      description: category.description || '',
+    });
+    setIsCategoryDialogOpen(true);
   };
   
   const handleDelete = (id: string) => {
     startTransition(async () => {
       try {
         await deleteItem(userId, id);
-        await loadInitialData(); // Reload data to reflect deletion
+        await loadInitialData();
         toast({ title: "Item Deleted", description: "The item has been removed from the inventory." });
       } catch (error) {
          toast({ variant: "destructive", title: "Error", description: "Could not delete the item." });
@@ -190,17 +211,46 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     });
   }
 
-  const onSubmit = (data: ItemFormValues) => {
+  const handleDeleteCategory = (id: string) => {
     startTransition(async () => {
       try {
+        await deleteCategory(userId, id);
+        await loadInitialData();
+        toast({ title: "Category Deleted", description: "The category has been removed." });
+      } catch (error) {
+         toast({ variant: "destructive", title: "Error", description: "Could not delete the category." });
+      }
+    });
+  }
+
+  const onSubmit = (data: ItemFormValues) => {
+    // Validate author field for books
+    const selectedCategory = categories.find(cat => cat.id === data.categoryId);
+    if (selectedCategory?.name === 'Book' && (!data.author || data.author.trim().length === 0)) {
+      toast({ variant: "destructive", title: "Error", description: "Author is required for books." });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const itemData = {
+          title: data.title,
+          categoryId: data.categoryId,
+          categoryName: selectedCategory?.name || '',
+          author: data.author || undefined,
+          productionPrice: data.productionPrice,
+          sellingPrice: data.sellingPrice,
+          stock: data.stock,
+        };
+
         if (editingItem) {
-          await updateItem(userId, editingItem.id, data);
+          await updateItem(userId, editingItem.id, itemData);
           toast({ title: "Item Updated", description: "The item details have been saved." });
         } else {
-          await addItem(userId, data);
+          await addItem(userId, itemData);
           toast({ title: "Item Added", description: "The new item is now in your inventory." });
         }
-        await loadInitialData(); // Reload to show the changes
+        await loadInitialData();
         setIsDialogOpen(false);
         setEditingItem(null);
       } catch (error) {
@@ -209,22 +259,28 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     });
   };
 
-  const onAddCategory = async (data: NewCategoryFormValues) => {
-    try {
-        const newCategory = await addItemCategory(userId, data.name);
-        setCategories(prev => [...prev, newCategory]);
-        toast({ title: "Category Added", description: `"${data.name}" is now available.` });
-        categoryForm.reset();
-        setIsCategoryPopoverOpen(false);
-    } catch (error) {
-        toast({
-            variant: "destructive",
-            title: "Error adding category",
-            description: error instanceof Error ? error.message : "An unknown error occurred.",
-        });
-    }
-  }
-  
+  const onSubmitCategory = (data: CategoryFormValues) => {
+    startTransition(async () => {
+      try {
+        if (editingCategory) {
+          await updateCategory(userId, editingCategory.id, data);
+          toast({ title: "Category Updated", description: "The category has been updated." });
+        } else {
+          await addCategory(userId, data);
+          toast({ title: "Category Added", description: "The new category has been created." });
+        }
+        await loadInitialData();
+        setIsCategoryDialogOpen(false);
+        setEditingCategory(null);
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to save the category." });
+      }
+    });
+  };
+
+  const selectedCategory = categories.find(cat => cat.id === itemForm.watch('categoryId'));
+  const showAuthorField = selectedCategory?.name === 'Book';
+
   const handleCalculateClosingStock = async () => {
     if (!closingStockDate) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please select a date.' });
@@ -233,7 +289,12 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     
     setIsCalculating(true);
     try {
-        const calculatedData = await calculateClosingStock(userId, closingStockDate);
+        // For now, we'll use the current items as closing stock
+        // TODO: Implement proper closing stock calculation based on sales/purchases
+        const calculatedData = items.map(item => ({
+          ...item,
+          closingStock: item.stock
+        }));
         setClosingStockData(calculatedData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });
@@ -252,7 +313,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     // Left side header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(authUser.companyName || 'Bookstore', 14, 20);
+    doc.text(authUser.companyName || 'Store', 14, 20);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(authUser.address || '', 14, 26);
@@ -278,11 +339,10 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
     doc.setTextColor(0);
 
-
     autoTable(doc, {
       startY: 60,
-      head: [['Title', 'Author', 'Stock']],
-      body: closingStockData.map(item => [item.title, item.author, item.closingStock]),
+      head: [['Title', 'Category', 'Author', 'Stock']],
+      body: closingStockData.map(item => [item.title, item.categoryName, item.author || '-', item.closingStock]),
     });
     
     doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
@@ -293,7 +353,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     
     const dataToExport = closingStockData.map(item => ({
       Title: item.title,
-      Author: item.author,
+      Category: item.categoryName,
+      Author: item.author || '-',
       Stock: item.closingStock,
     }));
 
@@ -367,6 +428,45 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Categories Section */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Categories</h3>
+            <Button onClick={handleAddCategory} variant="outline" size="sm">
+              <Plus className="mr-2 h-4 w-4" /> Add Category
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {categories.map((category) => (
+              <div key={category.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">{category.name}</p>
+                  {category.description && (
+                    <p className="text-sm text-muted-foreground">{category.description}</p>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditCategory(category)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteCategory(category.id)}
+                    disabled={isPending}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {closingStockData.length > 0 && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2">Closing Stock as of {closingStockDate ? format(closingStockDate, 'PPP') : ''}</h3>
@@ -375,6 +475,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Author</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                   </TableRow>
@@ -383,7 +484,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                   {closingStockData.map(item => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.title}</TableCell>
-                      <TableCell>{item.author}</TableCell>
+                      <TableCell>{item.categoryName}</TableCell>
+                      <TableCell>{item.author || '-'}</TableCell>
                       <TableCell className="text-right">{item.closingStock}</TableCell>
                     </TableRow>
                   ))}
@@ -409,6 +511,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead>Author</TableHead>
                 <TableHead className="text-right">Selling Price</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
@@ -421,6 +524,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                   <TableRow key={`skeleton-${i}`}>
                     <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
@@ -430,7 +534,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                 items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.title}</TableCell>
-                    <TableCell>{item.author}</TableCell>
+                    <TableCell>{item.categoryName}</TableCell>
+                    <TableCell>{item.author || '-'}</TableCell>
                     <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{item.stock}</TableCell>
                     <TableCell className="text-right">
@@ -456,6 +561,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         )}
       </CardContent>
 
+      {/* Add/Edit Item Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -464,97 +570,79 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
               {editingItem ? 'Update the details of this item.' : 'Enter the details for the new item.'}
             </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
+          <Form {...itemForm}>
+            <form onSubmit={itemForm.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
              <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
                 <div className="space-y-4 py-4 px-4">
                 <FormField
-                  control={form.control}
+                  control={itemForm.control}
                   name="title"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input placeholder="The Great Gatsby" {...field} />
+                        <Input placeholder="Item name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
-                    control={form.control}
-                    name="category"
+                
+                <div className="flex gap-2">
+                  <FormField
+                    control={itemForm.control}
+                    name="categoryId"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem className="flex-1">
                         <FormLabel>Category</FormLabel>
-                        <div className="flex items-center gap-2">
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a category" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {categories.map((cat) => (
-                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Popover open={isCategoryPopoverOpen} onOpenChange={setIsCategoryPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button type="button" variant="outline" size="icon" className="shrink-0">
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-60">
-                                    <Form {...categoryForm}>
-                                        <form onSubmit={categoryForm.handleSubmit(onAddCategory)} className="space-y-4">
-                                            <div className="space-y-1">
-                                                <h4 className="font-medium text-sm">Add New Category</h4>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Create a new category for your items.
-                                                </p>
-                                            </div>
-                                             <FormField
-                                                control={categoryForm.control}
-                                                name="name"
-                                                render={({ field }) => (
-                                                <FormItem>
-                                                    <FormControl>
-                                                        <Input placeholder="e.g., Electronics" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                                )}
-                                            />
-                                            <Button type="submit" size="sm" className="w-full">Save</Button>
-                                        </form>
-                                    </Form>
-                                </PopoverContent>
-                            </Popover>
-                        </div>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
-                {watchCategory === 'Book' && (
-                    <FormField
-                    control={form.control}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="mt-8"
+                    onClick={handleAddCategory}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {showAuthorField && (
+                  <FormField
+                    control={itemForm.control}
                     name="author"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Author</FormLabel>
                         <FormControl>
-                            <Input placeholder="F. Scott Fitzgerald" {...field} />
+                          <Input placeholder="Author name" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
+                  />
                 )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
-                    control={form.control}
+                    control={itemForm.control}
                     name="productionPrice"
                     render={({ field }) => (
                       <FormItem>
@@ -567,7 +655,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={itemForm.control}
                     name="sellingPrice"
                     render={({ field }) => (
                       <FormItem>
@@ -581,7 +669,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                   />
                 </div>
                 <FormField
-                  control={form.control}
+                  control={itemForm.control}
                   name="stock"
                   render={({ field }) => (
                     <FormItem>
@@ -597,6 +685,51 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
               </div>
               <DialogFooter className="pt-4 border-t">
                 <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save changes"}</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Category Dialog */}
+      <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-headline">{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
+            <DialogDescription>
+              {editingCategory ? 'Update the category details.' : 'Create a new category for your items.'}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...categoryForm}>
+            <form onSubmit={categoryForm.handleSubmit(onSubmitCategory)} className="space-y-4">
+              <FormField
+                control={categoryForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Books, Electronics, Stationery" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={categoryForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Brief description of this category" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Category"}</Button>
               </DialogFooter>
             </form>
           </Form>

@@ -1,10 +1,6 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,8 +17,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { addPayment, getCustomersWithDueBalance } from '@/lib/actions';
 import type { CustomerWithDue } from '@/lib/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const paymentSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),

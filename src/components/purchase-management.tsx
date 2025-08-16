@@ -1,16 +1,15 @@
-
 'use client';
 
-import { addPurchase, getPurchasesPaginated, getPurchases } from '@/lib/actions';
+import { addPurchase, getPurchases, getPurchasesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useFieldArray, useForm } from 'react-hook-form';
+import * as XLSX from 'xlsx';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Purchase } from '@/lib/types';
 import { cn } from "@/lib/utils";
@@ -30,11 +30,10 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-import { useAuth } from '@/hooks/use-auth';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
-  category: z.string().min(1, 'Category is required'),
+  category: z.enum(['Book', 'Office Asset'], { required_error: 'Category is required' }),
   author: z.string().optional(),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
@@ -442,7 +441,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                         <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             <SelectItem value="Book">Book</SelectItem>
-                                            <SelectItem value="Accessory">Accessory</SelectItem>
+                                            <SelectItem value="Office Asset">Office Asset</SelectItem>
                                         </SelectContent>
                                         </Select>
                                         <FormMessage />

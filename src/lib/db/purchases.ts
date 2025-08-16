@@ -97,24 +97,27 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
           for (const item of data.items) {
-              const q = query(itemsCollection, where("title", "==", item.itemName), where("category", "==", item.category));
-              const itemSnapshot = await getDocs(q); 
+              if (item.category === 'Book') {
+                  const q = query(itemsCollection, where("title", "==", item.itemName));
+                  const bookSnapshot = await getDocs(q); 
 
-              if (!itemSnapshot.empty) {
-                  const itemDoc = itemSnapshot.docs[0];
-                  const currentStock = itemDoc.data().stock || 0;
-                  transaction.update(itemDoc.ref, { stock: currentStock + item.quantity });
-              } else {
-                  const newItemRef = doc(itemsCollection);
-                  const newItemData: Omit<Item, 'id'> = {
-                      title: item.itemName,
-                      author: item.author || 'Unknown',
-                      category: item.category,
-                      stock: item.quantity,
-                      productionPrice: item.cost,
-                      sellingPrice: item.cost * 1.5,
-                  };
-                  transaction.set(newItemRef, newItemData);
+                  if (!bookSnapshot.empty) {
+                      const bookDoc = bookSnapshot.docs[0];
+                      const currentStock = bookDoc.data().stock || 0;
+                      transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
+                  } else {
+                      const newItemRef = doc(itemsCollection);
+                      const newItemData: Omit<Item, 'id'> = {
+                          title: item.itemName,
+                          categoryId: 'temp-category',
+                          categoryName: 'Book',
+                          author: item.author || 'Unknown',
+                          stock: item.quantity,
+                          productionPrice: item.cost,
+                          sellingPrice: item.cost * 1.5,
+                      };
+                      transaction.set(newItemRef, newItemData);
+                  }
               }
           }
 

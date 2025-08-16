@@ -1,24 +1,24 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { addSalesReturn, getCustomers, getItems, getSalesReturnsPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { getItems, getCustomers, addSalesReturn, getSalesReturnsPaginated } from '@/lib/actions';
+import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import * as React from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
+import * as z from 'zod';
 
-import type { SalesReturn, Item, Customer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectPortal } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
+import type { Customer, Item, SalesReturn } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
 
 const salesReturnItemSchema = z.object({
@@ -72,7 +72,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
     if(userId) loadInitialData();
   }, [userId, loadInitialData]);
 
-  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   const handleLoadMore = async () => {
@@ -234,7 +234,7 @@ export default function SalesReturnManagement({ userId }: SalesReturnManagementP
                           <FormItem className="col-span-2">
                             <FormLabel className="text-xs">Item</FormLabel>
                             <Select onValueChange={(value) => {
-                              const item = items.find(b => b.id === value);
+                              const item = items.find(i => i.id === value);
                               field.onChange(value);
                               form.setValue(`items.${index}.price`, item?.sellingPrice || 0);
                             }} defaultValue={field.value}>

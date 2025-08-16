@@ -2,17 +2,17 @@
 'use server';
 
 import {
-    Timestamp,
-    addDoc,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    startAfter,
-    where
+  Timestamp,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -24,7 +24,10 @@ export async function getDonations(userId: string): Promise<Donation[]> {
   if (!db || !userId) return [];
   const donationsCollection = collection(db, 'users', userId, 'donations');
   const snapshot = await getDocs(query(donationsCollection, orderBy('date', 'desc')));
-  return snapshot.docs.map(docToDonation);
+  const donations = snapshot.docs.map(docToDonation);
+  
+  // Filter out transfer-related donations (they shouldn't affect profit calculation)
+  return donations.filter(donation => !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')));
 }
 
 export async function getDonationsPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
@@ -71,7 +74,10 @@ export async function getDonationsForMonth(userId: string, year: number, month: 
         orderBy('date', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToDonation);
+    const donations = snapshot.docs.map(docToDonation);
+    
+    // Filter out transfer-related donations (they shouldn't affect profit calculation)
+    return donations.filter(donation => !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')));
 }
 
 export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'date'> & { date: Date }): Promise<Donation> {

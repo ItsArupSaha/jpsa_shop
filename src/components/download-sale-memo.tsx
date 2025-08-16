@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { AuthUser, Item, Customer, Sale } from '@/lib/types';
+import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,7 +16,7 @@ interface DownloadSaleMemoProps {
 }
 
 export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMemoProps) {
-  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
 
   const generatePdf = () => {
     const doc = new jsPDF();

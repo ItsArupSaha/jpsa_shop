@@ -3,15 +3,17 @@
 
 import { collection, doc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { docToItem, docToExpense, docToSale, docToSalesReturn } from './utils';
 import { getCustomersWithDueBalance } from './customers';
+import { getExpensesForMonth } from './expenses';
+import { docToItem, docToSale, docToSalesReturn } from './utils';
 
 export async function getDashboardStats(userId: string) {
     if (!db || !userId) {
         // Return a default structure if no user or DB
         return {
-            totalBooksInStock: 0,
-            totalBookTitles: 0,
+            totalItemsInStock: 0,
+            totalItemTitles: 0,
+            itemsByCategory: {},
             monthlySalesValue: 0,
             monthlySalesCount: 0,
             monthlyExpenses: 0,
@@ -45,12 +47,6 @@ export async function getDashboardStats(userId: string) {
         where('date', '<=', Timestamp.fromDate(endDate))
     );
 
-    const expensesQuery = query(
-        expensesCollection,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-    );
-    
     // Wrap snapshot fetching in try/catch to handle cases where collections don't exist yet for new users.
     const safeGetDocs = async (q: any) => {
         try {
@@ -65,34 +61,48 @@ export async function getDashboardStats(userId: string) {
         itemsSnapshot, 
         salesSnapshot, 
         returnsSnapshot,
-        expensesSnapshot, 
         customersWithDue
     ] = await Promise.all([
         safeGetDocs(query(itemsCollection)),
         safeGetDocs(salesQuery),
         safeGetDocs(returnsQuery),
-        safeGetDocs(expensesQuery),
         getCustomersWithDueBalance(userId)
     ]);
 
     const items = itemsSnapshot.docs.map(docToItem);
     const salesThisMonth = salesSnapshot.docs.map(docToSale);
     const returnsThisMonth = returnsSnapshot.docs.map(docToSalesReturn);
-    const expensesThisMonth = expensesSnapshot.docs.map(docToExpense);
+    const expensesThisMonth = await getExpensesForMonth(userId, year, month);
 
-    const totalBooksInStock = items.reduce((sum, item) => sum + item.stock, 0);
-    const totalBookTitles = items.length;
+    const totalItemsInStock = items.reduce((sum, item) => sum + item.stock, 0);
+    const totalItemTitles = items.length;
+    
+    // Group items by category
+    const itemsByCategory = items.reduce((acc, item) => {
+        const category = item.categoryName || 'Uncategorized';
+        if (!acc[category]) {
+            acc[category] = {
+                count: 0,
+                stock: 0,
+                titles: []
+            };
+        }
+        acc[category].count += 1;
+        acc[category].stock += item.stock;
+        acc[category].titles.push(item.title);
+        return acc;
+    }, {} as Record<string, { count: number; stock: number; titles: string[] }>);
     
     const monthlySalesValue = salesThisMonth.reduce((sum, sale) => sum + sale.total, 0);
     const monthlySalesCount = salesThisMonth.length;
     
-    const monthlyExpenses = expensesThisMonth.reduce((sum, expense) => sum + expense.amount, 0);
+    const monthlyExpenses = expensesThisMonth.reduce((sum: number, expense: any) => sum + expense.amount, 0);
 
     const grossProfitThisMonth = salesThisMonth.reduce((totalProfit, sale) => {
-        const saleProfit = sale.items.reduce((currentSaleProfit, saleItem) => {
-            const item = items.find(b => b.id === saleItem.itemId);
-            if (item) {
-                const itemProfit = (saleItem.price - item.productionPrice) * saleItem.quantity;
+        const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
+            const inventoryItem = items.find(i => i.id === item.itemId);
+            if (inventoryItem) {
+                const itemProfit = (item.price - inventoryItem.productionPrice) * item.quantity;
                 return currentSaleProfit + itemProfit;
             }
             return currentSaleProfit;
@@ -101,10 +111,10 @@ export async function getDashboardStats(userId: string) {
     }, 0);
 
     const totalReturnCost = returnsThisMonth.reduce((totalCost, saleReturn) => {
-        const returnCost = saleReturn.items.reduce((currentReturnCost, returnItem) => {
-            const item = items.find(b => b.id === returnItem.itemId);
-            if (item) {
-                const itemCost = item.productionPrice * returnItem.quantity;
+        const returnCost = saleReturn.items.reduce((currentReturnCost, item) => {
+            const inventoryItem = items.find(i => i.id === item.itemId);
+            if (inventoryItem) {
+                const itemCost = inventoryItem.productionPrice * item.quantity;
                 return currentReturnCost + itemCost;
             }
             return currentReturnCost;
@@ -118,8 +128,9 @@ export async function getDashboardStats(userId: string) {
     const pendingReceivablesCount = customersWithDue.length;
 
     return {
-        totalBooksInStock,
-        totalBookTitles,
+        totalItemsInStock,
+        totalItemTitles,
+        itemsByCategory,
         monthlySalesValue,
         monthlySalesCount,
         monthlyExpenses,

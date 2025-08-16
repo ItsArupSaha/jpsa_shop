@@ -33,22 +33,25 @@ export type CustomerWithDue = Customer & {
   dueBalance: number;
 };
 
+export type Category = {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: Date;
+};
+
 export type Item = {
   id: string;
   title: string;
-  category: string;
-  author?: string;
+  categoryId: string;
+  categoryName: string;
+  author?: string; // Optional, only for books
   productionPrice: number;
   sellingPrice: number;
   stock: number;
 };
 
-export type ItemCategory = {
-  id: string;
-  name: string;
-}
-
-export type ClosingStockItem = Item & {
+export type ClosingStock = Item & {
   closingStock: number;
 };
 
@@ -92,7 +95,7 @@ export type SalesReturn = {
 
 export type PurchaseItem = {
     itemName: string;
-    category: string;
+    category: 'Book' | 'Office Asset';
     author?: string; // Optional, only for books
     quantity: number;
     cost: number;

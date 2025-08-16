@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Item, Sale } from '@/lib/types';
@@ -27,7 +26,7 @@ interface SaleDetailsDialogProps {
 }
 
 export function SaleDetailsDialog({ sale, items, children }: SaleDetailsDialogProps) {
-  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
   
   return (
     <Dialog>

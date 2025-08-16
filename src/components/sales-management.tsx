@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addSale, getItems, getCustomers, getSales, getSalesPaginated } from '@/lib/actions';
+import { addSale, getCustomers, getItems, getSales, getSalesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -23,7 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Item, Customer, Sale } from '@/lib/types';
+import type { Customer, Item, Sale } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
 import { DownloadSaleMemo } from './download-sale-memo';
@@ -119,7 +119,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   }, [userId, loadInitialData]);
 
 
-  const getItemTitle = (itemId: string) => items.find(b => b.id === itemId)?.title || 'Unknown Item';
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
   const getCustomerName = (customerId: string) => customers.find(c => c.id === customerId)?.name || 'Unknown Customer';
 
   const handleLoadMore = async () => {
@@ -244,7 +244,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
         // Update local item stock
         const updatedItems = items.map(item => {
-            const soldItem = newSale.items.find(i => i.itemId === item.id);
+            const soldItem = newSale.items.find(saleItem => saleItem.itemId === item.id);
             if (soldItem) {
                 return { ...item, stock: item.stock - soldItem.quantity };
             }
@@ -352,7 +352,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       'Date': format(new Date(sale.date), 'yyyy-MM-dd'),
       'Sale ID': sale.saleId,
       'Customer': getCustomerName(sale.customerId),
-      'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
+              'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
       'Payment Method': sale.paymentMethod,
       'Total': sale.total,
     }));
@@ -522,7 +522,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
             <>
               <DialogHeader>
                 <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
-                <DialogDescription>Select a customer and items to create a new sale.</DialogDescription>
+                <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -561,18 +561,18 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     <Separator />
                     <FormLabel>Items</FormLabel>
                     {fields.map((field, index) => {
-                      const selectedItem = items.find(b => b.id === watchItems[index]?.itemId);
+                      const selectedItem = items.find(i => i.id === watchItems[index]?.itemId);
                       return (
                         <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md relative">
-                          <div className="flex-1 grid grid-cols-5 gap-3">
+                          <div className="flex-1 grid grid-cols-2 gap-4">
                             <FormField
                               control={form.control}
                               name={`items.${index}.itemId`}
                               render={({ field }) => (
-                                <FormItem className="col-span-3">
+                                <FormItem>
                                   <FormLabel className="text-xs">Item</FormLabel>
                                   <Select onValueChange={(value) => {
-                                    const item = items.find(b => b.id === value);
+                                    const item = items.find(i => i.id === value);
                                     field.onChange(value);
                                     form.setValue(`items.${index}.price`, item?.sellingPrice || 0);
                                   }} defaultValue={field.value}>
@@ -583,11 +583,11 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                     </FormControl>
                                     <SelectPortal>
                                       <SelectContent>
-                                        {items.map(item => (
-                                          <SelectItem key={item.id} value={item.id} disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}>
-                                            {item.title}
-                                          </SelectItem>
-                                        ))}
+                                                                        {items.map(item => (
+                                  <SelectItem key={item.id} value={item.id} disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}>
+                                    {item.title}
+                                  </SelectItem>
+                                ))}
                                       </SelectContent>
                                     </SelectPortal>
                                   </Select>
@@ -599,22 +599,21 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                               control={form.control}
                               name={`items.${index}.quantity`}
                               render={({ field }) => (
-                                <FormItem className="col-span-2">
-                                  <div className="flex justify-between items-center">
-                                    <FormLabel className="text-xs">Quantity</FormLabel>
-                                    {selectedItem && (
-                                      <span className="text-xs text-muted-foreground">
-                                        In stock: {selectedItem.stock}
-                                      </span>
-                                    )}
-                                  </div>
+                                <FormItem>
+                                  <FormLabel className="text-xs">Quantity</FormLabel>
                                   <FormControl>
                                     <Input type="number" min="1" max={selectedItem?.stock} placeholder="1" {...field} />
                                   </FormControl>
+                                  {selectedItem && (
+                                    <span className="text-xs text-muted-foreground">
+                                      In stock: {selectedItem.stock}
+                                    </span>
+                                  )}
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
+
                           </div>
                           <Button
                             type="button"
@@ -633,7 +632,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => append({ itemId: '', quantity: 1, price: 0 })}
+                                                onClick={() => append({ itemId: '', quantity: 1, price: 0 })}
                     >
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
@@ -657,7 +656,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                       <SelectContent>
                                         <SelectItem value="none">None</SelectItem>
                                         <SelectItem value="percentage">%</SelectItem>
-                                        <SelectItem value="amount">৳</SelectItem>
+                                        <SelectItem value="amount">$</SelectItem>
                                       </SelectContent>
                                     </SelectPortal>
                                   </Select>
@@ -678,44 +677,42 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                             />
                         </div>
                       </div>
-                      { totalAfterCredit > 0 &&
-                       <FormField
-                          control={form.control}
-                          name="paymentMethod"
-                          render={({ field }) => (
-                            <FormItem className="space-y-2">
-                              <FormLabel>Payment Method</FormLabel>
-                              <FormControl>
-                                <RadioGroup
-                                  onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                  className="flex flex-wrap gap-4 pt-2"
-                                >
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl><RadioGroupItem value="Cash" id="cash" /></FormControl>
-                                    <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl><RadioGroupItem value="Bank" id="bank" /></FormControl>
-                                    <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl><RadioGroupItem value="Due" id="due" /></FormControl>
-                                    <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2">
+                      <FormField
+                        control={form.control}
+                        name="paymentMethod"
+                        render={({ field }) => (
+                          <FormItem className="space-y-2">
+                            <FormLabel>Payment Method</FormLabel>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex flex-wrap gap-4 pt-2"
+                              >
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl><RadioGroupItem value="Cash" id="cash" /></FormControl>
+                                  <FormLabel htmlFor="cash" className="font-normal">Cash</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl><RadioGroupItem value="Bank" id="bank" /></FormControl>
+                                  <FormLabel htmlFor="bank" className="font-normal">Bank</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl><RadioGroupItem value="Due" id="due" /></FormControl>
+                                  <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
+                                </FormItem>
+                                                                  <FormItem className="flex items-center space-x-2">
                                     <FormControl><RadioGroupItem value="Split" id="split" /></FormControl>
                                     <FormLabel htmlFor="split" className="font-normal">Split</FormLabel>
                                   </FormItem>
-                                </RadioGroup>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      }
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                     {watchPaymentMethod === 'Split' && totalAfterCredit > 0 && (
+                     {watchPaymentMethod === 'Split' && (
                         <div className='flex gap-4 items-end'>
                             <FormField
                                 control={form.control}
