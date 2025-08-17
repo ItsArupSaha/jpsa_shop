@@ -4,7 +4,6 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getCustomersWithDueBalance } from './customers';
-import { getDonations } from './donations';
 import { getExpenses } from './expenses';
 import { getItems } from './items';
 import { getPurchases } from './purchases';
@@ -15,25 +14,28 @@ export async function getBalanceSheetData(userId: string) {
         throw new Error("Database not connected");
     }
 
-    const [items, sales, expenses, allTransactionsData, purchases, donations, customersWithDue, transfersData, capitalData] = await Promise.all([
+    // Fetch all required data sources in parallel
+    const [items, sales, expenses, allTransactionsData, purchases, capitalData, customersWithDue, transfersData] = await Promise.all([
         getItems(userId),
         getSales(userId),
         getExpenses(userId),
         getDocs(collection(db, 'users', userId, 'transactions')),
         getPurchases(userId),
-        getDonations(userId),
-        getCustomersWithDueBalance(userId), // Use the same trusted function as the dashboard
+        getDocs(collection(db, 'users', userId, 'capital')), // Fetch capital directly
+        getCustomersWithDueBalance(userId),
         getDocs(collection(db, 'users', userId, 'transfers')),
-        getDocs(collection(db, 'users', userId, 'capital')),
+        getDocs(collection(db, 'users', userId, 'donations')), // Also fetch donations
     ]);
 
     const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
     const allCapital = capitalData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
+    const allDonations = (await getDocs(collection(db, 'users', userId, 'donations'))).docs.map(doc => doc.data());
+
 
     let cash = 0;
     let bank = 0;
 
-    // Handle initial capital
+    // Handle initial capital and any adjustments
     allCapital.forEach((capital: any) => {
         if (capital.paymentMethod === 'Cash') {
             cash += capital.amount;
@@ -42,13 +44,16 @@ export async function getBalanceSheetData(userId: string) {
         }
     });
 
-    // Handle donations
-    donations.forEach((donation: any) => {
+    // Handle regular donations
+    allDonations.forEach((donation: any) => {
+      // Exclude initial capital from this loop if it somehow still exists
+      if (donation.source !== 'Initial Capital' && donation.donorName !== 'Internal Transfer') {
         if (donation.paymentMethod === 'Cash') {
             cash += donation.amount;
         } else if (donation.paymentMethod === 'Bank') {
             bank += donation.amount;
         }
+      }
     });
 
     sales.forEach((sale: any) => {
@@ -107,7 +112,6 @@ export async function getBalanceSheetData(userId: string) {
         .filter((i: any) => i.category === 'Office Asset')
         .reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
 
-    // This is the corrected logic, using the same source as the dashboard.
     const receivables = customersWithDue.reduce((sum: number, customer: any) => sum + customer.dueBalance, 0);
 
     const payables = allTransactions
