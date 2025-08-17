@@ -95,7 +95,8 @@ export type SalesReturn = {
 
 export type PurchaseItem = {
     itemName: string;
-    category: 'Book' | 'Office Asset';
+    categoryId: string;
+    categoryName: string;
     author?: string; // Optional, only for books
     quantity: number;
     cost: number;

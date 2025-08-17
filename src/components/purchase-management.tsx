@@ -1,11 +1,11 @@
 'use client';
 
-import { addPurchase, getPurchases, getPurchasesPaginated } from '@/lib/actions';
+import { addCategory, addPurchase, getCategories, getPurchases, getPurchasesPaginated, updateCategory } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Download, Edit, FileSpreadsheet, FileText, Loader2, Plus, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useFieldArray, useForm } from 'react-hook-form';
@@ -24,7 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Purchase } from '@/lib/types';
+import type { Category, Purchase } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
@@ -33,12 +33,13 @@ import { Skeleton } from './ui/skeleton';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
-  category: z.enum(['Book', 'Office Asset'], { required_error: 'Category is required' }),
+  categoryId: z.string().min(1, 'Category is required'),
+  categoryName: z.string().min(1, 'Category name is required'),
   author: z.string().optional(),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
 }).refine(data => {
-    if (data.category === 'Book') {
+    if (data.categoryName === 'Book') {
         return !!data.author && data.author.length > 0;
     }
     return true;
@@ -64,7 +65,13 @@ const purchaseFormSchema = z.object({
     path: ['amountPaid'],
 });
 
+const categorySchema = z.object({
+  name: z.string().min(1, 'Category name is required'),
+  description: z.string().optional(),
+});
+
 type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
+type CategoryFormValues = z.infer<typeof categorySchema>;
 
 interface PurchaseManagementProps {
     userId: string;
@@ -73,9 +80,12 @@ interface PurchaseManagementProps {
 export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
   const { authUser } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [categories, setCategories] = React.useState<Category[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
+  const [editingCategory, setEditingCategory] = React.useState<Category | null>(null);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
@@ -88,6 +98,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10 });
       setPurchases(newPurchases);
       setHasMore(newHasMore);
+      const categoriesData = await getCategories(userId);
+      setCategories(categoriesData);
     } catch (error) {
        toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
     } finally {
@@ -120,11 +132,19 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
       supplier: '',
-      items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
       dueDate: new Date(),
+    },
+  });
+
+  const categoryForm = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: {
+      name: '',
+      description: '',
     },
   });
 
@@ -153,13 +173,19 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const handleAddNew = () => {
     form.reset({
       supplier: '',
-      items: [{ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
       dueDate: new Date(),
     });
     setIsDialogOpen(true);
+  };
+  
+  const handleAddCategory = () => {
+    setEditingCategory(null);
+    categoryForm.reset({ name: '', description: '' });
+    setIsCategoryDialogOpen(true);
   };
 
   const onSubmit = (data: PurchaseFormValues) => {
@@ -178,6 +204,26 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       }
     });
   };
+
+  const onSubmitCategory = (data: CategoryFormValues) => {
+    startTransition(async () => {
+      try {
+        if (editingCategory) {
+          await updateCategory(userId, editingCategory.id, data);
+          toast({ title: "Category Updated", description: "The category has been updated." });
+        } else {
+          await addCategory(userId, data);
+          toast({ title: "Category Added", description: "The new category has been created." });
+        }
+        await loadInitialData();
+        setIsCategoryDialogOpen(false);
+        setEditingCategory(null);
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to save the category." });
+      }
+    });
+  };
+
 
   const getFilteredPurchases = async () => {
     if (!dateRange?.from) {
@@ -261,7 +307,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         'Purchase ID': p.purchaseId,
         'Supplier': p.supplier,
         'Item Name': i.itemName,
-        'Category': i.category,
+        'Category': i.categoryName,
         'Author': i.author || '',
         'Quantity': i.quantity,
         'Unit Cost': i.cost,
@@ -431,24 +477,30 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                     </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name={`items.${index}.category`}
-                                    render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-xs">Category</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="Book">Book</SelectItem>
-                                            <SelectItem value="Office Asset">Office Asset</SelectItem>
-                                        </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                    )}
-                                />
-                                {watchItems[index]?.category === 'Book' && (
+                                <div className="flex items-end gap-2">
+                                  <FormField
+                                      control={form.control}
+                                      name={`items.${index}.categoryId`}
+                                      render={({ field }) => (
+                                      <FormItem className="flex-1">
+                                          <FormLabel className="text-xs">Category</FormLabel>
+                                           <Select onValueChange={(value) => {
+                                              const category = categories.find(c => c.id === value);
+                                              field.onChange(value);
+                                              form.setValue(`items.${index}.categoryName`, category?.name || '');
+                                            }} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                            </SelectContent>
+                                          </Select>
+                                          <FormMessage />
+                                      </FormItem>
+                                      )}
+                                  />
+                                  <Button type="button" variant="outline" size="icon" onClick={handleAddCategory}><Plus className="h-4 w-4" /></Button>
+                                </div>
+                                {watchItems[index]?.categoryName === 'Book' && (
                                     <FormField
                                         control={form.control}
                                         name={`items.${index}.author`}
@@ -476,7 +528,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                     control={form.control}
                                     name={`items.${index}.cost`}
                                     render={({ field }) => (
-                                    <FormItem className={watchItems[index]?.category !== 'Book' ? 'md:col-start-4' : ''}>
+                                    <FormItem className={watchItems[index]?.categoryName !== 'Book' ? 'md:col-start-4' : ''}>
                                         <FormLabel className="text-xs">Unit Cost</FormLabel>
                                         <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
                                         <FormMessage />
@@ -501,7 +553,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => append({ itemName: '', category: 'Book', author: '', quantity: 1, cost: 0 })}
+                    onClick={() => append({ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 })}
                     >
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
@@ -621,6 +673,51 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     </Button>
                   </DialogFooter>
               </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add/Edit Category Dialog */}
+      <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-headline">{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
+            <DialogDescription>
+              {editingCategory ? 'Update the category details.' : 'Create a new category for your items.'}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...categoryForm}>
+            <form onSubmit={categoryForm.handleSubmit(onSubmitCategory)} className="space-y-4">
+              <FormField
+                control={categoryForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Books, Stationery" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={categoryForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Brief description of this category" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Category"}</Button>
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>
