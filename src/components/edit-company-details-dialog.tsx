@@ -28,9 +28,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateCompanyDetails } from '@/lib/actions';
-import type { AuthUser } from '@/lib/types';
+import { updateCompanyDetails, getInitialCapital, adjustInitialCapital } from '@/lib/actions';
+import type { AuthUser, InitialCapital } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { Separator } from './ui/separator';
+import { Skeleton } from './ui/skeleton';
 
 const companyDetailsSchema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
@@ -40,6 +42,8 @@ const companyDetailsSchema = z.object({
   bkashNumber: z.string().optional(),
   bankInfo: z.string().optional(),
   secretKey: z.string().optional(),
+  cashAdjustment: z.coerce.number().optional(),
+  bankAdjustment: z.coerce.number().optional(),
 });
 
 type CompanyDetailsFormValues = z.infer<typeof companyDetailsSchema>;
@@ -54,6 +58,20 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
   const router = useRouter();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [initialCapital, setInitialCapital] = React.useState<InitialCapital | null>(null);
+  const [isLoadingCapital, setIsLoadingCapital] = React.useState(true);
+
+  React.useEffect(() => {
+    async function loadCapital() {
+        if (isOpen && user.uid) {
+            setIsLoadingCapital(true);
+            const capitalData = await getInitialCapital(user.uid);
+            setInitialCapital(capitalData);
+            setIsLoadingCapital(false);
+        }
+    }
+    loadCapital();
+  }, [isOpen, user.uid]);
 
   const form = useForm<CompanyDetailsFormValues>({
     resolver: zodResolver(companyDetailsSchema),
@@ -64,21 +82,34 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
       phone: user.phone || '',
       bkashNumber: user.bkashNumber || '',
       bankInfo: user.bankInfo || '',
-      secretKey: '', // Always start empty, user will fill it if they need to
+      secretKey: '',
+      cashAdjustment: 0,
+      bankAdjustment: 0,
     },
   });
 
   const onSubmit = async (data: CompanyDetailsFormValues) => {
     setIsSubmitting(true);
     try {
-      await updateCompanyDetails(user.uid, data);
-      toast({
-        title: 'Details Updated!',
-        description: 'Your store information has been successfully saved.',
-      });
-      setIsOpen(false);
-      // Force a reload to reflect changes everywhere, especially in the layout
-      router.refresh();
+        const { cashAdjustment, bankAdjustment, ...companyData } = data;
+        const adjustments = {
+            cash: cashAdjustment || 0,
+            bank: bankAdjustment || 0,
+        };
+
+        // Run both updates in parallel
+        await Promise.all([
+            updateCompanyDetails(user.uid, companyData),
+            adjustInitialCapital(user.uid, adjustments),
+        ]);
+
+        toast({
+            title: 'Details Updated!',
+            description: 'Your store information has been successfully saved.',
+        });
+        setIsOpen(false);
+        // Force a reload to reflect changes everywhere
+        router.refresh();
     } catch (error) {
       console.error(error);
       toast({
@@ -208,10 +239,67 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                   )}
                 />
               )}
+            
+              <Separator />
+              
+              <div className="space-y-4 rounded-md border p-4">
+                <h3 className="text-lg font-semibold">Capital Adjustment</h3>
+                <p className="text-sm text-muted-foreground">
+                    To adjust capital, enter a positive number to add or a negative number to subtract.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {isLoadingCapital ? (
+                        <Skeleton className="h-10 w-full" />
+                    ) : (
+                        <div className="space-y-2">
+                            <FormLabel>Current Initial Cash</FormLabel>
+                            <Input value={`৳${initialCapital?.cash.toFixed(2) || '0.00'}`} readOnly disabled/>
+                        </div>
+                    )}
+                     <FormField
+                        control={form.control}
+                        name="cashAdjustment"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Adjust Cash Capital By</FormLabel>
+                            <FormControl>
+                                <Input type="number" step="0.01" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {isLoadingCapital ? (
+                        <Skeleton className="h-10 w-full" />
+                    ) : (
+                        <div className="space-y-2">
+                            <FormLabel>Current Initial Bank</FormLabel>
+                            <Input value={`৳${initialCapital?.bank.toFixed(2) || '0.00'}`} readOnly disabled/>
+                        </div>
+                    )}
+                     <FormField
+                        control={form.control}
+                        name="bankAdjustment"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Adjust Bank Capital By</FormLabel>
+                            <FormControl>
+                                <Input type="number" step="0.01" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+              </div>
+
+
             </div>
             
             <DialogFooter className="pt-4 border-t">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || isLoadingCapital}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>

@@ -134,11 +134,16 @@ export type Donation = {
 export type Capital = {
   id: string;
   date: string;
-  source: 'Initial Capital';
+  source: 'Initial Capital' | 'Capital Adjustment';
   amount: number;
   paymentMethod: 'Cash' | 'Bank';
   notes?: string;
 };
+
+export type InitialCapital = {
+  cash: number;
+  bank: number;
+}
 
 export type Transaction = {
   id: string;

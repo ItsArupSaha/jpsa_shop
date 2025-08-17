@@ -4,7 +4,7 @@
 import { addDoc, collection, doc, getDoc, getDocs, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { AuthUser } from '../types';
+import type { AuthUser, InitialCapital } from '../types';
 
 // --- User Initialization on First Login ---
 export async function initializeNewUser(userId: string) {
@@ -142,4 +142,57 @@ export async function resetDatabase(userId: string) {
   // Revalidate all paths
   const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
   paths.forEach(path => revalidatePath(path));
+}
+
+// Get the summed initial capital
+export async function getInitialCapital(userId: string): Promise<InitialCapital> {
+    if (!db || !userId) return { cash: 0, bank: 0 };
+    const capitalCollection = collection(db, 'users', userId, 'capital');
+    const snapshot = await getDocs(capitalCollection);
+    
+    let cash = 0;
+    let bank = 0;
+    
+    snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.paymentMethod === 'Cash') {
+            cash += data.amount;
+        } else if (data.paymentMethod === 'Bank') {
+            bank += data.amount;
+        }
+    });
+
+    return { cash, bank };
+}
+
+// Adjust capital by adding a new transaction
+export async function adjustInitialCapital(userId: string, adjustments: { cash: number, bank: number }) {
+    if (!db || !userId) return;
+    const capitalCollection = collection(db, 'users', userId, 'capital');
+    const now = new Date();
+
+    if (adjustments.cash !== 0) {
+        await addDoc(capitalCollection, {
+            source: 'Capital Adjustment',
+            amount: adjustments.cash,
+            date: Timestamp.fromDate(now),
+            paymentMethod: 'Cash',
+            notes: `Manual adjustment of cash capital.`,
+        });
+    }
+    
+    if (adjustments.bank !== 0) {
+        await addDoc(capitalCollection, {
+            source: 'Capital Adjustment',
+            amount: adjustments.bank,
+            date: Timestamp.fromDate(now),
+            paymentMethod: 'Bank',
+            notes: `Manual adjustment of bank capital.`,
+        });
+    }
+
+    if (adjustments.cash !== 0 || adjustments.bank !== 0) {
+        revalidatePath('/balance-sheet');
+        revalidatePath('/dashboard');
+    }
 }
