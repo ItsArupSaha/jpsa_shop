@@ -97,9 +97,10 @@ export type PurchaseItem = {
     itemName: string;
     categoryId: string;
     categoryName: string;
-    author?: string; // Optional, only for books
+    author?: string;
     quantity: number;
     cost: number;
+    sellingPrice?: number;
 };
 
 export type Purchase = {
@@ -163,3 +164,5 @@ export type Metadata = {
   lastSaleNumber: number;
   lastReturnNumber: number;
 }
+
+    

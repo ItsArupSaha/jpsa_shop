@@ -106,15 +106,19 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
               } else {
                   const newItemRef = doc(itemsCollection);
+                  let sellingPrice = 0;
+                  if (item.categoryName !== 'Office Asset') {
+                    sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
+                  }
+
                   const newItemData: Omit<Item, 'id'> = {
                       title: item.itemName,
                       categoryId: item.categoryId,
                       categoryName: item.categoryName,
-      
                       author: item.author || 'Unknown',
                       stock: item.quantity,
                       productionPrice: item.cost,
-                      sellingPrice: item.cost * 1.5, // Default markup
+                      sellingPrice: sellingPrice,
                   };
                   transaction.set(newItemRef, newItemData);
               }
@@ -178,3 +182,5 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
       return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+    

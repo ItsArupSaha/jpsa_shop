@@ -1,3 +1,4 @@
+
 'use client';
 
 import { addCategory, addPurchase, getCategories, getPurchases, getPurchasesPaginated, updateCategory } from '@/lib/actions';
@@ -38,6 +39,7 @@ const purchaseItemSchema = z.object({
   author: z.string().optional(),
   quantity: z.coerce.number().int().min(1, 'Quantity must be at least 1'),
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
+  sellingPrice: z.coerce.number().optional(),
 }).refine(data => {
     if (data.categoryName === 'Book') {
         return !!data.author && data.author.length > 0;
@@ -132,7 +134,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
       supplier: '',
-      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
@@ -173,7 +175,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const handleAddNew = () => {
     form.reset({
       supplier: '',
-      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 }],
+      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 }],
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
@@ -437,7 +439,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="font-headline">Record New Purchase</DialogTitle>
             <DialogDescription>Enter supplier details and the items purchased. New books will be created automatically.</DialogDescription>
@@ -465,7 +467,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     <div className="space-y-3 pr-2">
                         {fields.map((field, index) => (
                         <div key={field.id} className="flex gap-2 items-start p-3 border rounded-md relative">
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-3">
                                 <FormField
                                     control={form.control}
                                     name={`items.${index}.itemName`}
@@ -528,13 +530,26 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                     control={form.control}
                                     name={`items.${index}.cost`}
                                     render={({ field }) => (
-                                    <FormItem className={watchItems[index]?.categoryName !== 'Book' ? 'md:col-start-4' : ''}>
+                                    <FormItem className={(watchItems[index]?.categoryName !== 'Book') ? 'md:col-start-4' : ''}>
                                         <FormLabel className="text-xs">Unit Cost</FormLabel>
                                         <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                     )}
                                 />
+                                {watchItems[index]?.categoryName !== 'Office Asset' && (
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.sellingPrice`}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-xs">Selling Price</FormLabel>
+                                        <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                )}
                             </div>
                             <Button
                             type="button"
@@ -553,7 +568,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => append({ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0 })}
+                    onClick={() => append({ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 })}
                     >
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
@@ -725,3 +740,5 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     </>
   );
 }
+
+    
