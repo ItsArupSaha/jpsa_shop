@@ -28,8 +28,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateCompanyDetails, getInitialCapital, adjustInitialCapital } from '@/lib/actions';
-import type { AuthUser, InitialCapital } from '@/lib/types';
+import { updateCompanyDetails, getBalanceSheetData, adjustInitialCapital } from '@/lib/actions';
+import type { AuthUser } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { Separator } from './ui/separator';
 import { Skeleton } from './ui/skeleton';
@@ -58,15 +58,15 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
   const router = useRouter();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [initialCapital, setInitialCapital] = React.useState<InitialCapital | null>(null);
+  const [balances, setBalances] = React.useState<{ cash: number; bank: number } | null>(null);
   const [isLoadingCapital, setIsLoadingCapital] = React.useState(true);
 
   React.useEffect(() => {
     async function loadCapital() {
         if (isOpen && user.uid) {
             setIsLoadingCapital(true);
-            const capitalData = await getInitialCapital(user.uid);
-            setInitialCapital(capitalData);
+            const balanceData = await getBalanceSheetData(user.uid);
+            setBalances({ cash: balanceData.cash, bank: balanceData.bank });
             setIsLoadingCapital(false);
         }
     }
@@ -245,15 +245,15 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
               <div className="space-y-4 rounded-md border p-4">
                 <h3 className="text-lg font-semibold">Capital Adjustment</h3>
                 <p className="text-sm text-muted-foreground">
-                    To adjust capital, enter a positive number to add or a negative number to subtract.
+                    To adjust capital, enter a positive number to add or a negative number to subtract. This only affects the capital contribution, not current balances.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {isLoadingCapital ? (
                         <Skeleton className="h-10 w-full" />
                     ) : (
                         <div className="space-y-2">
-                            <FormLabel>Current Initial Cash</FormLabel>
-                            <Input value={`৳${initialCapital?.cash.toFixed(2) || '0.00'}`} readOnly disabled/>
+                            <FormLabel>Current Cash Balance</FormLabel>
+                            <Input value={`৳${balances?.cash.toFixed(2) || '0.00'}`} readOnly disabled/>
                         </div>
                     )}
                      <FormField
@@ -275,8 +275,8 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                         <Skeleton className="h-10 w-full" />
                     ) : (
                         <div className="space-y-2">
-                            <FormLabel>Current Initial Bank</FormLabel>
-                            <Input value={`৳${initialCapital?.bank.toFixed(2) || '0.00'}`} readOnly disabled/>
+                            <FormLabel>Current Bank Balance</FormLabel>
+                            <Input value={`৳${balances?.bank.toFixed(2) || '0.00'}`} readOnly disabled/>
                         </div>
                     )}
                      <FormField
