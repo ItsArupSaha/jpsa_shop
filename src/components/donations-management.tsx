@@ -58,7 +58,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
   
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5 });
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 10 });
     setDonations(newDonations);
     setHasMore(newHasMore);
     setIsInitialLoading(false);
@@ -73,8 +73,8 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
-    const lastDonationId = donations[donations.length - 1]?.id;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 5, lastVisibleId: lastDonationId });
+    const lastDonationId = donations.length > 0 ? donations[donations.length - 1]?.id : undefined;
+    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 10, lastVisibleId: lastDonationId });
     setDonations(prev => [...prev, ...newDonations]);
     setHasMore(newHasMore);
     setIsLoadingMore(false);
@@ -228,7 +228,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="font-headline text-2xl">Donations</CardTitle>
-            <CardDescription>Record and view all donations received.</CardDescription>
+            <CardDescription>Record and view all donations received. Initial capital is not shown here.</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
             <Button onClick={handleAddNew}>

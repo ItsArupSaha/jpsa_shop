@@ -15,7 +15,7 @@ export async function getBalanceSheetData(userId: string) {
         throw new Error("Database not connected");
     }
 
-    const [items, sales, expenses, allTransactionsData, purchases, donations, customersWithDue, transfersData] = await Promise.all([
+    const [items, sales, expenses, allTransactionsData, purchases, donations, customersWithDue, transfersData, capitalData] = await Promise.all([
         getItems(userId),
         getSales(userId),
         getExpenses(userId),
@@ -24,14 +24,25 @@ export async function getBalanceSheetData(userId: string) {
         getDonations(userId),
         getCustomersWithDueBalance(userId), // Use the same trusted function as the dashboard
         getDocs(collection(db, 'users', userId, 'transfers')),
+        getDocs(collection(db, 'users', userId, 'capital')),
     ]);
 
     const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
+    const allCapital = capitalData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
 
     let cash = 0;
     let bank = 0;
 
-    // Capital contributions are recorded as donations
+    // Handle initial capital
+    allCapital.forEach((capital: any) => {
+        if (capital.paymentMethod === 'Cash') {
+            cash += capital.amount;
+        } else if (capital.paymentMethod === 'Bank') {
+            bank += capital.amount;
+        }
+    });
+
+    // Handle donations
     donations.forEach((donation: any) => {
         if (donation.paymentMethod === 'Cash') {
             cash += donation.amount;

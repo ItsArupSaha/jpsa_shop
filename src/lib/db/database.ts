@@ -65,13 +65,13 @@ export async function completeOnboarding(userId: string, data: any) {
 
   await updateDoc(userDocRef, userData);
 
-  // 2. Record initial capital
-  const donationsCollection = collection(userDocRef, 'donations');
+  // 2. Record initial capital into a dedicated 'capital' collection
+  const capitalCollection = collection(userDocRef, 'capital');
   const now = new Date();
 
   if (data.initialCash > 0) {
-    await addDoc(donationsCollection, {
-      donorName: 'Initial Capital',
+    await addDoc(capitalCollection, {
+      source: 'Initial Capital',
       amount: data.initialCash,
       date: Timestamp.fromDate(now),
       paymentMethod: 'Cash',
@@ -80,8 +80,8 @@ export async function completeOnboarding(userId: string, data: any) {
   }
 
   if (data.initialBank > 0) {
-    await addDoc(donationsCollection, {
-      donorName: 'Initial Capital',
+    await addDoc(capitalCollection, {
+      source: 'Initial Capital',
       amount: data.initialBank,
       date: Timestamp.fromDate(now),
       paymentMethod: 'Bank',
@@ -126,7 +126,7 @@ export async function resetDatabase(userId: string) {
   const userRef = doc(db, 'users', userId);
   const batch = writeBatch(db);
 
-          const collectionsToDelete = ['items', 'customers', 'sales', 'sales_returns', 'expenses', 'transactions', 'purchases', 'donations', 'metadata'];
+          const collectionsToDelete = ['items', 'customers', 'sales', 'sales_returns', 'expenses', 'transactions', 'purchases', 'donations', 'capital', 'metadata'];
   for (const coll of collectionsToDelete) {
     const snapshot = await getDocs(collection(userRef, coll));
     snapshot.docs.forEach(doc => batch.delete(doc.ref));

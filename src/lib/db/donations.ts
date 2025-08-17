@@ -27,38 +27,34 @@ export async function getDonations(userId: string): Promise<Donation[]> {
   const donations = snapshot.docs.map(docToDonation);
   
   // Filter out transfer-related donations (they shouldn't affect profit calculation)
-  return donations.filter(donation => !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')));
+  // Also filter out initial capital contributions
+  return donations.filter(donation => 
+    !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')) &&
+    !(donation.donorName === 'Initial Capital')
+  );
 }
 
 export async function getDonationsPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ donations: Donation[], hasMore: boolean }> {
   if (!db || !userId) return { donations: [], hasMore: false };
 
   const donationsCollection = collection(db, 'users', userId, 'donations');
-  let q = query(
-      donationsCollection,
-      orderBy('date', 'desc'),
-      limit(pageLimit)
-  );
-
-  if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(donationsCollection, lastVisibleId));
-      if (lastVisibleDoc.exists()) {
-          q = query(q, startAfter(lastVisibleDoc));
-      }
-  }
-
-  const snapshot = await getDocs(q);
-  const donations = snapshot.docs.map(docToDonation);
+  // We have to filter client-side since we can't do a "not-equal" query on a field
+  // while also ordering by another field without a composite index.
+  // This is less efficient but acceptable for this specific "Initial Capital" case.
+  const allDonations = await getDonations(userId);
   
-  const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-  let hasMore = false;
-  if(lastDoc) {
-    const nextQuery = query(donationsCollection, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
-    const nextSnapshot = await getDocs(nextQuery);
-    hasMore = !nextSnapshot.empty;
+  let startIndex = 0;
+  if (lastVisibleId) {
+    const lastIndex = allDonations.findIndex(d => d.id === lastVisibleId);
+    if (lastIndex !== -1) {
+      startIndex = lastIndex + 1;
+    }
   }
 
-  return { donations, hasMore };
+  const paginatedDonations = allDonations.slice(startIndex, startIndex + pageLimit);
+  const hasMore = startIndex + pageLimit < allDonations.length;
+
+  return { donations: paginatedDonations, hasMore };
 }
 
 
@@ -76,8 +72,11 @@ export async function getDonationsForMonth(userId: string, year: number, month: 
     const snapshot = await getDocs(q);
     const donations = snapshot.docs.map(docToDonation);
     
-    // Filter out transfer-related donations (they shouldn't affect profit calculation)
-    return donations.filter(donation => !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')));
+    // Filter out transfer-related and initial capital donations
+    return donations.filter(donation => 
+      !(donation.donorName === 'Internal Transfer' && donation.notes?.startsWith('Transfer from')) &&
+      !(donation.donorName === 'Initial Capital')
+    );
 }
 
 export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'date'> & { date: Date }): Promise<Donation> {
