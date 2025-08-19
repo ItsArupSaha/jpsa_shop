@@ -246,4 +246,73 @@ export async function addOfficeAsset(
       console.error("Office asset creation failed: ", e);
       return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
-  }    
+}
+
+export async function addExistingAsset(
+    userId: string,
+    data: {
+      itemName: string;
+      quantity: number;
+      value: number;
+    }
+  ) {
+    if (!db || !userId) return { success: false, error: 'Database not connected' };
+  
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const userRef = doc(db!, 'users', userId);
+        const metadataRef = doc(userRef, 'metadata', 'counters');
+        const purchasesCollection = collection(userRef, 'purchases');
+        const capitalCollection = collection(userRef, 'capital');
+        
+        const date = new Date();
+  
+        const metadataDoc = await transaction.get(metadataRef);
+        let lastPurchaseNumber = (metadataDoc.data() as Metadata)?.lastPurchaseNumber || 0;
+        const newPurchaseNumber = lastPurchaseNumber + 1;
+        const purchaseId = `PUR-A-${String(newPurchaseNumber).padStart(4, '0')}`;
+  
+        const totalValue = data.value * data.quantity;
+  
+        const newPurchaseRef = doc(purchasesCollection);
+        const purchaseData = {
+          purchaseId,
+          supplier: 'Existing Asset',
+          date: Timestamp.fromDate(date),
+          dueDate: Timestamp.fromDate(date),
+          items: [
+            {
+              itemName: data.itemName,
+              categoryId: 'OFFICE_ASSET',
+              categoryName: 'Office Asset',
+              quantity: data.quantity,
+              cost: data.value,
+            },
+          ],
+          totalAmount: totalValue,
+          paymentMethod: 'N/A',
+        };
+        transaction.set(newPurchaseRef, purchaseData);
+        transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
+        
+        // Add to capital as owner's equity
+        const capitalData = {
+          source: 'Capital Adjustment',
+          amount: totalValue,
+          date: Timestamp.fromDate(date),
+          paymentMethod: 'Asset', // Special type for non-cash/bank capital
+          notes: `Existing asset added: ${data.quantity}x ${data.itemName}`,
+        };
+        transaction.set(doc(capitalCollection), capitalData);
+  
+        return { success: true };
+      });
+  
+      revalidatePath('/items');
+      revalidatePath('/balance-sheet');
+      return result;
+    } catch (e) {
+      console.error("Existing asset creation failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+}    

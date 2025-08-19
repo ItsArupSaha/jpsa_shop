@@ -110,7 +110,7 @@ export type Purchase = {
     supplier: string;
     items: PurchaseItem[];
     totalAmount: number;
-    paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split';
+    paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split' | 'N/A';
     amountPaid?: number;
     splitPaymentMethod?: 'Cash' | 'Bank';
     dueDate: string;
@@ -138,7 +138,7 @@ export type Capital = {
   date: string;
   source: 'Initial Capital' | 'Capital Adjustment';
   amount: number;
-  paymentMethod: 'Cash' | 'Bank';
+  paymentMethod: 'Cash' | 'Bank' | 'Asset';
   notes?: string;
 };
 
@@ -164,5 +164,3 @@ export type Metadata = {
   lastSaleNumber: number;
   lastReturnNumber: number;
 }
-
-    

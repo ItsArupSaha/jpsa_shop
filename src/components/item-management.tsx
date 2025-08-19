@@ -1,3 +1,4 @@
+
 'use client';
 
 import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, updateCategory, updateItem } from '@/lib/actions';
@@ -51,7 +52,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Category, ClosingStock, Item } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
-import { AddOfficeAssetDialog } from './add-office-asset-dialog';
+import { AddExistingAssetDialog } from './add-existing-asset-dialog';
 
 const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -385,11 +386,11 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
             </Button>
-            <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData}>
+            <AddExistingAssetDialog userId={userId} onAssetAdded={loadInitialData}>
               <Button variant="outline">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Office Asset
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Existing Asset
               </Button>
-            </AddOfficeAssetDialog>
+            </AddExistingAssetDialog>
             <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline">

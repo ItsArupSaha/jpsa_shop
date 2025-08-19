@@ -34,6 +34,7 @@ export async function getBalanceSheetData(userId: string) {
 
     let cash = 0;
     let bank = 0;
+    let otherAssets = 0; // For existing assets added as capital
 
     // Handle initial capital and any adjustments
     allCapital.forEach((capital: any) => {
@@ -41,6 +42,8 @@ export async function getBalanceSheetData(userId: string) {
             cash += capital.amount;
         } else if (capital.paymentMethod === 'Bank') {
             bank += capital.amount;
+        } else if (capital.paymentMethod === 'Asset') {
+            otherAssets += capital.amount;
         }
     });
 
@@ -109,7 +112,7 @@ export async function getBalanceSheetData(userId: string) {
 
     const officeAssetsValue = purchases
         .flatMap((p: any) => p.items)
-        .filter((i: any) => i.category === 'Office Asset')
+        .filter((i: any) => i.categoryName === 'Office Asset')
         .reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
 
     const receivables = customersWithDue.reduce((sum: number, customer: any) => sum + customer.dueBalance, 0);
