@@ -255,11 +255,11 @@ export async function addExistingAsset(
       quantity: number;
       value: number;
     }
-  ) {
+  ): Promise<{ success: true } | { success: false; error: string }> {
     if (!db || !userId) return { success: false, error: 'Database not connected' };
   
     try {
-      const result = await runTransaction(db, async (transaction) => {
+      await runTransaction(db, async (transaction) => {
         const userRef = doc(db!, 'users', userId);
         const metadataRef = doc(userRef, 'metadata', 'counters');
         const purchasesCollection = collection(userRef, 'purchases');
@@ -304,15 +304,13 @@ export async function addExistingAsset(
           notes: `Existing asset added: ${data.quantity}x ${data.itemName}`,
         };
         transaction.set(doc(capitalCollection), capitalData);
-  
-        return { success: true };
       });
   
       revalidatePath('/items');
       revalidatePath('/balance-sheet');
-      return result;
+      return { success: true };
     } catch (e) {
       console.error("Existing asset creation failed: ", e);
       return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
-}    
+}
