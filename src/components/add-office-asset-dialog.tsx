@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -5,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Loader2, PlusCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { addOfficeAsset } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -76,7 +77,7 @@ export function AddOfficeAssetDialog({ userId, onAssetAdded, children }: AddOffi
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="font-headline">Add Office Asset</DialogTitle>
           <DialogDescription>
@@ -84,110 +85,114 @@ export function AddOfficeAssetDialog({ userId, onAssetAdded, children }: AddOffi
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            <FormField
-              control={form.control}
-              name="itemName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Asset Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Office Desk" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quantity</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="cost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit Cost</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
+                <div className="space-y-4 py-4 px-4">
+                    <FormField
+                    control={form.control}
+                    name="itemName"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Asset Name</FormLabel>
+                        <FormControl>
+                            <Input placeholder="e.g., Office Desk" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="quantity"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Quantity</FormLabel>
+                            <FormControl>
+                            <Input type="number" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="cost"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Unit Cost</FormLabel>
+                            <FormControl>
+                            <Input type="number" step="0.01" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    </div>
+                    <FormField
+                    control={form.control}
+                    name="paymentMethod"
+                    render={({ field }) => (
+                        <FormItem className="space-y-3">
+                        <FormLabel>Payment Method</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex gap-4"
+                            >
+                            <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Cash" /></FormControl>
+                                <FormLabel className="font-normal">Cash</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="Bank" /></FormControl>
+                                <FormLabel className="font-normal">Bank</FormLabel>
+                            </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                        <FormLabel>Purchase Date</FormLabel>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button
+                                variant={'outline'}
+                                className={cn(
+                                    'w-full pl-3 text-left font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                )}
+                                >
+                                {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => date > new Date()}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
             </div>
-            <FormField
-              control={form.control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Payment Method</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex gap-4"
-                    >
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl><RadioGroupItem value="Cash" /></FormControl>
-                        <FormLabel className="font-normal">Cash</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2">
-                        <FormControl><RadioGroupItem value="Bank" /></FormControl>
-                        <FormLabel className="font-normal">Bank</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Purchase Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={'outline'}
-                          className={cn(
-                            'w-full pl-3 text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                        >
-                          {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date > new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter className="pt-4">
+            <DialogFooter className="pt-4 border-t">
               <Button type="submit" disabled={isPending}>
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Record Asset Purchase
