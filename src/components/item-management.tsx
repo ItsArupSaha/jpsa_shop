@@ -51,6 +51,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Category, ClosingStock, Item } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
+import { AddOfficeAssetDialog } from './add-office-asset-dialog';
 
 const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -384,9 +385,12 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <CardDescription>Manage your item catalog, prices, and stock levels.</CardDescription>
           </div>
           <div className="flex flex-col gap-2 items-end">
-             <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
-            </Button>
+            <div className="flex gap-2">
+              <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData} />
+              <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
+              </Button>
+            </div>
             <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline">

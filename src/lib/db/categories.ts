@@ -66,8 +66,13 @@ export async function initializeDefaultCategories(userId: string) {
   // Only add default categories if none exist
   if (snapshot.empty) {
     await addDoc(categoriesCollection, {
-      name: 'Accessories',
-      description: 'General accessories and supplies',
+      name: 'Book',
+      description: 'Standard books for sale',
+      createdAt: new Date()
+    });
+    await addDoc(categoriesCollection, {
+      name: 'Stationery',
+      description: 'Pens, pencils, notebooks, etc.',
       createdAt: new Date()
     });
   }

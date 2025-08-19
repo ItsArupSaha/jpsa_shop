@@ -106,11 +106,8 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
               } else {
                   const newItemRef = doc(itemsCollection);
-                  let sellingPrice = 0;
-                  if (item.categoryName !== 'Office Asset') {
-                    sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
-                  }
-
+                  const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
+                  
                   const newItemData: Omit<Item, 'id'> = {
                       title: item.itemName,
                       categoryId: item.categoryId,
@@ -183,4 +180,70 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
   }
 }
 
-    
+export async function addOfficeAsset(
+    userId: string,
+    data: {
+      itemName: string;
+      quantity: number;
+      cost: number;
+      paymentMethod: 'Cash' | 'Bank';
+      date: Date;
+    }
+  ) {
+    if (!db || !userId) return { success: false, error: 'Database not connected' };
+  
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const userRef = doc(db!, 'users', userId);
+        const metadataRef = doc(userRef, 'metadata', 'counters');
+        const purchasesCollection = collection(userRef, 'purchases');
+        const expensesCollection = collection(userRef, 'expenses');
+  
+        const metadataDoc = await transaction.get(metadataRef);
+        let lastPurchaseNumber = (metadataDoc.data() as Metadata)?.lastPurchaseNumber || 0;
+        const newPurchaseNumber = lastPurchaseNumber + 1;
+        const purchaseId = `PUR-A-${String(newPurchaseNumber).padStart(4, '0')}`;
+  
+        const totalAmount = data.cost * data.quantity;
+  
+        const newPurchaseRef = doc(purchasesCollection);
+        const purchaseData = {
+          purchaseId,
+          supplier: 'Asset Purchase',
+          date: Timestamp.fromDate(data.date),
+          dueDate: Timestamp.fromDate(data.date),
+          items: [
+            {
+              itemName: data.itemName,
+              categoryId: 'OFFICE_ASSET',
+              categoryName: 'Office Asset',
+              quantity: data.quantity,
+              cost: data.cost,
+            },
+          ],
+          totalAmount: totalAmount,
+          paymentMethod: data.paymentMethod,
+        };
+        transaction.set(newPurchaseRef, purchaseData);
+        transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
+  
+        const expenseData = {
+          description: `Asset Purchase: ${data.itemName}`,
+          amount: totalAmount,
+          date: Timestamp.fromDate(data.date),
+          paymentMethod: data.paymentMethod,
+        };
+        transaction.set(doc(expensesCollection), expenseData);
+  
+        return { success: true };
+      });
+  
+      revalidatePath('/purchases');
+      revalidatePath('/expenses');
+      revalidatePath('/balance-sheet');
+      return result;
+    } catch (e) {
+      console.error("Office asset creation failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }    

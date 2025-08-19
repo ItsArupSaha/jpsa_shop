@@ -31,6 +31,7 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
+import { AddOfficeAssetDialog } from './add-office-asset-dialog';
 
 const purchaseItemSchema = z.object({
   itemName: z.string().min(1, 'Item name is required'),
@@ -349,9 +350,12 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
               <CardDescription>Manage purchases of books and other assets for the store.</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
-                <Button onClick={handleAddNew}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
-                </Button>
+                <div className="flex gap-2">
+                    <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData} />
+                    <Button onClick={handleAddNew}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
+                    </Button>
+                </div>
                 <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
                     <DialogTrigger asChild>
                         <Button variant="outline">
@@ -442,7 +446,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="font-headline">Record New Purchase</DialogTitle>
-            <DialogDescription>Enter supplier details and the items purchased. New books will be created automatically.</DialogDescription>
+            <DialogDescription>Enter supplier details and the items purchased. New items will be created automatically.</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
