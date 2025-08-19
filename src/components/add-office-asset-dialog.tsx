@@ -1,23 +1,23 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { useToast } from '@/hooks/use-toast';
+import { addOfficeAsset } from '@/lib/actions';
+import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { addOfficeAsset } from '@/lib/actions';
-import { useToast } from '@/hooks/use-toast';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Calendar } from '@/components/ui/calendar';
 
 const assetSchema = z.object({
   itemName: z.string().min(2, { message: 'Asset name must be at least 2 characters.' }),
@@ -66,7 +66,7 @@ export function AddOfficeAssetDialog({ userId, onAssetAdded, children }: AddOffi
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: result.error || 'Failed to add office asset.',
+          description: 'error' in result ? result.error : 'Failed to add office asset.',
         });
       }
     });

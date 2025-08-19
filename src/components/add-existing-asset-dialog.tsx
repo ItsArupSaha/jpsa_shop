@@ -1,13 +1,13 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { addExistingAsset } from '@/lib/actions';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -57,7 +57,7 @@ export function AddExistingAssetDialog({ userId, onAssetAdded, children }: AddEx
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: result.error || 'Failed to add existing asset.',
+          description: 'error' in result ? result.error : 'Failed to add existing asset.',
         });
       }
     });
