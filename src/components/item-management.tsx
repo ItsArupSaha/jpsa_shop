@@ -1,6 +1,6 @@
 'use client';
 
-import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, initializeDefaultCategories, updateCategory, updateItem } from '@/lib/actions';
+import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, updateCategory, updateItem } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -119,10 +119,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
   React.useEffect(() => {
     if(userId) {
-        // Initialize default categories first
-        initializeDefaultCategories(userId).then(() => {
-            loadInitialData();
-        });
+        loadInitialData();
     }
   }, [userId, loadInitialData]);
 
@@ -385,12 +382,14 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <CardDescription>Manage your item catalog, prices, and stock levels.</CardDescription>
           </div>
           <div className="flex flex-col gap-2 items-end">
-            <div className="flex gap-2">
-              <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData} />
-              <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
+            <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
+            </Button>
+            <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData}>
+              <Button variant="outline">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Office Asset
               </Button>
-            </div>
+            </AddOfficeAssetDialog>
             <Dialog open={isStockDialogOpen} onOpenChange={setIsStockDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline">

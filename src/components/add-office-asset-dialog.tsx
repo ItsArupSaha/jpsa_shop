@@ -31,9 +31,10 @@ type AssetFormValues = z.infer<typeof assetSchema>;
 interface AddOfficeAssetDialogProps {
   userId: string;
   onAssetAdded: () => void;
+  children: React.ReactNode;
 }
 
-export function AddOfficeAssetDialog({ userId, onAssetAdded }: AddOfficeAssetDialogProps) {
+export function AddOfficeAssetDialog({ userId, onAssetAdded, children }: AddOfficeAssetDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
   const { toast } = useToast();
@@ -73,9 +74,7 @@ export function AddOfficeAssetDialog({ userId, onAssetAdded }: AddOfficeAssetDia
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <PlusCircle className="mr-2 h-4 w-4" /> Add Office Asset
-        </Button>
+        {children}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

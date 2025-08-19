@@ -350,41 +350,43 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
               <CardDescription>Manage purchases of books and other assets for the store.</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
-                <div className="flex gap-2">
-                    <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData} />
-                    <Button onClick={handleAddNew}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
-                    </Button>
-                </div>
-                <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline">
-                            <Download className="mr-2 h-4 w-4" /> Download Reports
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Download Purchase Report</DialogTitle>
-                            <DialogDescription>Select a date range to download your purchase data.</DialogDescription>
-                        </DialogHeader>
-                         <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                            <div className="py-4 flex flex-col items-center gap-4">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={dateRange?.from}
-                                    selected={dateRange}
-                                    onSelect={setDateRange}
-                                    numberOfMonths={1}
-                                />
-                            </div>
-                        </ScrollArea>
-                        <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                            <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
-                            <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+              <Button onClick={handleAddNew}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
+              </Button>
+              <AddOfficeAssetDialog userId={userId} onAssetAdded={loadInitialData}>
+                <Button variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Office Asset
+                </Button>
+              </AddOfficeAssetDialog>
+              <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                  <DialogTrigger asChild>
+                      <Button variant="outline">
+                          <Download className="mr-2 h-4 w-4" /> Download Reports
+                      </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                          <DialogTitle>Download Purchase Report</DialogTitle>
+                          <DialogDescription>Select a date range to download your purchase data.</DialogDescription>
+                      </DialogHeader>
+                        <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                          <div className="py-4 flex flex-col items-center gap-4">
+                              <Calendar
+                                  initialFocus
+                                  mode="range"
+                                  defaultMonth={dateRange?.from}
+                                  selected={dateRange}
+                                  onSelect={setDateRange}
+                                  numberOfMonths={1}
+                              />
+                          </div>
+                      </ScrollArea>
+                      <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
+                      </DialogFooter>
+                  </DialogContent>
+              </Dialog>
             </div>
           </div>
         </CardHeader>
@@ -541,7 +543,6 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                     </FormItem>
                                     )}
                                 />
-                                {watchItems[index]?.categoryName !== 'Office Asset' && (
                                 <FormField
                                     control={form.control}
                                     name={`items.${index}.sellingPrice`}
@@ -553,7 +554,6 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                                     </FormItem>
                                     )}
                                 />
-                                )}
                             </div>
                             <Button
                             type="button"
