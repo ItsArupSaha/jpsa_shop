@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Transaction } from '../types';
 import { docToTransaction } from './utils';
+import { getCustomerById } from './customers';
 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(userId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
@@ -71,6 +72,35 @@ export async function getTransactionsPaginated({ userId, type, pageLimit = 5, la
   
   return { transactions, hasMore };
 }
+
+export async function getPaidReceivablesForDateRange(userId: string, fromDate: Date, toDate?: Date): Promise<Transaction[]> {
+  if (!db || !userId) return [];
+  const transactionsCollection = collection(db, 'users', userId, 'transactions');
+  
+  const finalToDate = toDate || fromDate;
+  finalToDate.setHours(23, 59, 59, 999);
+
+  const q = query(
+    transactionsCollection,
+    where('type', '==', 'Receivable'),
+    where('status', '==', 'Paid'),
+    where('dueDate', '>=', Timestamp.fromDate(fromDate)),
+    where('dueDate', '<=', Timestamp.fromDate(finalToDate))
+  );
+
+  const snapshot = await getDocs(q);
+  const transactions = await Promise.all(snapshot.docs.map(async (d) => {
+    const transaction = docToTransaction(d);
+    if (transaction.customerId) {
+        const customer = await getCustomerById(userId, transaction.customerId);
+        return { ...transaction, customerName: customer?.name || 'Unknown' };
+    }
+    return transaction;
+  }));
+
+  return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+}
+
 
 export async function getTransactionsForCustomer(
   userId: string,
@@ -139,7 +169,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             const currentDue = customerDoc.data().dueBalance || 0;
             const newDue = currentDue - data.amount;
             
-            transaction.update(customerRef, { dueBalance: newDue < 0 ? 0 : newDue });
+            transaction.update(customerRef, { dueBalance: newDue });
 
             const paymentTransactionData = {
                 description: `Payment from customer`,
@@ -271,3 +301,5 @@ export async function getTransactionsForMonth(userId: string, year: number, mont
         .map(docToTransaction)
         .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
+
+    

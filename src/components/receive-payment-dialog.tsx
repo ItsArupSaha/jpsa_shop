@@ -37,10 +37,11 @@ type PaymentFormValues = z.infer<typeof paymentSchema>;
 interface ReceivePaymentDialogProps {
   customerId?: string;
   userId: string;
+  onPaymentReceived: () => void;
   children: React.ReactNode;
 }
 
-export default function ReceivePaymentDialog({ customerId, userId, children }: ReceivePaymentDialogProps) {
+export default function ReceivePaymentDialog({ customerId, userId, children, onPaymentReceived }: ReceivePaymentDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isPending, startTransition] = React.useTransition();
   const [customersWithDue, setCustomersWithDue] = React.useState<CustomerWithDue[]>([]);
@@ -51,14 +52,19 @@ export default function ReceivePaymentDialog({ customerId, userId, children }: R
     async function loadCustomersWithDue() {
       if (isOpen && !customerId && userId) {
         setIsLoadingCustomers(true);
-        const dueCustomers = await getCustomersWithDueBalance(userId);
-        setCustomersWithDue(dueCustomers);
-        setIsLoadingCustomers(false);
+        try {
+          const dueCustomers = await getCustomersWithDueBalance(userId);
+          setCustomersWithDue(dueCustomers);
+        } catch (error) {
+           toast({ variant: 'destructive', title: 'Error', description: 'Could not load customers with due balance.' });
+        } finally {
+            setIsLoadingCustomers(false);
+        }
       }
     }
     
     loadCustomersWithDue();
-  }, [isOpen, customerId, userId]);
+  }, [isOpen, customerId, userId, toast]);
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
@@ -86,10 +92,9 @@ export default function ReceivePaymentDialog({ customerId, userId, children }: R
           title: 'Payment Received',
           description: 'The customer payment has been successfully recorded.',
         });
-        form.reset();
+        onPaymentReceived();
         setIsOpen(false);
-        // This will trigger a re-fetch on the pages that use this dialog
-        window.location.reload();
+        form.reset();
       } catch (error) {
         toast({
           variant: 'destructive',
@@ -196,3 +201,5 @@ export default function ReceivePaymentDialog({ customerId, userId, children }: R
     </Dialog>
   );
 }
+
+    

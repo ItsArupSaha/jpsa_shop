@@ -156,6 +156,7 @@ export type Transaction = {
   type: 'Receivable' | 'Payable';
   paymentMethod?: 'Cash' | 'Bank';
   customerId?: string;
+  customerName?: string;
 };
 
 // Metadata for counters, etc.
@@ -164,3 +165,5 @@ export type Metadata = {
   lastSaleNumber: number;
   lastReturnNumber: number;
 }
+
+    
