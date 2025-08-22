@@ -22,6 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
+import { ScrollArea } from './ui/scroll-area';
 
 interface ReceivablesManagementProps {
     userId: string;
@@ -231,16 +232,18 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
                         </DialogHeader>
                         
                         {reportType === 'received' && (
-                            <div className="py-4 flex justify-center">
-                               <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={dateRange?.from}
-                                    selected={dateRange}
-                                    onSelect={setDateRange}
-                                    numberOfMonths={1}
-                                />
-                            </div>
+                            <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                                <div className="py-4 flex justify-center">
+                                <Calendar
+                                        initialFocus
+                                        mode="range"
+                                        defaultMonth={dateRange?.from}
+                                        selected={dateRange}
+                                        onSelect={setDateRange}
+                                        numberOfMonths={1}
+                                    />
+                                </div>
+                            </ScrollArea>
                         )}
                         
                         <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
@@ -306,7 +309,3 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       </Card>
   );
 }
-
-    
-
-    
