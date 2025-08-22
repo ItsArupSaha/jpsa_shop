@@ -38,7 +38,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   }, [userId]);
 
   const formatCurrency = (amount: number) => {
-    return `৳${amount.toLocaleString(undefined, {
+    return `BDT ${amount.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;

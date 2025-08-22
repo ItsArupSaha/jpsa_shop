@@ -162,7 +162,7 @@ export default function TransactionsManagement({ title, description, type, userI
       body: filteredTransactions.map(t => [
         t.description,
         format(new Date(t.dueDate), 'yyyy-MM-dd'),
-        `৳${t.amount.toFixed(2)}`
+        `BDT ${t.amount.toFixed(2)}`
       ]),
     });
     doc.save(`pending-${type.toLowerCase()}s-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);

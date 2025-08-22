@@ -17,12 +17,12 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { getCustomersWithDueBalance, getCustomersWithDueBalancePaginated, getPaidReceivablesForDateRange } from '@/lib/actions';
 import type { CustomerWithDue, Transaction } from '@/lib/types';
-import { Skeleton } from './ui/skeleton';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Calendar } from './ui/calendar';
 import type { DateRange } from 'react-day-picker';
+import { Calendar } from './ui/calendar';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 
 interface ReceivablesManagementProps {
     userId: string;
@@ -141,7 +141,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       doc.setTextColor(100);
       doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
       doc.setTextColor(0);
-      autoTable(doc, { startY: 60, head: [['Customer', 'Phone', 'Due Amount']], body: data.map(c => [c.name, c.phone, `৳${c.dueBalance.toFixed(2)}`]) });
+      autoTable(doc, { startY: 60, head: [['Customer', 'Phone', 'Due Amount']], body: data.map(c => [c.name, c.phone, `BDT ${c.dueBalance.toFixed(2)}`]) });
       doc.save(`pending-receivables-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   }
 
@@ -171,7 +171,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     doc.setTextColor(100);
     doc.text(dateString, 105, 51, { align: 'center' });
     doc.setTextColor(0);
-    autoTable(doc, { startY: 60, head: [['Date', 'Customer', 'Method', 'Amount']], body: data.map(t => [format(new Date(t.dueDate), 'PPP'), t.customerName || 'N/A', t.paymentMethod || 'N/A', `৳${t.amount.toFixed(2)}`]) });
+    autoTable(doc, { startY: 60, head: [['Date', 'Customer', 'Method', 'Amount']], body: data.map(t => [format(new Date(t.dueDate), 'PPP'), t.customerName || 'N/A', t.paymentMethod || 'N/A', `BDT ${t.amount.toFixed(2)}`]) });
     doc.save(`received-payments-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   }
 
