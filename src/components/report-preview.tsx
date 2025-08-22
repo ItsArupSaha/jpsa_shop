@@ -90,6 +90,7 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
         body: [
             ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
             ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
+            ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
             ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
             ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
         ],
@@ -158,6 +159,7 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                 <TableBody>
                   <TableRow><TableCell>Total Sales</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalSales)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Profit</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalProfit)}</TableCell></TableRow>
+                  <TableRow><TableCell>Received Payments from Dues</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.receivedPaymentsFromDues)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Expenses</TableCell><TableCell className="text-right text-destructive">({formatCurrency(monthlyActivity.totalExpenses)})</TableCell></TableRow>
                    <TableRow><TableCell>Total Donations</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalDonations)}</TableCell></TableRow>
                 </TableBody>

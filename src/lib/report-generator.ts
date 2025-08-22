@@ -10,6 +10,7 @@ export interface ReportAnalysis {
     totalSales: number;
     profitFromPaidSales: number;
     profitFromPartialPayments: number;
+    receivedPaymentsFromDues: number;
     totalProfit: number;
     totalExpenses: number;
     totalDonations: number;
@@ -107,6 +108,15 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     .filter(sale => sale.paymentMethod !== 'Due')
     .reduce((sum, sale) => sum + sale.total, 0);
 
+  // Calculate received payments from outstanding dues in this month
+  const receivedPaymentsFromDues = transactionsData
+    .filter(transaction => 
+      transaction.type === 'Receivable' && 
+      transaction.status === 'Paid' &&
+      transaction.description.startsWith('Payment from customer')
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
+
   const totalExpenses = expensesData.reduce((sum, expense) => sum + expense.amount, 0);
   const totalDonations = donationsData.reduce((sum, donation) => sum + donation.amount, 0);
 
@@ -117,6 +127,7 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     totalSales,
     profitFromPaidSales,
     profitFromPartialPayments,
+    receivedPaymentsFromDues,
     totalProfit,
     totalExpenses,
     totalDonations,
