@@ -19,8 +19,8 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Transaction } from '../types';
-import { docToTransaction } from './utils';
 import { getCustomerById } from './customers';
+import { docToTransaction } from './utils';
 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(userId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
@@ -80,17 +80,23 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
   const finalToDate = toDate || fromDate;
   finalToDate.setHours(23, 59, 59, 999);
 
+  // First get all paid receivables, then filter by date in application code
   const q = query(
     transactionsCollection,
     where('type', '==', 'Receivable'),
-    where('status', '==', 'Paid'),
-    where('dueDate', '>=', Timestamp.fromDate(fromDate)),
-    where('dueDate', '<=', Timestamp.fromDate(finalToDate))
+    where('status', '==', 'Paid')
   );
 
   const snapshot = await getDocs(q);
-  const transactions = await Promise.all(snapshot.docs.map(async (d) => {
-    const transaction = docToTransaction(d);
+  const allTransactions = snapshot.docs.map(docToTransaction);
+  
+  // Filter by date range in application code to avoid composite index requirement
+  const filteredTransactions = allTransactions.filter(transaction => {
+    const transactionDate = new Date(transaction.dueDate);
+    return transactionDate >= fromDate && transactionDate <= finalToDate;
+  });
+
+  const transactions = await Promise.all(filteredTransactions.map(async (transaction) => {
     if (transaction.customerId) {
         const customer = await getCustomerById(userId, transaction.customerId);
         return { ...transaction, customerName: customer?.name || 'Unknown' };
