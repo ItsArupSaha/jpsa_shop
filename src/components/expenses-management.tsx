@@ -1,16 +1,16 @@
 
 'use client';
 
-import { addExpense, deleteExpense, getExpensesPaginated, getExpenses } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpenses, getExpensesPaginated, updateExpense } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { Download, Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useForm } from 'react-hook-form';
+import * as XLSX from 'xlsx';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Expense } from '@/lib/types';
 import { cn } from "@/lib/utils";
@@ -28,9 +29,9 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-import { useAuth } from '@/hooks/use-auth';
 
 const expenseSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
   description: z.string().min(1, 'Description is required'),
   amount: z.coerce.number().min(0.01, 'Amount must be positive'),
   date: z.date({ required_error: "An expense date is required." }),
@@ -51,6 +52,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [editingExpense, setEditingExpense] = React.useState<Expense | null>(null);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
@@ -83,14 +85,29 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
+      name: '',
       description: '',
       amount: 0,
+      date: new Date(),
       paymentMethod: 'Cash',
     },
   });
 
   const handleAddNew = () => {
-    form.reset({ description: '', amount: 0, date: new Date(), paymentMethod: 'Cash' });
+    form.reset({ name: '', description: '', amount: 0, date: new Date(), paymentMethod: 'Cash' });
+    setEditingExpense(null);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleEdit = (expense: Expense) => {
+    form.reset({
+      name: expense.name || '',
+      description: expense.description || '',
+      amount: expense.amount || 0,
+      date: new Date(expense.date),
+      paymentMethod: expense.paymentMethod || 'Cash',
+    });
+    setEditingExpense(expense);
     setIsAddDialogOpen(true);
   };
 
@@ -104,10 +121,17 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
 
   const onSubmit = (data: ExpenseFormValues) => {
     startTransition(async () => {
-        const newExpense = await addExpense(userId, data);
-        setExpenses(prev => [newExpense, ...prev]);
-        toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
+        if (editingExpense) {
+            const updatedExpense = await updateExpense(userId, editingExpense.id, data);
+            setExpenses(prev => prev.map(e => e.id === editingExpense.id ? updatedExpense : e));
+            toast({ title: 'Expense Updated', description: 'The expense has been updated successfully.' });
+        } else {
+            const newExpense = await addExpense(userId, data);
+            setExpenses(prev => [newExpense, ...prev]);
+            toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
+        }
         setIsAddDialogOpen(false);
+        setEditingExpense(null);
     });
   };
   
@@ -175,9 +199,10 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
 
     autoTable(doc, {
       startY: 60,
-      head: [['Date', 'Description', 'Method', 'Amount']],
+      head: [['Date', 'Name', 'Description', 'Method', 'Amount']],
       body: filteredExpenses.map(e => [
         format(new Date(e.date), 'yyyy-MM-dd'),
+        e.name || '',
         e.description || '',
         e.paymentMethod || '',
         `৳${e.amount.toFixed(2)}`
@@ -202,6 +227,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
 
     const dataToExport = filteredExpenses.map(e => ({
       'Date': format(new Date(e.date), 'yyyy-MM-dd'),
+      'Name': e.name,
       'Description': e.description,
       'Method': e.paymentMethod,
       'Amount': e.amount,
@@ -290,6 +316,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Method</TableHead>
@@ -310,11 +337,15 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                       ))
                     ) : expenses.length > 0 ? expenses.map((expense) => (
                     <TableRow key={expense.id}>
-                      <TableCell className="font-medium">{expense.description}</TableCell>
+                      <TableCell className="font-medium">{expense.name}</TableCell>
+                      <TableCell>{expense.description}</TableCell>
                       <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
                       <TableCell>{expense.paymentMethod}</TableCell>
-                                              <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(expense)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -322,7 +353,7 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
+                      <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -338,13 +369,30 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
         </CardContent>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
             <DialogHeader>
-                <DialogTitle className="font-headline">Add New Expense</DialogTitle>
-                <DialogDescription>Enter the details for the new expense.</DialogDescription>
+                <DialogTitle className="font-headline">{editingExpense ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
+                <DialogDescription>
+                    {editingExpense ? 'Update the details for this expense.' : 'Enter the details for the new expense.'}
+                </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
+                        <div className="space-y-4 py-4 px-4">
+                <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                        <Input placeholder="e.g., John Doe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
                 <FormField
                     control={form.control}
                     name="description"
@@ -438,9 +486,11 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                     </FormItem>
                     )}
                 />
-                <DialogFooter>
-                    <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Expense"}</Button>
-                </DialogFooter>
+                        </div>
+                    </div>
+                    <DialogFooter className="pt-4 border-t">
+                        <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Expense"}</Button>
+                    </DialogFooter>
                 </form>
             </Form>
             </DialogContent>
@@ -449,4 +499,3 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   );
 }
 
-    

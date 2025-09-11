@@ -119,6 +119,7 @@ export type Purchase = {
 export type Expense = {
   id: string;
   date: string; // Changed to string for serialization
+  name: string;
   description: string;
   amount: number;
   paymentMethod?: 'Cash' | 'Bank';

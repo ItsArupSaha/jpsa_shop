@@ -13,6 +13,7 @@ import {
     orderBy,
     query,
     startAfter,
+    updateDoc,
     where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
@@ -92,6 +93,20 @@ export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'dat
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
     return { ...data, id: newDocRef.id, date: data.date.toISOString() };
+}
+
+export async function updateExpense(userId: string, id: string, data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
+    if (!db || !userId) throw new Error("Database not connected");
+    const expenseRef = doc(db, 'users', userId, 'expenses', id);
+    const expenseData = {
+        ...data,
+        date: Timestamp.fromDate(data.date),
+    };
+    await updateDoc(expenseRef, expenseData);
+    revalidatePath('/expenses');
+    revalidatePath('/dashboard');
+    revalidatePath('/balance-sheet');
+    return { ...data, id, date: data.date.toISOString() };
 }
 
 export async function deleteExpense(userId: string, id: string) {
