@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { getBalanceSheetData, getDonationsForMonth, getExpensesForMonth, getItems, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
@@ -41,6 +42,7 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
   const [formValues, setFormValues] = React.useState<ReportFormValues | null>(null);
 
   const { toast } = useToast();
+  const { authUser } = useAuth();
 
   React.useEffect(() => {
     async function loadData() {
@@ -127,14 +129,34 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
     }
   };
   
-  const months = Array.from({ length: 12 }, (_, i) => ({
-    value: i.toString(),
-    label: new Date(0, i).toLocaleString('default', { month: 'long' }),
-  }));
-
   const currentYear = new Date().getFullYear();
-  const startYear = 2023;
+  const currentMonth = new Date().getMonth();
+  
+  // Get the company creation date
+  const companyCreatedAt = authUser?.createdAt ? 
+    (authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt)) : 
+    new Date();
+  const companyStartYear = companyCreatedAt.getFullYear();
+  const companyStartMonth = companyCreatedAt.getMonth();
+  
+  const startYear = Math.min(companyStartYear, currentYear);
   const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => (currentYear - i).toString());
+
+  // Generate months based on company creation date and current month
+  const months = React.useMemo(() => {
+    const allMonths = Array.from({ length: 12 }, (_, i) => ({
+      value: i.toString(),
+      label: new Date(0, i).toLocaleString('default', { month: 'long' }),
+    }));
+
+    // If company was created this year, only show months from creation month to current month
+    if (companyStartYear === currentYear) {
+      return allMonths.slice(companyStartMonth, currentMonth + 1);
+    }
+    
+    // If company was created in a previous year, show all months up to current month
+    return allMonths.slice(0, currentMonth + 1);
+  }, [companyStartYear, companyStartMonth, currentYear, currentMonth]);
 
   return (
     <div className="space-y-6">
@@ -218,7 +240,11 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
       )}
 
       {reportData && formValues && (
-        <ReportPreview reportData={reportData} month={months[parseInt(formValues.month, 10)].label} year={formValues.year} />
+        <ReportPreview 
+          reportData={reportData} 
+          month={months[parseInt(formValues.month, 10)]?.label || new Date(0, parseInt(formValues.month, 10)).toLocaleString('default', { month: 'long' })} 
+          year={formValues.year} 
+        />
       )}
     </div>
   );
