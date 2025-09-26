@@ -6,19 +6,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Calendar as CalendarIcon, Download, Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
-import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -32,6 +30,7 @@ import { DownloadSaleMemo } from './download-sale-memo';
 import { SaleDetailsDialog } from './sale-details-dialog';
 import { SaleMemo } from './sale-memo';
 import { Badge } from './ui/badge';
+import { Calendar } from './ui/calendar';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
 
@@ -50,7 +49,6 @@ const saleFormSchema = z.object({
   amountPaid: z.coerce.number().optional(),
   splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
   creditApplied: z.coerce.number().optional(),
-  saleDate: z.date({ required_error: "A sale date is required." }),
 }).refine(data => {
     if (data.discountType === 'percentage') {
         return data.discountValue >= 0 && data.discountValue <= 100;
@@ -84,7 +82,6 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
-  const [editingSale, setEditingSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -155,7 +152,6 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
       creditApplied: 0,
-      saleDate: new Date(),
     },
   });
 
@@ -222,29 +218,6 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
       creditApplied: 0,
-      saleDate: new Date(),
-    });
-    setCompletedSale(null);
-    setEditingSale(null);
-    setIsDialogOpen(true);
-  };
-
-  const handleEdit = (sale: Sale) => {
-    setEditingSale(sale);
-    form.reset({
-      customerId: sale.customerId,
-      items: sale.items.map(item => ({
-        itemId: item.itemId,
-        quantity: item.quantity,
-        price: item.price
-      })),
-      discountType: sale.discountType,
-      discountValue: sale.discountValue,
-      paymentMethod: sale.paymentMethod,
-      amountPaid: sale.amountPaid || 0,
-      splitPaymentMethod: sale.splitPaymentMethod || 'Cash',
-      creditApplied: sale.creditApplied || 0,
-      saleDate: new Date(sale.date),
     });
     setCompletedSale(null);
     setIsDialogOpen(true);
@@ -253,28 +226,13 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const handleDialogClose = (open: boolean) => {
     if (!open) {
       setCompletedSale(null);
-      setEditingSale(null);
     }
     setIsDialogOpen(open);
   }
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
-      if (editingSale) {
-        // TODO: Implement updateSale function for full edit functionality
-        toast({ 
-          variant: 'destructive', 
-          title: 'Edit Not Available', 
-          description: 'Sale editing is not yet implemented. This feature will be available soon.' 
-        });
-        return;
-      }
-
-      const saleData = {
-        ...data,
-        saleDate: data.saleDate.toISOString()
-      };
-      const result = await addSale(userId, saleData);
+      const result = await addSale(userId, data);
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
@@ -532,14 +490,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell>{sale.paymentMethod}</TableCell>
                       <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(sale)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {customer && authUser && (
-                            <DownloadSaleMemo sale={sale} customer={customer} items={items} user={authUser} />
-                          )}
-                        </div>
+                        {customer && authUser && (
+                          <DownloadSaleMemo sale={sale} customer={customer} items={items} user={authUser} />
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -568,8 +521,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle className="font-headline">{editingSale ? 'Edit Sale' : 'Record a New Sale'}</DialogTitle>
-                <DialogDescription>{editingSale ? 'Update the sale details.' : 'Select a customer and books to create a new sale.'}</DialogDescription>
+                <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
+                <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -601,29 +554,6 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                 Customer has ৳{customerCredit.toFixed(2)} credit available.
                             </p>
                           )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="saleDate"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Sale Date</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button variant={"outline"} className={cn("w-[240px] pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                  {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus/>
-                            </PopoverContent>
-                          </Popover>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -844,9 +774,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>
-                      {isPending ? "Saving..." : editingSale ? "Update Sale" : "Confirm Sale"}
-                    </Button>
+                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
                   </DialogFooter>
                 </form>
               </Form>
