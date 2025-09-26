@@ -84,6 +84,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null);
+  const [editingSale, setEditingSale] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -224,18 +225,51 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       saleDate: new Date(),
     });
     setCompletedSale(null);
+    setEditingSale(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (sale: Sale) => {
+    setEditingSale(sale);
+    form.reset({
+      customerId: sale.customerId,
+      items: sale.items.map(item => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        price: item.price
+      })),
+      discountType: sale.discountType,
+      discountValue: sale.discountValue,
+      paymentMethod: sale.paymentMethod,
+      amountPaid: sale.amountPaid || 0,
+      splitPaymentMethod: sale.splitPaymentMethod || 'Cash',
+      creditApplied: sale.creditApplied || 0,
+      saleDate: new Date(sale.date),
+    });
+    setCompletedSale(null);
     setIsDialogOpen(true);
   };
   
   const handleDialogClose = (open: boolean) => {
     if (!open) {
       setCompletedSale(null);
+      setEditingSale(null);
     }
     setIsDialogOpen(open);
   }
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
+      if (editingSale) {
+        // TODO: Implement updateSale function for full edit functionality
+        toast({ 
+          variant: 'destructive', 
+          title: 'Edit Not Available', 
+          description: 'Sale editing is not yet implemented. This feature will be available soon.' 
+        });
+        return;
+      }
+
       const saleData = {
         ...data,
         saleDate: data.saleDate.toISOString()
@@ -499,7 +533,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => {/* TODO: Add edit functionality */}}>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(sale)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           {customer && authUser && (
@@ -534,8 +568,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle className="font-headline">Record a New Sale</DialogTitle>
-                <DialogDescription>Select a customer and books to create a new sale.</DialogDescription>
+                <DialogTitle className="font-headline">{editingSale ? 'Edit Sale' : 'Record a New Sale'}</DialogTitle>
+                <DialogDescription>{editingSale ? 'Update the sale details.' : 'Select a customer and books to create a new sale.'}</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -810,7 +844,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
+                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>
+                      {isPending ? "Saving..." : editingSale ? "Update Sale" : "Confirm Sale"}
+                    </Button>
                   </DialogFooter>
                 </form>
               </Form>
