@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, updateCategory, updateItem } from '@/lib/actions';
+import { addCategory, addItem, deleteCategory, deleteItem, getCategories, getItemsPaginated, updateCategory, updateItem, calculateClosingStock } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -288,12 +288,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     
     setIsCalculating(true);
     try {
-        // For now, we'll use the current items as closing stock
-        // TODO: Implement proper closing stock calculation based on sales/purchases
-        const calculatedData = items.map(item => ({
-          ...item,
-          closingStock: item.stock
-        }));
+        const calculatedData = await calculateClosingStock(userId, closingStockDate);
         setClosingStockData(calculatedData);
     } catch (error) {
         toast({ variant: "destructive", title: "Error", description: "Could not calculate closing stock." });
