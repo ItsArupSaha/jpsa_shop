@@ -12,13 +12,12 @@ import {
   query,
   runTransaction,
   startAfter,
-  where,
-  deleteDoc,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Item, Metadata, Sale, SaleItem, Transaction } from '../types';
-import { docToSale, docToTransaction } from './utils';
+import type { Item, Metadata, Sale, SaleItem } from '../types';
+import { docToSale } from './utils';
 
 // --- Sales Actions ---
 export async function getSales(userId: string): Promise<Sale[]> {
@@ -157,7 +156,7 @@ export async function addSale(
           items: itemsWithPrices,
           subtotal: calculatedSubtotal,
           total: totalAfterDiscount, // The sale total before credit
-          date: Timestamp.fromDate(saleDate),
+          date: Timestamp.fromDate(saleDate) as any, // Store as Timestamp in Firestore, will be converted to string when retrieved
           creditApplied: creditApplied,
           paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
         };
