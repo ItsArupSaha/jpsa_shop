@@ -335,8 +335,15 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
     autoTable(doc, {
       startY: 60,
-      head: [['Title', 'Category', 'Author', 'Stock']],
-      body: closingStockData.map(item => [item.title, item.categoryName, item.author || '-', item.closingStock]),
+      head: [['Title', 'Category', 'Author', 'Prod. Price', 'MRP', 'Stock']],
+      body: closingStockData.map(item => [
+        item.title, 
+        item.categoryName, 
+        item.author || '-', 
+        `৳${item.productionPrice.toFixed(2)}`,
+        `৳${item.sellingPrice.toFixed(2)}`,
+        item.closingStock
+      ]),
     });
     
     doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
@@ -349,6 +356,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
       Title: item.title,
       Category: item.categoryName,
       Author: item.author || '-',
+      'Production Price': item.productionPrice,
+      'MRP': item.sellingPrice,
       Stock: item.closingStock,
     }));
 
@@ -476,6 +485,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                     <TableHead>Title</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Author</TableHead>
+                    <TableHead className="text-right">Prod. Price</TableHead>
+                    <TableHead className="text-right">MRP</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -485,6 +496,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                       <TableCell className="font-medium">{item.title}</TableCell>
                       <TableCell>{item.categoryName}</TableCell>
                       <TableCell>{item.author || '-'}</TableCell>
+                      <TableCell className="text-right">৳{item.productionPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-right">{item.closingStock}</TableCell>
                     </TableRow>
                   ))}
