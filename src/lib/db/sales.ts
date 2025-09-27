@@ -247,14 +247,14 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
 
     try {
         const saleRef = doc(db, 'users', userId, 'sales', saleId);
-        const saleToDelete = await getDoc(saleRef).then(doc => doc.exists() ? docToSale(doc) : null);
-
-        if (!saleToDelete) {
-            throw new Error("Sale not found.");
-        }
-
+        
         await runTransaction(db, async (transaction) => {
             const userRef = doc(db!, 'users', userId);
+            const saleDoc = await transaction.get(saleRef);
+            if (!saleDoc.exists()) {
+                throw new Error("Sale not found.");
+            }
+            const saleToDelete = docToSale(saleDoc);
 
             // 1. Restore item stock
             for (const item of saleToDelete.items) {
@@ -269,20 +269,30 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
             const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
             const customerDoc = await transaction.get(customerRef);
             if (customerDoc.exists()) {
-                let balanceAdjustment = saleToDelete.total;
-                if(saleToDelete.creditApplied) {
-                    balanceAdjustment -= saleToDelete.creditApplied;
+                let amountToReverse = saleToDelete.total;
+                
+                // If payment was split, only the due portion affected the balance
+                if (saleToDelete.paymentMethod === 'Split') {
+                    amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
+                } else if (saleToDelete.paymentMethod !== 'Due') {
+                    // Cash, Bank, Paid by Credit didn't create a due balance for this sale
+                    amountToReverse = 0;
                 }
+
+                // Reverse any credit the customer used for this sale
+                const creditReversal = saleToDelete.creditApplied || 0;
+                
                 const currentDue = customerDoc.data().dueBalance || 0;
-                transaction.update(customerRef, { dueBalance: currentDue - balanceAdjustment });
+                transaction.update(customerRef, { dueBalance: currentDue - amountToReverse - creditReversal });
             }
 
-            // 3. Delete any associated receivables by querying for the saleId
+            // 3. Delete any associated receivables/payments by querying for the saleId
             const transactionsCollection = collection(userRef, 'transactions');
-            const receivableQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
+            const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
             
-            const receivableDocs = await getDocs(receivableQuery);
-            receivableDocs.forEach(doc => {
+            // This get needs to be outside the transaction's read phase if you plan to write after
+            const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
+            relatedTransactionDocs.forEach(doc => {
                 transaction.delete(doc.ref);
             });
 
@@ -295,11 +305,12 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         revalidatePath('/dashboard');
         revalidatePath('/receivables');
         revalidatePath('/balance-sheet');
-        revalidatePath(`/customers/${saleToDelete.customerId}`);
+        // Revalidating all customers just in case, though we could be more specific
+        revalidatePath('/customers');
 
         return { success: true };
     } catch (e) {
-        console.error("Sale deletion failed: ", e);
-        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      console.error("Sale deletion failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
 }
