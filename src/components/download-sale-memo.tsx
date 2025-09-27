@@ -43,9 +43,9 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.setFont('helvetica', 'bold');
     doc.text('BILL TO', 14, infoY);
     doc.setFont('helvetica', 'normal');
-    doc.text(customer.name, 14, infoY + 5);
-    doc.text(customer.address, 14, infoY + 10);
-    doc.text(customer.phone, 14, infoY + 15);
+    doc.text(String(customer?.name || ''), 14, infoY + 5);
+    doc.text(String(customer?.address || ''), 14, infoY + 10);
+    doc.text(String(customer?.phone || ''), 14, infoY + 15);
     
     doc.setFont('helvetica', 'bold');
     doc.text('Invoice #:', 140, infoY);
@@ -53,7 +53,7 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.text('Payment:', 140, infoY + 10);
     
     doc.setFont('helvetica', 'normal');
-    doc.text(sale.saleId, 165, infoY);
+    doc.text(String(sale?.saleId || ''), 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
     doc.text(sale.paymentMethod, 165, infoY + 10);
 
