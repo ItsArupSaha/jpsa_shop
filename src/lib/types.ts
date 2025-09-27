@@ -158,6 +158,7 @@ export type Transaction = {
   paymentMethod?: 'Cash' | 'Bank';
   customerId?: string;
   customerName?: string;
+  saleId?: string; // Link to the sale
 };
 
 // Metadata for counters, etc.

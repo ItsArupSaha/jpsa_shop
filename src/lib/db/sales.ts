@@ -190,7 +190,8 @@ export async function addSale(
                 status: 'Paid' as const,
                 type: 'Receivable' as const,
                 paymentMethod: data.splitPaymentMethod,
-                customerId: data.customerId
+                customerId: data.customerId,
+                saleId: saleId, // Link to sale
             };
             transaction.set(doc(transactionsCollection), paymentTransactionData);
           }
@@ -203,7 +204,8 @@ export async function addSale(
                 dueDate: Timestamp.fromDate(new Date()),
                 status: 'Pending' as const,
                 type: 'Receivable' as const,
-                customerId: data.customerId
+                customerId: data.customerId,
+                saleId: saleId, // Link to sale
               };
               transaction.set(doc(transactionsCollection), receivableData);
           }
@@ -244,19 +246,18 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
     if (!db || !userId) return { success: false, error: "Database not configured." };
 
     try {
+        const saleRef = doc(db, 'users', userId, 'sales', saleId);
+        const saleToDelete = await getDoc(saleRef).then(doc => doc.exists() ? docToSale(doc) : null);
+
+        if (!saleToDelete) {
+            throw new Error("Sale not found.");
+        }
+
         await runTransaction(db, async (transaction) => {
             const userRef = doc(db!, 'users', userId);
-            const saleRef = doc(userRef, 'sales', saleId);
-            const saleDoc = await transaction.get(saleRef);
-
-            if (!saleDoc.exists()) {
-                throw new Error("Sale not found.");
-            }
-
-            const saleData = saleDoc.data() as Sale;
 
             // 1. Restore item stock
-            for (const item of saleData.items) {
+            for (const item of saleToDelete.items) {
                 const itemRef = doc(userRef, 'items', item.itemId);
                 const itemDoc = await transaction.get(itemRef);
                 if (itemDoc.exists()) {
@@ -265,27 +266,24 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
             }
 
             // 2. Adjust customer balance
-            const customerRef = doc(userRef, 'customers', saleData.customerId);
+            const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
             const customerDoc = await transaction.get(customerRef);
             if (customerDoc.exists()) {
-                let balanceAdjustment = saleData.total;
-                if(saleData.creditApplied) {
-                    balanceAdjustment -= saleData.creditApplied;
+                let balanceAdjustment = saleToDelete.total;
+                if(saleToDelete.creditApplied) {
+                    balanceAdjustment -= saleToDelete.creditApplied;
                 }
                 const currentDue = customerDoc.data().dueBalance || 0;
                 transaction.update(customerRef, { dueBalance: currentDue - balanceAdjustment });
             }
 
-            // 3. Delete any associated receivables
+            // 3. Delete any associated receivables by querying for the saleId
             const transactionsCollection = collection(userRef, 'transactions');
-            const receivableQuery = query(transactionsCollection, where('description', 'in', [`Due from ${saleData.saleId}`, `Partial payment for ${saleData.saleId}`]));
+            const receivableQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
             
-            // Fetch docs outside of the forEach loop
             const receivableDocs = await getDocs(receivableQuery);
             receivableDocs.forEach(doc => {
-                if (doc.exists()) { // Check if the document exists before deleting
-                    transaction.delete(doc.ref);
-                }
+                transaction.delete(doc.ref);
             });
 
             // 4. Delete the sale document
@@ -297,8 +295,8 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         revalidatePath('/dashboard');
         revalidatePath('/receivables');
         revalidatePath('/balance-sheet');
-        // You might need to revalidate the specific customer page if you have one
-        // revalidatePath(`/customers/${saleData.customerId}`);
+        revalidatePath(`/customers/${saleToDelete.customerId}`);
+
         return { success: true };
     } catch (e) {
         console.error("Sale deletion failed: ", e);
