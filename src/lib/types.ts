@@ -167,5 +167,3 @@ export type Metadata = {
   lastSaleNumber: number;
   lastReturnNumber: number;
 }
-
-    

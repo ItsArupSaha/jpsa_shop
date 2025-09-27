@@ -1,4 +1,3 @@
-
 'use server';
 
 import {
@@ -87,7 +86,7 @@ export async function getSalesForMonth(userId: string, year: number, month: numb
 
 export async function addSale(
     userId: string,
-    data: Omit<Sale, 'id' | 'saleId' | 'date' | 'subtotal' | 'total'> & { creditApplied?: number }
+    data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & { creditApplied?: number }
   ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
     if (!db || !userId) return { success: false, error: "Database not configured." };
   
@@ -100,7 +99,7 @@ export async function addSale(
         const salesCollection = collection(userRef, 'sales');
         const transactionsCollection = collection(userRef, 'transactions');
 
-        const saleDate = new Date();
+        const saleDate = data.date || new Date();
         const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
         const customerRef = doc(customersCollection, data.customerId);
         
@@ -151,7 +150,7 @@ export async function addSale(
         const finalTotal = totalAfterDiscount - creditApplied;
 
         const newSaleRef = doc(salesCollection);
-        const saleDataToSave: Omit<Sale, 'id' | 'date'> & { date: Timestamp, creditApplied?: number } = {
+        const saleDataToSave: Omit<Sale, 'id'> & { date: Timestamp, creditApplied?: number } = {
           ...data,
           saleId,
           items: itemsWithPrices,

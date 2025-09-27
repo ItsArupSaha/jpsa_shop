@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarIcon, Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
@@ -32,6 +32,7 @@ import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const saleItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required'),
@@ -41,6 +42,7 @@ const saleItemSchema = z.object({
 
 const saleFormSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
+  date: z.date({ required_error: "A sale date is required." }),
   items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
   discountType: z.enum(['none', 'percentage', 'amount']),
   discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
@@ -145,6 +147,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       items: [{ itemId: '', quantity: 1, price: 0 }],
+      date: new Date(),
       discountType: 'none',
       discountValue: 0,
       paymentMethod: 'Cash',
@@ -210,6 +213,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     const walkInCustomer = customers.find(c => c.name === 'Walk-in Customer');
     form.reset({
       customerId: walkInCustomer?.id || '',
+      date: new Date(),
       items: [{ itemId: '', quantity: 1, price: 0 }],
       discountType: 'none',
       discountValue: 0,
@@ -541,37 +545,74 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
-                    <FormField
-                      control={form.control}
-                      name="customerId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Customer</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a customer" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectPortal>
-                              <SelectContent>
-                                {customers.map(customer => (
-                                  <SelectItem key={customer.id} value={customer.id}>
-                                    {customer.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </SelectPortal>
-                          </Select>
-                           {customerCredit > 0 && (
-                            <p className="text-sm text-green-600 mt-2">
-                                Customer has ৳{customerCredit.toFixed(2)} credit available.
-                            </p>
-                          )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField
+                        control={form.control}
+                        name="customerId"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Customer</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a customer" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectPortal>
+                                <SelectContent>
+                                    {customers.map(customer => (
+                                    <SelectItem key={customer.id} value={customer.id}>
+                                        {customer.name}
+                                    </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </SelectPortal>
+                            </Select>
+                            {customerCredit > 0 && (
+                                <p className="text-sm text-green-600 mt-2">
+                                    Customer has ৳{customerCredit.toFixed(2)} credit available.
+                                </p>
+                            )}
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="date"
+                            render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Sale Date</FormLabel>
+                                <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                    <Button
+                                        variant={"outline"}
+                                        className={cn(
+                                        "pl-3 text-left font-normal",
+                                        !field.value && "text-muted-foreground"
+                                        )}
+                                    >
+                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={field.onChange}
+                                    disabled={(date) => date > new Date()}
+                                    initialFocus
+                                    />
+                                </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
                     <Separator />
                     <FormLabel>Items</FormLabel>
                     {fields.map((field, index) => {
