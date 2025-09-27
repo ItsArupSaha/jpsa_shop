@@ -834,7 +834,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending || total <= 0 || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
+                    <Button type="submit" disabled={isPending || !form.formState.isValid}>{isPending ? "Confirming..." : "Confirm Sale"}</Button>
                   </DialogFooter>
                 </form>
               </Form>
@@ -846,3 +846,4 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   );
 }
 
+    
