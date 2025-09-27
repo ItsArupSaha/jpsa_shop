@@ -46,58 +46,58 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     stockValue: balanceData.stockValue,
   };
 
+  const calculateSaleProfit = (sale: Sale): number => {
+    let totalSaleProfit = 0;
+
+    // Distribute sale-level discount proportionally across items
+    for (const item of sale.items) {
+      const itemData = itemsData.find(i => i.id === item.itemId);
+      if (itemData) {
+        const itemSubtotal = item.price * item.quantity;
+        // Calculate the item's share of the discount
+        const discountRatio = sale.subtotal > 0 ? itemSubtotal / sale.subtotal : 0;
+        const itemDiscount = (sale.subtotal - sale.total) * discountRatio;
+        
+        // Calculate the actual price the customer paid for these items
+        const actualItemRevenue = itemSubtotal - itemDiscount;
+
+        // Calculate profit for this line item
+        const itemCost = itemData.productionPrice * item.quantity;
+        const itemProfit = actualItemRevenue - itemCost;
+        
+        totalSaleProfit += itemProfit;
+      }
+    }
+    return totalSaleProfit;
+  };
+
   // Calculate profit from fully paid sales in this month
   const profitFromPaidSales = salesData
-    .filter(sale => sale.paymentMethod !== 'Due') // Exclude due sales
+    .filter(sale => sale.paymentMethod !== 'Due')
     .reduce((totalProfit, sale) => {
-      const saleProfit = sale.items.reduce((currentSaleProfit, item) => {
-        const itemData = itemsData.find(i => i.id === item.itemId);
-        if (itemData) {
-          const itemProfit = (item.price - itemData.productionPrice) * item.quantity;
-          return currentSaleProfit + itemProfit;
-        }
-        return currentSaleProfit;
-      }, 0);
-      return totalProfit + saleProfit;
+        return totalProfit + calculateSaleProfit(sale);
     }, 0);
 
+
   // Calculate profit from partial payments received in this month
+  // This is complex as we need to find the original sale for the payment
   const profitFromPartialPayments = transactionsData
     .filter(transaction => 
       transaction.type === 'Receivable' && 
       transaction.status === 'Paid' &&
-      transaction.description.startsWith('Payment from customer')
+      transaction.saleId // Ensure it's linked to a sale
     )
     .reduce((totalProfit, payment) => {
-      // Find the original sale this payment is settling
-      // We need to match this payment to the receivable it settled
-      const settledReceivable = transactionsData.find(t => 
-        t.type === 'Receivable' && 
-        t.status === 'Paid' && 
-        t.customerId === payment.customerId &&
-        t.description.startsWith('Due from Sale')
-      );
+      const originalSale = salesData.find(s => s.saleId === payment.saleId);
       
-      if (settledReceivable) {
-        // Extract sale ID from description like "Due from SALE-0001"
-        const saleIdMatch = settledReceivable.description.match(/Due from (SALE-\d+)/);
-        if (saleIdMatch) {
-          const saleId = saleIdMatch[1];
-          const originalSale = salesData.find(s => s.saleId === saleId);
-          
-          if (originalSale) {
-            // Calculate profit for the settled amount
-            const settlementRatio = payment.amount / settledReceivable.amount;
-            const saleProfit = originalSale.items.reduce((currentSaleProfit, item) => {
-              const itemData = itemsData.find(i => i.id === item.itemId);
-              if (itemData) {
-                const itemProfit = (item.price - itemData.productionPrice) * item.quantity;
-                return currentSaleProfit + (itemProfit * settlementRatio);
-              }
-              return currentSaleProfit;
-            }, 0);
-            return totalProfit + saleProfit;
-          }
+      if (originalSale) {
+        const saleProfit = calculateSaleProfit(originalSale);
+        const originalDueAmount = originalSale.total - (originalSale.amountPaid || 0);
+
+        if (originalDueAmount > 0) {
+            // Prorate the profit based on how much of the due amount was paid
+            const paymentRatio = payment.amount / originalDueAmount;
+            return totalProfit + (saleProfit * paymentRatio);
         }
       }
       return totalProfit;
@@ -145,4 +145,4 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     monthlyActivity,
     netResult,
   };
-} 
+}
