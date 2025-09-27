@@ -1,3 +1,4 @@
+
 'use server';
 
 import {
@@ -99,7 +100,7 @@ export async function addSale(
         const salesCollection = collection(userRef, 'sales');
         const transactionsCollection = collection(userRef, 'transactions');
 
-        const saleDate = data.date || new Date();
+        const saleDate = new Date(data.date) || new Date();
         const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
         const customerRef = doc(customersCollection, data.customerId);
         
@@ -269,9 +270,8 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
 
             const transactionsCollection = collection(userRef, 'transactions');
             const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
-            
-            // Note: This query is executed within the transaction's scope now
             const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
+            
 
             // --- WRITE PHASE ---
 
@@ -292,7 +292,7 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
                 }
                 const creditReversal = saleToDelete.creditApplied || 0;
                 const currentDue = customerDoc.data().dueBalance || 0;
-                const newDueBalance = currentDue - amountToReverse - creditReversal;
+                const newDueBalance = currentDue - amountToReverse + creditReversal;
                 transaction.update(customerRef, { dueBalance: newDueBalance });
             }
 

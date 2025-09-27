@@ -1,3 +1,4 @@
+
 'use client';
 
 import { addSale, deleteSale, getCustomers, getItems, getSales, getSalesPaginated } from '@/lib/actions';
@@ -247,7 +248,11 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
   const onSubmit = (data: SaleFormValues) => {
     startTransition(async () => {
-      const result = await addSale(userId, data);
+      const saleData = {
+        ...data,
+        date: data.date.toISOString(),
+      };
+      const result = await addSale(userId, saleData);
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
@@ -840,3 +845,4 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     </>
   );
 }
+
