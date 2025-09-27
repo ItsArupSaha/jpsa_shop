@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -24,15 +25,17 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, recordTransfer } from '@/lib/actions';
-import { Loader2 } from 'lucide-react';
+import { getBalanceSheetData, getTransfersPaginated, recordTransfer } from '@/lib/actions';
+import { CalendarIcon, Loader2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar } from './ui/calendar';
 import { Skeleton } from './ui/skeleton';
+import type { Transfer } from '@/lib/types';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Separator } from './ui/separator';
 
 const transferSchema = z.object({
   from: z.enum(['Cash', 'Bank'], { required_error: 'Please select a source.' }),
@@ -56,6 +59,11 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
     const [isLoadingBalances, setIsLoadingBalances] = React.useState(true);
     const [balances, setBalances] = React.useState({ cash: 0, bank: 0 });
 
+    const [transfers, setTransfers] = React.useState<Transfer[]>([]);
+    const [isLoadingTransfers, setIsLoadingTransfers] = React.useState(true);
+    const [hasMore, setHasMore] = React.useState(true);
+    const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+
     const fetchBalances = React.useCallback(async () => {
         setIsLoadingBalances(true);
         try {
@@ -68,9 +76,40 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
         }
     }, [userId, toast]);
     
+    const fetchTransfers = React.useCallback(async () => {
+        setIsLoadingTransfers(true);
+        try {
+            const { transfers, hasMore } = await getTransfersPaginated({ userId, pageLimit: 5 });
+            setTransfers(transfers);
+            setHasMore(hasMore);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch transfer history.' });
+        } finally {
+            setIsLoadingTransfers(false);
+        }
+    }, [userId, toast]);
+
     React.useEffect(() => {
-        fetchBalances();
-    }, [fetchBalances]);
+        if(userId) {
+            fetchBalances();
+            fetchTransfers();
+        }
+    }, [userId, fetchBalances, fetchTransfers]);
+
+    const handleLoadMore = async () => {
+        if (!hasMore || isLoadingMore) return;
+        setIsLoadingMore(true);
+        const lastTransferId = transfers[transfers.length - 1]?.id;
+        try {
+            const { transfers: newTransfers, hasMore: newHasMore } = await getTransfersPaginated({ userId, pageLimit: 5, lastVisibleId: lastTransferId });
+            setTransfers(prev => [...prev, ...newTransfers]);
+            setHasMore(newHasMore);
+        } catch (error) {
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not load more transfers.' });
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
 
     const form = useForm<TransferFormValues>({
         resolver: zodResolver(transferSchema),
@@ -90,6 +129,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
             });
             form.reset({ amount: 0, from: undefined, to: undefined, date: new Date() });
             await fetchBalances(); // Re-fetch balances after transfer
+            await fetchTransfers(); // Re-fetch transfers list
         } catch (error) {
             console.error(error);
             toast({
@@ -105,8 +145,8 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
     const formatCurrency = (amount: number) => `৳${amount.toFixed(2)}`;
 
     return (
-        <div className="flex justify-center items-start pt-8">
-            <Card className="w-full max-w-2xl animate-in fade-in-50">
+        <div className="space-y-6">
+            <Card className="w-full animate-in fade-in-50">
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Cash & Bank Transfer</CardTitle>
                     <CardDescription>
@@ -114,12 +154,12 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-2 gap-4 mb-6 text-center">
-                        <div className="p-4 bg-muted rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="p-4 bg-muted rounded-lg text-center">
                             <p className="text-sm text-muted-foreground">Current Cash Balance</p>
                             {isLoadingBalances ? <Skeleton className="h-7 w-24 mx-auto mt-1" /> : <p className="text-2xl font-bold">{formatCurrency(balances.cash)}</p>}
                         </div>
-                        <div className="p-4 bg-muted rounded-lg">
+                        <div className="p-4 bg-muted rounded-lg text-center">
                             <p className="text-sm text-muted-foreground">Current Bank Balance</p>
                             {isLoadingBalances ? <Skeleton className="h-7 w-24 mx-auto mt-1" /> : <p className="text-2xl font-bold">{formatCurrency(balances.bank)}</p>}
                         </div>
@@ -231,6 +271,56 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
                             </CardFooter>
                         </form>
                     </Form>
+                </CardContent>
+            </Card>
+
+            <Card className="w-full animate-in fade-in-50">
+                <CardHeader>
+                    <CardTitle className="font-headline text-xl">Transfer History</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoadingTransfers ? (
+                                    Array.from({ length: 3 }).map((_, i) => (
+                                        <TableRow key={`skeleton-${i}`}>
+                                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : transfers.length > 0 ? (
+                                    transfers.map((transfer) => (
+                                        <TableRow key={transfer.id}>
+                                            <TableCell>{format(new Date(transfer.date), 'PPP')}</TableCell>
+                                            <TableCell>{transfer.description}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatCurrency(transfer.amount)}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="h-24 text-center">No transfers recorded yet.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    {hasMore && (
+                        <div className="flex justify-center mt-4">
+                            <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
+                                {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Load More
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

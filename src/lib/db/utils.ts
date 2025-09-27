@@ -1,5 +1,6 @@
 
-import type { Item, Customer, Donation, Expense, Purchase, Sale, SalesReturn, Transaction } from '../types';
+
+import type { Item, Customer, Donation, Expense, Purchase, Sale, SalesReturn, Transaction, Transfer } from '../types';
 
 // Helper to convert Firestore docs to our types
 export function docToItem(d: any): Item {
@@ -56,4 +57,12 @@ export function docToTransaction(d: any): Transaction {
         ...data,
         dueDate: data.dueDate.toDate().toISOString(),
     } as Transaction;
+}
+export function docToTransfer(d: any): Transfer {
+    const data = d.data();
+    return { 
+        id: d.id, 
+        ...data,
+        date: data.date.toDate().toISOString(),
+    } as Transfer;
 }

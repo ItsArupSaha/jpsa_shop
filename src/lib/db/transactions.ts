@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import {
@@ -10,6 +11,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  orderBy,
   query,
   runTransaction,
   startAfter,
@@ -18,9 +20,9 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Transaction } from '../types';
+import type { Transaction, Transfer } from '../types';
 import { getCustomerById } from './customers';
-import { docToTransaction } from './utils';
+import { docToTransaction, docToTransfer } from './utils';
 
 // --- Transactions (Receivables/Payables) Actions ---
 export async function getTransactions(userId: string, type: 'Receivable' | 'Payable'): Promise<Transaction[]> {
@@ -232,6 +234,37 @@ export async function addPayment(userId: string, data: { customerId: string, amo
     }
 }
 
+export async function getTransfersPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ transfers: Transfer[], hasMore: boolean }> {
+    if (!db || !userId) return { transfers: [], hasMore: false };
+  
+    const transfersCollection = collection(db, 'users', userId, 'transfers');
+    let q = query(
+        transfersCollection,
+        orderBy('date', 'desc'),
+        limit(pageLimit)
+    );
+  
+    if (lastVisibleId) {
+        const lastVisibleDoc = await getDoc(doc(transfersCollection, lastVisibleId));
+        if (lastVisibleDoc.exists()) {
+            q = query(q, startAfter(lastVisibleDoc));
+        }
+    }
+  
+    const snapshot = await getDocs(q);
+    const transfers = snapshot.docs.map(docToTransfer);
+    
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    let hasMore = false;
+    if(lastDoc) {
+      const nextQuery = query(transfersCollection, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
+      const nextSnapshot = await getDocs(nextQuery);
+      hasMore = !nextSnapshot.empty;
+    }
+  
+    return { transfers, hasMore };
+}
+
 export async function recordTransfer(
   userId: string, 
   data: { 
@@ -302,7 +335,7 @@ export async function getTransactionsForMonth(userId: string, year: number, mont
         where('dueDate', '<=', Timestamp.fromDate(endDate))
     );
     const snapshot = await getDocs(q);
-    // Sort by dueDate in application code to avoid needing composite index
+    // Sort by dueDate in application code to avoid needing a composite index
     return snapshot.docs
         .map(docToTransaction)
         .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());

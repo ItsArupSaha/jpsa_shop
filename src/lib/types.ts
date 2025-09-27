@@ -161,6 +161,15 @@ export type Transaction = {
   saleId?: string; // Link to the sale
 };
 
+export type Transfer = {
+    id: string;
+    date: string;
+    from: 'Cash' | 'Bank';
+    to: 'Cash' | 'Bank';
+    amount: number;
+    description: string;
+};
+
 // Metadata for counters, etc.
 export type Metadata = {
   lastPurchaseNumber: number;
