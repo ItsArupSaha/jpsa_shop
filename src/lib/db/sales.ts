@@ -1,4 +1,3 @@
-
 'use server';
 
 import {
@@ -12,7 +11,8 @@ import {
   query,
   runTransaction,
   startAfter,
-  where
+  where,
+  deleteDoc,
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -236,5 +236,60 @@ export async function addSale(
     } catch (e) {
       console.error("Sale creation failed: ", e);
       return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
+export async function deleteSale(userId: string, saleId: string): Promise<{ success: boolean; error?: string }> {
+    if (!db || !userId) return { success: false, error: "Database not configured." };
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const userRef = doc(db!, 'users', userId);
+            const saleRef = doc(userRef, 'sales', saleId);
+            const saleDoc = await transaction.get(saleRef);
+
+            if (!saleDoc.exists()) {
+                throw new Error("Sale not found.");
+            }
+
+            const saleData = saleDoc.data() as Sale;
+
+            // 1. Restore item stock
+            for (const item of saleData.items) {
+                const itemRef = doc(userRef, 'items', item.itemId);
+                transaction.update(itemRef, { stock: (await transaction.get(itemRef)).data()!.stock + item.quantity });
+            }
+
+            // 2. Adjust customer balance
+            const customerRef = doc(userRef, 'customers', saleData.customerId);
+            const customerDoc = await transaction.get(customerRef);
+            if (customerDoc.exists()) {
+                let balanceAdjustment = saleData.total;
+                if(saleData.creditApplied) {
+                    balanceAdjustment -= saleData.creditApplied;
+                }
+                const currentDue = customerDoc.data().dueBalance || 0;
+                transaction.update(customerRef, { dueBalance: currentDue - balanceAdjustment });
+            }
+
+            // 3. Delete any associated receivables
+            const transactionsCollection = collection(userRef, 'transactions');
+            const receivableQuery = query(transactionsCollection, where('description', 'in', [`Due from ${saleData.saleId}`, `Partial payment for ${saleData.saleId}`]));
+            const receivableDocs = await getDocs(receivableQuery);
+            receivableDocs.forEach(doc => transaction.delete(doc.ref));
+
+            // 4. Delete the sale document
+            transaction.delete(saleRef);
+        });
+
+        revalidatePath('/sales');
+        revalidatePath('/items');
+        revalidatePath('/dashboard');
+        revalidatePath('/receivables');
+        revalidatePath('/balance-sheet');
+        return { success: true };
+    } catch (e) {
+        console.error("Sale deletion failed: ", e);
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
 }

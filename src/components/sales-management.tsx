@@ -1,7 +1,6 @@
-
 'use client';
 
-import { addSale, getCustomers, getItems, getSales, getSalesPaginated } from '@/lib/actions';
+import { addSale, deleteSale, getCustomers, getItems, getSales, getSalesPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -221,6 +220,18 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     });
     setCompletedSale(null);
     setIsDialogOpen(true);
+  };
+
+  const handleDelete = (saleId: string) => {
+    startTransition(async () => {
+        const result = await deleteSale(userId, saleId);
+        if (result.success) {
+            toast({ title: 'Sale Deleted', description: 'The sale has been removed and stock restored.' });
+            loadInitialData(); // Reload all data to ensure consistency
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete sale.' });
+        }
+    });
   };
   
   const handleDialogClose = (open: boolean) => {
@@ -493,6 +504,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         {customer && authUser && (
                           <DownloadSaleMemo sale={sale} customer={customer} items={items} user={authUser} />
                         )}
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(sale.id)} disabled={isPending}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   )
