@@ -525,6 +525,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Author</TableHead>
+                <TableHead className="text-right">Prod. Price</TableHead>
                 <TableHead className="text-right">Selling Price</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead className="text-right w-[120px]">Actions</TableHead>
@@ -539,6 +540,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                     <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-3/4 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -548,6 +550,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                     <TableCell className="font-medium">{item.title}</TableCell>
                     <TableCell>{item.categoryName}</TableCell>
                     <TableCell>{item.author || '-'}</TableCell>
+                    <TableCell className="text-right">৳{item.productionPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{item.stock}</TableCell>
                     <TableCell className="text-right">
