@@ -335,13 +335,13 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
     autoTable(doc, {
       startY: 60,
-      head: [['Title', 'Category', 'Author', 'Prod. Price', 'MRP', 'Stock']],
+      head: [['Title', 'Category', 'Author', 'Prod. Price (TK)', 'MRP (TK)', 'Stock']],
       body: closingStockData.map(item => [
         item.title, 
         item.categoryName, 
         item.author || '-', 
-        `৳${item.productionPrice.toFixed(2)}`,
-        `৳${item.sellingPrice.toFixed(2)}`,
+        item.productionPrice.toFixed(2),
+        item.sellingPrice.toFixed(2),
         item.closingStock
       ]),
     });
