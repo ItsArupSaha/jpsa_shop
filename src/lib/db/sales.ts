@@ -250,48 +250,54 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         
         await runTransaction(db, async (transaction) => {
             const userRef = doc(db!, 'users', userId);
+            
+            // --- READ PHASE ---
             const saleDoc = await transaction.get(saleRef);
             if (!saleDoc.exists()) {
                 throw new Error("Sale not found.");
             }
             const saleToDelete = docToSale(saleDoc);
+            
+            const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
+            const customerDoc = await transaction.get(customerRef);
+            if (!customerDoc.exists()) {
+                // This case should be rare, but we handle it.
+                console.warn(`Customer ${saleToDelete.customerId} not found during sale deletion.`);
+            }
+
+            const itemRefs = saleToDelete.items.map(item => doc(userRef, 'items', item.itemId));
+            const itemDocs = await Promise.all(itemRefs.map(ref => transaction.get(ref)));
+
+            const transactionsCollection = collection(userRef, 'transactions');
+            const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
+            
+            // Note: This query is executed within the transaction's scope now
+            const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
+
+            // --- WRITE PHASE ---
 
             // 1. Restore item stock
-            for (const item of saleToDelete.items) {
-                const itemRef = doc(userRef, 'items', item.itemId);
-                const itemDoc = await transaction.get(itemRef);
+            for (let i = 0; i < itemDocs.length; i++) {
+                const itemDoc = itemDocs[i];
                 if (itemDoc.exists()) {
-                    transaction.update(itemRef, { stock: itemDoc.data().stock + item.quantity });
+                    const newStock = itemDoc.data().stock + saleToDelete.items[i].quantity;
+                    transaction.update(itemDoc.ref, { stock: newStock });
                 }
             }
 
             // 2. Adjust customer balance
-            const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
-            const customerDoc = await transaction.get(customerRef);
             if (customerDoc.exists()) {
-                let amountToReverse = saleToDelete.total;
-                
-                // If payment was split, only the due portion affected the balance
-                if (saleToDelete.paymentMethod === 'Split') {
-                    amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
-                } else if (saleToDelete.paymentMethod !== 'Due') {
-                    // Cash, Bank, Paid by Credit didn't create a due balance for this sale
-                    amountToReverse = 0;
+                let amountToReverse = 0;
+                if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
+                     amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
                 }
-
-                // Reverse any credit the customer used for this sale
                 const creditReversal = saleToDelete.creditApplied || 0;
-                
                 const currentDue = customerDoc.data().dueBalance || 0;
-                transaction.update(customerRef, { dueBalance: currentDue - amountToReverse - creditReversal });
+                const newDueBalance = currentDue - amountToReverse - creditReversal;
+                transaction.update(customerRef, { dueBalance: newDueBalance });
             }
 
-            // 3. Delete any associated receivables/payments by querying for the saleId
-            const transactionsCollection = collection(userRef, 'transactions');
-            const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
-            
-            // This get needs to be outside the transaction's read phase if you plan to write after
-            const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
+            // 3. Delete related transactions
             relatedTransactionDocs.forEach(doc => {
                 transaction.delete(doc.ref);
             });
@@ -305,8 +311,7 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         revalidatePath('/dashboard');
         revalidatePath('/receivables');
         revalidatePath('/balance-sheet');
-        // Revalidating all customers just in case, though we could be more specific
-        revalidatePath('/customers');
+        revalidatePath('/customers'); // Revalidate all customers for simplicity
 
         return { success: true };
     } catch (e) {
