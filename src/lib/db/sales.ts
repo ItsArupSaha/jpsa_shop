@@ -218,7 +218,7 @@ export async function addSale(
         const saleForClient: Sale = {
           id: newSaleRef.id,
           ...saleDataToSave,
-          total: finalTotal, // Final total for client view
+          total: totalAfterDiscount,
           date: saleDate.toISOString(),
         };
   
