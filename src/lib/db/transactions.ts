@@ -179,6 +179,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             
             transaction.update(customerRef, { dueBalance: newDue });
 
+            const paymentTransactionRef = doc(transactionsCollection);
             const paymentTransactionData = {
                 description: `Payment from customer`,
                 amount: data.amount,
@@ -186,13 +187,13 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 status: 'Paid' as const,
                 type: 'Receivable' as const,
                 paymentMethod: data.paymentMethod,
-                customerId: data.customerId
+                customerId: data.customerId,
+                recognizedProfit: 0,
             };
-            const newTransactionRef = doc(transactionsCollection);
-            transaction.set(newTransactionRef, paymentTransactionData);
-
-            // Settle pending receivables if any
+            
             let amountToSettle = data.amount;
+            let totalRecognizedProfit = 0;
+
             const receivablesQuery = query(
                 transactionsCollection,
                 where('type', '==', 'Receivable'),
@@ -202,7 +203,6 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             
             const pendingDocs = await getDocs(receivablesQuery);
             
-            // Sort by dueDate in application code to avoid needing composite index
             const sortedPendingDocs = pendingDocs.docs
                 .map(doc => ({ doc, data: docToTransaction(doc) }))
                 .sort((a, b) => new Date(a.data.dueDate).getTime() - new Date(b.data.dueDate).getTime());
@@ -211,18 +211,43 @@ export async function addPayment(userId: string, data: { customerId: string, amo
                 if (amountToSettle <= 0) break;
 
                 const receivableRef = doc(transactionsCollection, docSnap.id);
+                const receivableAmount = receivable.amount;
+                const remainingProfit = receivable.remainingProfit || 0;
                 
-                if (amountToSettle >= receivable.amount) {
-                    transaction.update(receivableRef, { status: 'Paid' });
-                    amountToSettle -= receivable.amount;
+                const paymentForThisReceivable = Math.min(amountToSettle, receivableAmount);
+                const profitToRecognize = remainingProfit > 0 && receivableAmount > 0 
+                    ? remainingProfit * (paymentForThisReceivable / receivableAmount)
+                    : 0;
+
+                totalRecognizedProfit += profitToRecognize;
+
+                if (paymentForThisReceivable < receivableAmount) {
+                    // Partially paying off this receivable
+                    transaction.update(receivableRef, { 
+                        amount: receivableAmount - paymentForThisReceivable,
+                        remainingProfit: remainingProfit - profitToRecognize,
+                     });
+                } else {
+                    // Fully paying off this receivable
+                    transaction.update(receivableRef, { 
+                        status: 'Paid',
+                        remainingProfit: 0,
+                    });
                 }
+                amountToSettle -= paymentForThisReceivable;
             }
-             return { success: true };
+
+            // Set the total recognized profit on the main payment transaction
+            paymentTransactionData.recognizedProfit = totalRecognizedProfit;
+            transaction.set(paymentTransactionRef, paymentTransactionData);
+
+            return { success: true };
         });
 
         revalidatePath('/receivables');
         revalidatePath('/dashboard');
         revalidatePath('/balance-sheet');
+        revalidatePath('/reports');
         if (data.customerId) {
             revalidatePath(`/customers/${data.customerId}`);
         }
@@ -233,6 +258,7 @@ export async function addPayment(userId: string, data: { customerId: string, amo
         throw e instanceof Error ? e : new Error('An unknown error occurred during payment processing.');
     }
 }
+
 
 export async function getTransfersPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ transfers: Transfer[], hasMore: boolean }> {
     if (!db || !userId) return { transfers: [], hasMore: false };

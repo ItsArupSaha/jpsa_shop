@@ -17,6 +17,9 @@ export type AuthUser = {
   bankInfo?: string;
   onboardingComplete?: boolean;
   secretKey?: string;
+  // New fields for initial capital
+  initialCash?: number;
+  initialBank?: number;
 };
 
 export type Customer = {
@@ -159,6 +162,10 @@ export type Transaction = {
   customerId?: string;
   customerName?: string;
   saleId?: string; // Link to the sale
+  // New fields for profit tracking on receivables
+  totalSaleProfit?: number;
+  remainingProfit?: number;
+  recognizedProfit?: number;
 };
 
 export type Transfer = {

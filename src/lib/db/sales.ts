@@ -118,6 +118,7 @@ export async function addSale(
         const saleId = `SALE-${String(newSaleNumber).padStart(4, '0')}`;
         
         let calculatedSubtotal = 0;
+        let totalProductionCost = 0;
         const itemsWithPrices: SaleItem[] = [];
   
         for (let i = 0; i < data.items.length; i++) {
@@ -134,6 +135,7 @@ export async function addSale(
           
           const price = itemData.sellingPrice;
           calculatedSubtotal += price * saleItem.quantity;
+          totalProductionCost += itemData.productionPrice * saleItem.quantity;
           itemsWithPrices.push({ ...saleItem, price });
         }
   
@@ -144,7 +146,9 @@ export async function addSale(
           discountAmount = data.discountValue;
         }
         discountAmount = Math.min(calculatedSubtotal, discountAmount);
+        
         const totalAfterDiscount = calculatedSubtotal - discountAmount;
+        const totalSaleProfit = totalAfterDiscount - totalProductionCost;
         
         const creditApplied = data.creditApplied || 0;
         const finalTotal = totalAfterDiscount - creditApplied;
@@ -155,8 +159,8 @@ export async function addSale(
           saleId,
           items: itemsWithPrices,
           subtotal: calculatedSubtotal,
-          total: totalAfterDiscount, // The sale total before credit
-          date: Timestamp.fromDate(saleDate) as any, // Store as Timestamp in Firestore, will be converted to string when retrieved
+          total: totalAfterDiscount,
+          date: Timestamp.fromDate(saleDate) as any,
           creditApplied: creditApplied,
           paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
         };
@@ -172,31 +176,39 @@ export async function addSale(
         const currentDue = customerDoc.data()?.dueBalance || 0;
         let finalDue = currentDue;
 
-        // Apply credit
         if (creditApplied > 0) {
             finalDue += creditApplied;
         }
   
         if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
           let dueAmount = finalTotal;
-          if(data.paymentMethod === 'Split' && data.amountPaid) {
-            dueAmount = finalTotal - data.amountPaid;
+          let realizedProfit = 0;
 
-            const paymentTransactionData = {
-                description: `Partial payment for ${saleId}`,
-                amount: data.amountPaid,
-                dueDate: Timestamp.fromDate(new Date()),
-                status: 'Paid' as const,
-                type: 'Receivable' as const,
-                paymentMethod: data.splitPaymentMethod,
-                customerId: data.customerId,
-                saleId: saleId, // Link to sale
-            };
-            transaction.set(doc(transactionsCollection), paymentTransactionData);
+          if (data.paymentMethod === 'Split' && data.amountPaid && data.amountPaid > 0) {
+              dueAmount = finalTotal - data.amountPaid;
+              
+              if (finalTotal > 0) {
+                realizedProfit = totalSaleProfit * (data.amountPaid / finalTotal);
+              }
+
+              const paymentTransactionData = {
+                  description: `Partial payment for ${saleId}`,
+                  amount: data.amountPaid,
+                  dueDate: Timestamp.fromDate(new Date()),
+                  status: 'Paid' as const,
+                  type: 'Receivable' as const,
+                  paymentMethod: data.splitPaymentMethod,
+                  customerId: data.customerId,
+                  saleId: saleId,
+                  recognizedProfit: realizedProfit,
+              };
+              transaction.set(doc(transactionsCollection), paymentTransactionData);
           }
 
           if (dueAmount > 0) {
               finalDue += dueAmount;
+              const remainingProfit = totalSaleProfit - realizedProfit;
+
               const receivableData = {
                 description: `Due from ${saleId}`,
                 amount: dueAmount,
@@ -204,13 +216,14 @@ export async function addSale(
                 status: 'Pending' as const,
                 type: 'Receivable' as const,
                 customerId: data.customerId,
-                saleId: saleId, // Link to sale
+                saleId: saleId,
+                totalSaleProfit: totalSaleProfit,
+                remainingProfit: remainingProfit,
               };
               transaction.set(doc(transactionsCollection), receivableData);
           }
         }
         
-        // Update customer balance if it changed
         if (finalDue !== currentDue) {
             transaction.update(customerRef, { dueBalance: finalDue });
         }

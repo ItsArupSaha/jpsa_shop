@@ -92,7 +92,6 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
             ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
             ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
             ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
-            ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
         ],
         theme: 'striped',
         headStyles: { fillColor: '#306754' },
@@ -107,7 +106,7 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(`• Paid Sales: ${formatCurrencyForPdf(monthlyActivity.profitFromPaidSales)}`, 20, finalY + 8);
-    doc.text(`• Partial Payments: ${formatCurrencyForPdf(monthlyActivity.profitFromPartialPayments)}`, 20, finalY + 16);
+    doc.text(`• Due Payments: ${formatCurrencyForPdf(monthlyActivity.profitFromDuePayments)}`, 20, finalY + 16);
 
     finalY += 25;
 
@@ -161,13 +160,12 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                   <TableRow><TableCell>Total Profit</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalProfit)}</TableCell></TableRow>
                   <TableRow><TableCell>Received Payments from Dues</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.receivedPaymentsFromDues)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Expenses</TableCell><TableCell className="text-right text-destructive">({formatCurrency(monthlyActivity.totalExpenses)})</TableCell></TableRow>
-                   <TableRow><TableCell>Total Donations</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalDonations)}</TableCell></TableRow>
                 </TableBody>
               </Table>
               <div className="mt-3 p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
                 <p className="font-medium mb-1">Profit Breakdown:</p>
                 <p>• Paid Sales: {formatCurrency(monthlyActivity.profitFromPaidSales)}</p>
-                <p>• Partial Payments: {formatCurrency(monthlyActivity.profitFromPartialPayments)}</p>
+                <p>• Due Payments: {formatCurrency(monthlyActivity.profitFromDuePayments)}</p>
               </div>
             </div>
           </div>
