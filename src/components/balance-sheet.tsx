@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
@@ -29,24 +29,21 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   const [data, setData] = React.useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
-  const [dateRange, setDateRange] = React.useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
-  });
+  const [viewAsOfDate, setViewAsOfDate] = React.useState<Date | undefined>(undefined);
   const { authUser } = useAuth();
   const { toast } = useToast();
 
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
-      const balanceSheetData = await getBalanceSheetData(userId);
+      const balanceSheetData = await getBalanceSheetData(userId, viewAsOfDate);
       setData(balanceSheetData);
       setIsLoading(false);
     }
     if (userId) {
         loadData();
     }
-  }, [userId]);
+  }, [userId, viewAsOfDate]);
 
   const formatCurrency = (amount: number) => {
     return `BDT ${amount.toLocaleString(undefined, {
@@ -57,16 +54,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
 
   const handleDownloadPdf = async () => {
     if (!data || !authUser) return;
-    
-    if (!dateRange?.from) {
-      toast({ title: 'Date Range Required', description: 'Please select a date range to download the balance sheet.' });
-      return;
-    }
 
     const doc = new jsPDF();
-    const dateString = dateRange.to 
-      ? `${format(dateRange.from, 'PPP')} - ${format(dateRange.to, 'PPP')}`
-      : format(dateRange.from, 'PPP');
+    const dateString = viewAsOfDate ? format(viewAsOfDate, 'PPP') : 'Current';
 
     // Left side header
     doc.setFontSize(16);
@@ -94,7 +84,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
-    doc.text(`For the period: ${dateString}`, 105, 51, { align: 'center' });
+    doc.text(viewAsOfDate ? `As of: ${dateString}` : dateString, 105, 51, { align: 'center' });
     doc.setTextColor(0);
 
     // Assets
@@ -137,19 +127,14 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
       columnStyles: { 1: { halign: 'right' } },
     });
     
-    const fileName = dateRange.to 
-      ? `balance-sheet-${format(dateRange.from, 'yyyy-MM-dd')}-to-${format(dateRange.to, 'yyyy-MM-dd')}.pdf`
-      : `balance-sheet-${format(dateRange.from, 'yyyy-MM-dd')}.pdf`;
+    const fileName = viewAsOfDate 
+      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.pdf`
+      : `balance-sheet-current.pdf`;
     doc.save(fileName);
   };
 
   const handleDownloadXlsx = async () => {
     if (!data) return;
-
-    if (!dateRange?.from) {
-      toast({ title: 'Date Range Required', description: 'Please select a date range to download the balance sheet.' });
-      return;
-    }
 
     const dataToExport = [
       { 'Item': 'Cash', 'Amount': data.cash },
@@ -170,9 +155,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Balance Sheet');
 
-    const fileName = dateRange.to 
-      ? `balance-sheet-${format(dateRange.from, 'yyyy-MM-dd')}-to-${format(dateRange.to, 'yyyy-MM-dd')}.xlsx`
-      : `balance-sheet-${format(dateRange.from, 'yyyy-MM-dd')}.xlsx`;
+    const fileName = viewAsOfDate 
+      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.xlsx`
+      : `balance-sheet-current.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -203,52 +188,57 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
       <CardHeader className="flex flex-row justify-between items-start">
         <div>
           <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
-          <CardDescription>A financial snapshot of your business's assets, liabilities, and equity.</CardDescription>
+          <CardDescription>
+            A financial snapshot of your business's assets, liabilities, and equity.
+            {viewAsOfDate && (
+              <span className="block mt-1 text-xs">As of {format(viewAsOfDate, "PPP")}</span>
+            )}
+          </CardDescription>
         </div>
-        <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Download Reports
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Download Balance Sheet Report</DialogTitle>
-              <DialogDescription>Select a date range to download your balance sheet data.</DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-              <div className="py-4 flex flex-col items-center gap-4">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
-                  numberOfMonths={1}
-                />
-                <p className="text-sm text-muted-foreground">
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                        {format(dateRange.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                    )
-                  ) : (
-                    <span>Please pick a start and end date.</span>
-                  )}
-                </p>
-              </div>
-            </ScrollArea>
-            <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-              <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-              <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                {viewAsOfDate ? format(viewAsOfDate, "PPP") : "View As Of Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={viewAsOfDate}
+                onSelect={(date) => setViewAsOfDate(date)}
+                initialFocus
+              />
+              {viewAsOfDate && (
+                <div className="p-3 border-t">
+                  <Button variant="outline" className="w-full" onClick={() => setViewAsOfDate(undefined)}>
+                    View Current Balance
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+          <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download Reports
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Download Balance Sheet Report</DialogTitle>
+                <DialogDescription>
+                  Download the balance sheet for {viewAsOfDate ? format(viewAsOfDate, "PPP") : "current period"}.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                <Button variant="outline" onClick={handleDownloadPdf}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                <Button variant="outline" onClick={handleDownloadXlsx}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? renderSkeleton() : data && (
