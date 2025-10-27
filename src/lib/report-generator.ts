@@ -72,14 +72,24 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     }, 0);
 
   // Profit recognized from payments received THIS month for sales made previously
+  // Exclude initial partial payment transactions from split sales made in the same month
+  // (these are counted in profitFromPaidSales, not here)
   const profitFromDuePayments = transactionsData
     .filter(t => t.type === 'Receivable' && t.status === 'Paid')
+    .filter(t => {
+      // Skip if this is an initial partial payment from a split sale
+      // (these have saleId and description starting with "Partial payment")
+      if (t.saleId && t.description?.startsWith('Partial payment')) {
+        return false;
+      }
+      return true;
+    })
     .reduce((sum, t) => sum + (t.recognizedProfit || 0), 0);
 
   const totalSales = salesData.reduce((sum, sale) => sum + sale.total, 0);
 
   const receivedPaymentsFromDues = transactionsData
-    .filter(t => t.type === 'Receivable' && t.status === 'Paid' && t.description.startsWith('Payment from customer'))
+    .filter(t => t.type === 'Receivable' && t.status === 'Paid' && t.description?.startsWith('Payment from customer'))
     .reduce((total, payment) => total + payment.amount, 0);
 
   const totalExpenses = expensesData.reduce((sum, expense) => sum + expense.amount, 0);
