@@ -44,7 +44,10 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date) {
     };
 
     // Filter data based on asOfDate
-    const filteredCapital = allCapital.filter((capital: any) => isBeforeOrOnCutoff(capital.date));
+    // Always include Initial Capital (it's the starting point, always present in opening balances)
+    const filteredCapital = allCapital.filter((capital: any) => 
+        capital.source === 'Initial Capital' || isBeforeOrOnCutoff(capital.date)
+    );
     const filteredDonations = allDonations.filter((donation: any) => isBeforeOrOnCutoff(donation.date));
     const filteredSales = allSales.filter((sale: any) => isBeforeOrOnCutoff(sale.date));
     const filteredExpenses = allExpenses.filter((expense: any) => isBeforeOrOnCutoff(expense.date));

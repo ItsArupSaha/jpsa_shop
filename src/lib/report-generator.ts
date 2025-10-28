@@ -2,11 +2,6 @@
 import type { Donation, Expense, Item, Sale, Transaction } from './types';
 
 export interface ReportAnalysis {
-  openingBalances: {
-    cash: number;
-    bank: number;
-    stockValue: number;
-  };
   monthlyActivity: {
     totalSales: number;
     profitFromPaidSales: number;
@@ -26,24 +21,13 @@ export interface ReportInput {
   expensesData: Expense[];
   donationsData: Donation[];
   itemsData: Item[];
-  balanceData: {
-    cash: number;
-    bank: number;
-    stockValue: number;
-  };
   month: string;
   year: string;
   transactionsData: Transaction[];
 }
 
 export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
-  const { salesData, expensesData, donationsData, itemsData, balanceData, transactionsData } = input;
-
-  const openingBalances = {
-    cash: balanceData.cash,
-    bank: balanceData.bank,
-    stockValue: balanceData.stockValue,
-  };
+  const { salesData, expensesData, donationsData, itemsData, transactionsData } = input;
 
   const calculateSaleProfit = (sale: Sale): number => {
     const totalProductionCost = sale.items.reduce((acc, saleItem) => {
@@ -107,14 +91,14 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     totalDonations,
   };
 
-  const netProfitOrLoss = totalProfit - totalExpenses;
+  // Net result: Profit + Donations - Expenses
+  const netProfitOrLoss = totalProfit + totalDonations - totalExpenses;
 
   const netResult = {
     netProfitOrLoss,
   };
 
   return {
-    openingBalances,
     monthlyActivity,
     netResult,
   };

@@ -33,7 +33,7 @@ const formatCurrencyForPdf = (amount: number) => {
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {
   const { authUser } = useAuth();
-  const { openingBalances, monthlyActivity, netResult } = reportData;
+  const { monthlyActivity, netResult } = reportData;
 
   const handleDownloadPdf = () => {
     if (!authUser) return;
@@ -68,36 +68,24 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.text(`${month} ${year}`, 105, 51, { align: 'center' });
     doc.setTextColor(0);
     
-    // Balances Table
-    autoTable(doc, {
-      startY: 60,
-      head: [['Opening Balances', 'Amount']],
-      body: [
-        ['Cash', formatCurrencyForPdf(openingBalances.cash)],
-        ['Bank', formatCurrencyForPdf(openingBalances.bank)],
-        ['Stock Value', formatCurrencyForPdf(openingBalances.stockValue)],
-      ],
-      theme: 'striped',
-      headStyles: { fillColor: '#306754' },
-    });
-    
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
-
     // Monthly Activity Table
+    let activityBody = [
+        ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
+        ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
+        ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
+        ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
+        ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
+    ];
+    
     autoTable(doc, {
-        startY: finalY,
+        startY: 60,
         head: [['Monthly Activity', 'Amount']],
-        body: [
-            ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
-            ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
-            ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
-            ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
-        ],
+        body: activityBody,
         theme: 'striped',
         headStyles: { fillColor: '#306754' },
     });
-
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+    
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
 
     // Profit Breakdown Section
     doc.setFontSize(11);
@@ -143,22 +131,13 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
           {/* Tables */}
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold mb-2 font-headline">Opening Balances</h3>
-              <Table>
-                <TableBody>
-                  <TableRow><TableCell>Cash</TableCell><TableCell className="text-right">{formatCurrency(openingBalances.cash)}</TableCell></TableRow>
-                  <TableRow><TableCell>Bank</TableCell><TableCell className="text-right">{formatCurrency(openingBalances.bank)}</TableCell></TableRow>
-                  <TableRow><TableCell>Stock Value</TableCell><TableCell className="text-right">{formatCurrency(openingBalances.stockValue)}</TableCell></TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <div>
               <h3 className="text-lg font-semibold mb-2 font-headline">Monthly Activity</h3>
               <Table>
                 <TableBody>
                   <TableRow><TableCell>Total Sales</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalSales)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Profit</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalProfit)}</TableCell></TableRow>
                   <TableRow><TableCell>Received Payments from Dues</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.receivedPaymentsFromDues)}</TableCell></TableRow>
+                  <TableRow><TableCell>Total Donations</TableCell><TableCell className="text-right text-primary">{formatCurrency(monthlyActivity.totalDonations)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Expenses</TableCell><TableCell className="text-right text-destructive">({formatCurrency(monthlyActivity.totalExpenses)})</TableCell></TableRow>
                 </TableBody>
               </Table>

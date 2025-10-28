@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, getDonationsForMonth, getExpensesForMonth, getItems, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
+import { getDonationsForMonth, getExpensesForMonth, getItems, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
 import type { Item } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,7 +27,6 @@ type ReportFormValues = z.infer<typeof reportSchema>;
 
 interface ReportDataSource {
   items: Item[];
-  balanceSheet: Awaited<ReturnType<typeof getBalanceSheetData>>;
 }
 
 interface ReportGeneratorProps {
@@ -49,11 +48,8 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
       if (!userId) return;
       setIsLoading(true);
       try {
-        const [items, balanceSheet] = await Promise.all([
-          getItems(userId),
-          getBalanceSheetData(userId),
-        ]);
-        setDataSource({ items, balanceSheet });
+        const items = await getItems(userId);
+        setDataSource({ items });
       } catch (error) {
         toast({
           variant: "destructive",
@@ -95,11 +91,6 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
         expensesData: expensesForMonth,
         donationsData: donationsForMonth,
         itemsData: dataSource.items,
-        balanceData: {
-            cash: dataSource.balanceSheet.cash,
-            bank: dataSource.balanceSheet.bank,
-            stockValue: dataSource.balanceSheet.stockValue,
-        },
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
         transactionsData: transactionsForMonth,
