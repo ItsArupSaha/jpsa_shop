@@ -126,6 +126,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
   const generatePdf = (data: CustomerWithDue[]) => {
       const doc = new jsPDF();
       const dateString = format(new Date(), 'PPP');
+      const totalDue = data.reduce((sum, c) => sum + (c.dueBalance || 0), 0);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text(authUser!.companyName || 'Bookstore', 14, 20);
@@ -141,7 +142,20 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       doc.setTextColor(100);
       doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
       doc.setTextColor(0);
-      autoTable(doc, { startY: 60, head: [['Customer', 'Phone', 'Due Amount']], body: data.map(c => [c.name, c.phone, `BDT ${c.dueBalance.toFixed(2)}`]) });
+      autoTable(doc, {
+        startY: 60,
+        head: [['Customer', 'Phone', 'Due Amount']],
+        body: data.map(c => [
+          c.name,
+          c.phone,
+          `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(c.dueBalance)}`
+        ]),
+        foot: [[
+          { content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+          `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDue)}`
+        ]],
+        footStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold' }
+      });
       doc.save(`pending-receivables-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   }
 
