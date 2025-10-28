@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData } from '@/lib/actions';
+import { getBalanceSheetData, getInitialCapital } from '@/lib/actions';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,14 +30,19 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [viewAsOfDate, setViewAsOfDate] = React.useState<Date | undefined>(undefined);
+  const [initialCapital, setInitialCapital] = React.useState<{ cash: number, bank: number } | null>(null);
   const { authUser } = useAuth();
   const { toast } = useToast();
 
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
-      const balanceSheetData = await getBalanceSheetData(userId, viewAsOfDate);
+      const [balanceSheetData, initial] = await Promise.all([
+        getBalanceSheetData(userId, viewAsOfDate),
+        getInitialCapital(userId)
+      ]);
       setData(balanceSheetData);
+      setInitialCapital(initial);
       setIsLoading(false);
     }
     if (userId) {
@@ -57,9 +62,6 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
 
     const doc = new jsPDF();
     const dateString = viewAsOfDate ? format(viewAsOfDate, 'PPP') : 'Current';
-    const startedOn = authUser?.createdAt
-      ? format(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt), 'PPP')
-      : undefined;
 
     // Left side header
     doc.setFontSize(16);
@@ -79,9 +81,6 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     if (authUser.bankInfo) {
         doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
         yPos += 6;
-    }
-    if (startedOn) {
-        doc.text(`Started on: ${startedOn}`, 200, yPos, { align: 'right' });
     }
 
     // Report Title
@@ -202,6 +201,12 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
             )}
             {authUser?.createdAt && (
               <span className="block mt-1 text-xs">Started on {format(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt), 'PPP')}</span>
+            )}
+            {initialCapital && (
+              <>
+                <span className="block mt-1 text-xs">Opening Cash: {formatCurrency(initialCapital.cash)}</span>
+                <span className="block mt-1 text-xs">Opening Bank: {formatCurrency(initialCapital.bank)}</span>
+              </>
             )}
           </CardDescription>
         </div>
