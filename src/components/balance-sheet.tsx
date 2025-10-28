@@ -57,6 +57,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
 
     const doc = new jsPDF();
     const dateString = viewAsOfDate ? format(viewAsOfDate, 'PPP') : 'Current';
+    const startedOn = authUser?.createdAt
+      ? format(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt), 'PPP')
+      : undefined;
 
     // Left side header
     doc.setFontSize(16);
@@ -75,6 +78,10 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     }
     if (authUser.bankInfo) {
         doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+        yPos += 6;
+    }
+    if (startedOn) {
+        doc.text(`Started on: ${startedOn}`, 200, yPos, { align: 'right' });
     }
 
     // Report Title
@@ -192,6 +199,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
             A financial snapshot of your business's assets, liabilities, and equity.
             {viewAsOfDate && (
               <span className="block mt-1 text-xs">As of {format(viewAsOfDate, "PPP")}</span>
+            )}
+            {authUser?.createdAt && (
+              <span className="block mt-1 text-xs">Started on {format(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt), 'PPP')}</span>
             )}
           </CardDescription>
         </div>

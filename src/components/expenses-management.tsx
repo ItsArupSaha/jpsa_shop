@@ -205,10 +205,13 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
         e.name || '',
         e.description || '',
         e.paymentMethod || '',
-        `৳${e.amount.toFixed(2)}`
+        `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(e.amount)}`
       ]).filter(row => row.every(cell => cell !== undefined)),
       foot: [
-        [{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, `৳${totalExpenses.toFixed(2)}`],
+        [
+          { content: 'Total', colSpan: 3, styles: { halign: 'right' } },
+          `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalExpenses)}`
+        ],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
