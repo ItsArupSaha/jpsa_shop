@@ -10,8 +10,8 @@ import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 import * as XLSX from 'xlsx';
+import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar";
@@ -145,10 +145,10 @@ export default function DonationsManagement() {
         d.donorName,
         d.paymentMethod,
         d.notes || '',
-        `৳${d.amount.toFixed(2)}`
+        `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(d.amount)}`
       ]),
       foot: [
-        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `৳${totalDonations.toFixed(2)}`],
+        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDonations)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] },
     });

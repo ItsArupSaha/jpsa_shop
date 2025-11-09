@@ -1,34 +1,34 @@
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { addDonation, getDonations, getDonationsPaginated } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { PlusCircle, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { addDonation, getDonationsPaginated, getDonations } from '@/lib/actions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide-react';
+import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
+import { useForm } from 'react-hook-form';
+import * as XLSX from 'xlsx';
+import * as z from 'zod';
 
-import type { Donation } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import type { Donation } from '@/lib/types';
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/hooks/use-auth';
+import { Textarea } from './ui/textarea';
 
 const donationSchema = z.object({
   donorName: z.string().min(1, 'Donor name is required'),
@@ -174,10 +174,10 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
         d.donorName,
         d.paymentMethod,
         d.notes || '',
-        `৳${d.amount.toFixed(2)}`
+        `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(d.amount)}`
       ]),
       foot: [
-        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `৳${totalDonations.toFixed(2)}`],
+        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDonations)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
