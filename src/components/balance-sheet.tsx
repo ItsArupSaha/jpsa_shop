@@ -100,7 +100,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
       body: [
         ['Cash', formatCurrency(data.cash)],
         ['Bank', formatCurrency(data.bank)],
-        ['Accounts Receivable', formatCurrency(data.receivables)],
+        ['Due Amounts', formatCurrency(data.receivables)],
         ['Stock Value', formatCurrency(data.stockValue)],
         ['Office Assets', formatCurrency(data.officeAssetsValue)],
       ],
@@ -145,7 +145,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     const dataToExport = [
       { 'Item': 'Cash', 'Amount': data.cash },
       { 'Item': 'Bank', 'Amount': data.bank },
-      { 'Item': 'Accounts Receivable', 'Amount': data.receivables },
+      { 'Item': 'Due Amounts', 'Amount': data.receivables },
       { 'Item': 'Stock Value', 'Amount': data.stockValue },
       { 'Item': 'Office Assets', 'Amount': data.officeAssetsValue },
       { 'Item': 'Total Assets', 'Amount': data.totalAssets },
@@ -273,7 +273,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
                       <TableCell className="text-right">{formatCurrency(data.bank)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Accounts Receivable</TableCell>
+                      <TableCell>Due Amounts</TableCell>
                       <TableCell className="text-right">{formatCurrency(data.receivables)}</TableCell>
                     </TableRow>
                     <TableRow>

@@ -173,9 +173,9 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date) {
         .filter((i: any) => i.categoryName === 'Office Asset')
         .reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
 
-    // Calculate receivables as of the date (only pending transactions up to cutoff)
-    const pendingReceivables = filteredTransactions.filter((t: any) => t.type === 'Receivable' && t.status === 'Pending');
-    const receivables = pendingReceivables.reduce((sum: number, t: any) => sum + t.amount, 0);
+    // Calculate receivables - sum of all customer due balances (same as receivables page)
+    // This represents pending amounts that are currently due
+    const receivables = customersWithDue.reduce((sum: number, customer: any) => sum + customer.dueBalance, 0);
 
     // Calculate payables as of the date
     const pendingPayables = filteredTransactions.filter((t: any) => t.type === 'Payable' && t.status === 'Pending');
