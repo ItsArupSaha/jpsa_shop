@@ -154,8 +154,17 @@ export async function addSale(
         const finalTotal = totalAfterDiscount - creditApplied;
 
         const newSaleRef = doc(salesCollection);
+        
+        // Clean up data: only include amountPaid and splitPaymentMethod for Split payments
+        const cleanedData: any = { ...data };
+        if (data.paymentMethod !== 'Split') {
+            // Remove amountPaid and splitPaymentMethod for non-Split payments
+            delete cleanedData.amountPaid;
+            delete cleanedData.splitPaymentMethod;
+        }
+        
         const saleDataToSave: Omit<Sale, 'id'> & { date: Timestamp, creditApplied?: number } = {
-          ...data,
+          ...cleanedData,
           saleId,
           items: itemsWithPrices,
           subtotal: calculatedSubtotal,
@@ -191,18 +200,10 @@ export async function addSale(
                 realizedProfit = totalSaleProfit * (data.amountPaid / finalTotal);
               }
 
-              const paymentTransactionData = {
-                  description: `Partial payment for ${saleId}`,
-                  amount: data.amountPaid,
-                  dueDate: Timestamp.fromDate(new Date()),
-                  status: 'Paid' as const,
-                  type: 'Receivable' as const,
-                  paymentMethod: data.splitPaymentMethod,
-                  customerId: data.customerId,
-                  saleId: saleId,
-                  recognizedProfit: realizedProfit,
-              };
-              transaction.set(doc(transactionsCollection), paymentTransactionData);
+              // Note: We do NOT create a paid transaction for the partial payment here
+              // because the sale record itself already tracks the immediate payment (amountPaid).
+              // Creating a transaction here would cause double-counting in the balance sheet.
+              // The sale record is the source of truth for immediate payments.
           }
 
           if (dueAmount > 0) {

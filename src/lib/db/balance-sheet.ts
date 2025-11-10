@@ -58,7 +58,8 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date) {
     const filteredTransactions = allTransactions.filter((t: any) => isBeforeOrOnCutoff(t.dueDate));
 
     // Get paid transactions only up to cutoff date
-    const paidTransactionsUpToCutoff = filteredTransactions.filter((t: any) => t.status === 'Paid' && isBeforeOrOnCutoff(t.dueDate));
+    // Note: filteredTransactions already filters by date, so we only need to filter by status
+    const paidTransactionsUpToCutoff = filteredTransactions.filter((t: any) => t.status === 'Paid');
 
     let cash = 0;
     let bank = 0;
@@ -92,23 +93,41 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date) {
             cash += sale.total;
         } else if (sale.paymentMethod === 'Bank') {
             bank += sale.total;
-        } else if (sale.paymentMethod === 'Split' && sale.amountPaid) {
+        } else if (sale.paymentMethod === 'Split' && sale.amountPaid && sale.amountPaid > 0) {
+            // For Split sales, only count the immediate payment (amountPaid)
+            // The remaining due amount is tracked as a receivable
             if (sale.splitPaymentMethod === 'Bank') {
                 bank += sale.amountPaid;
             } else {
                 cash += sale.amountPaid;
             }
         }
+        // Note: 'Paid by Credit' and 'Due' sales don't affect cash/bank balance
+        // - 'Paid by Credit': Uses customer credit, no cash/bank movement
+        // - 'Due': Creates receivable, no immediate cash/bank movement
     });
 
     // Handle payments received from customers
+    // Only count "Payment from customer" transactions (actual money received)
+    // Exclude all other types of paid transactions:
+    // - "Due from SALE-XXXX" transactions (original receivables, not actual payments)
+    // - "Partial payment for" transactions (already counted in sales section for Split sales)
     paidTransactionsUpToCutoff.forEach((t: any) => {
         if (t.type === 'Receivable') {
-            if (t.paymentMethod === 'Cash') {
-                cash += t.amount;
-            } else if (t.paymentMethod === 'Bank') {
-                bank += t.amount;
+            const description = t.description || '';
+            
+            // Only count "Payment from customer" transactions (actual money received)
+            // Exclude everything else
+            if (description.startsWith('Payment from customer')) {
+                if (t.paymentMethod === 'Cash') {
+                    cash += t.amount;
+                } else if (t.paymentMethod === 'Bank') {
+                    bank += t.amount;
+                }
             }
+            // All other paid receivable transactions are excluded:
+            // - "Due from SALE-XXXX" (original receivable, not actual payment)
+            // - "Partial payment for SALE-XXXX" (already counted in sales section)
         }
     });
 
