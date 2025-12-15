@@ -31,9 +31,9 @@ import { SaleDetailsDialog } from './sale-details-dialog';
 import { SaleMemo } from './sale-memo';
 import { Badge } from './ui/badge';
 import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const saleItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required'),
@@ -47,32 +47,32 @@ const saleFormSchema = z.object({
   items: z.array(saleItemSchema).min(1, 'At least one item is required.'),
   discountType: z.enum(['none', 'percentage', 'amount']),
   discountValue: z.coerce.number().min(0, 'Discount must be non-negative').default(0),
-  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split', 'Paid by Credit'], { required_error: 'Payment method is required.'}),
+  paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split', 'Paid by Credit'], { required_error: 'Payment method is required.' }),
   amountPaid: z.coerce.number().optional(),
   splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
   creditApplied: z.coerce.number().optional(),
 }).refine(data => {
-    if (data.discountType === 'percentage') {
-        return data.discountValue >= 0 && data.discountValue <= 100;
-    }
-    return true;
+  if (data.discountType === 'percentage') {
+    return data.discountValue >= 0 && data.discountValue <= 100;
+  }
+  return true;
 }, {
-    message: "Percentage discount must be between 0 and 100.",
-    path: ['discountValue'],
+  message: "Percentage discount must be between 0 and 100.",
+  path: ['discountValue'],
 }).refine(data => {
-    if (data.paymentMethod === 'Split') {
-        return data.amountPaid !== undefined && data.amountPaid > 0 && !!data.splitPaymentMethod;
-    }
-    return true;
+  if (data.paymentMethod === 'Split') {
+    return data.amountPaid !== undefined && data.amountPaid > 0 && !!data.splitPaymentMethod;
+  }
+  return true;
 }, {
-    message: "Amount paid and its method are required for split payments.",
-    path: ['amountPaid'],
+  message: "Amount paid and its method are required for split payments.",
+  path: ['amountPaid'],
 });
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
 
 interface SalesManagementProps {
-    userId: string;
+  userId: string;
 }
 
 export default function SalesManagement({ userId }: SalesManagementProps) {
@@ -93,30 +93,30 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const [{ sales: newSales, hasMore: newHasMore }, itemsData, customersData] = await Promise.all([
-            getSalesPaginated({ userId, pageLimit: 5 }),
-            getItems(userId),
-            getCustomers(userId),
-        ]);
-        setSales(newSales);
-        setHasMore(newHasMore);
-        setItems(itemsData);
-        setCustomers(customersData);
+      const [{ sales: newSales, hasMore: newHasMore }, itemsData, customersData] = await Promise.all([
+        getSalesPaginated({ userId, pageLimit: 5 }),
+        getItems(userId),
+        getCustomers(userId),
+      ]);
+      setSales(newSales);
+      setHasMore(newHasMore);
+      setItems(itemsData);
+      setCustomers(customersData);
     } catch (error) {
-        console.error("Failed to load initial sales data:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load data. Please try again later.",
-        });
+      console.error("Failed to load initial sales data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not load data. Please try again later.",
+      });
     } finally {
-        setIsInitialLoading(false);
+      setIsInitialLoading(false);
     }
-}, [userId, toast]);
+  }, [userId, toast]);
 
   React.useEffect(() => {
-    if(userId) {
-        loadInitialData();
+    if (userId) {
+      loadInitialData();
     }
   }, [userId, loadInitialData]);
 
@@ -129,17 +129,17 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
     try {
-        const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: 5, lastVisibleId: lastSaleId });
-        setSales(prev => [...prev, ...newSales]);
-        setHasMore(newHasMore);
-    } catch(e) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load more sales.",
-        });
+      const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: 5, lastVisibleId: lastSaleId });
+      setSales(prev => [...prev, ...newSales]);
+      setHasMore(newHasMore);
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not load more sales.",
+      });
     } finally {
-        setIsLoadingMore(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -162,14 +162,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     control: form.control,
     name: 'items',
   });
-  
+
   const watchItems = form.watch('items');
   const watchDiscountType = form.watch('discountType');
   const watchDiscountValue = form.watch('discountValue');
   const watchPaymentMethod = form.watch('paymentMethod');
   const watchAmountPaid = form.watch('amountPaid');
   const watchCustomerId = form.watch('customerId');
-  
+
   const selectedCustomer = React.useMemo(() => customers.find(c => c.id === watchCustomerId), [customers, watchCustomerId]);
   const customerCredit = React.useMemo(() => (selectedCustomer && selectedCustomer.dueBalance < 0) ? Math.abs(selectedCustomer.dueBalance) : 0, [selectedCustomer]);
 
@@ -188,9 +188,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   discountAmount = Math.min(subtotal, discountAmount);
 
   const total = subtotal - discountAmount;
-  
+
   const creditToApply = Math.min(total, customerCredit);
-  
+
   const totalAfterCredit = total - creditToApply;
 
   React.useEffect(() => {
@@ -229,16 +229,16 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
   const handleDelete = (saleId: string) => {
     startTransition(async () => {
-        const result = await deleteSale(userId, saleId);
-        if (result.success) {
-            toast({ title: 'Sale Deleted', description: 'The sale has been removed and stock restored.' });
-            loadInitialData(); // Reload all data to ensure consistency
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete sale.' });
-        }
+      const result = await deleteSale(userId, saleId);
+      if (result.success) {
+        toast({ title: 'Sale Deleted', description: 'The sale has been removed and stock restored.' });
+        loadInitialData(); // Reload all data to ensure consistency
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete sale.' });
+      }
     });
   };
-  
+
   const handleDialogClose = (open: boolean) => {
     if (!open) {
       setCompletedSale(null);
@@ -256,7 +256,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
       if (result?.success && result.sale) {
         toast({ title: 'Sale Recorded', description: 'The new sale has been added to the history.' });
-        
+
         const newSale = result.sale;
 
         // Add the newly created sale to the local state to avoid a full refresh
@@ -264,14 +264,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
         // Update local item stock
         const updatedItems = items.map(item => {
-            const soldItem = newSale.items.find(saleItem => saleItem.itemId === item.id);
-            if (soldItem) {
-                return { ...item, stock: item.stock - soldItem.quantity };
-            }
-            return item;
+          const soldItem = newSale.items.find(saleItem => saleItem.itemId === item.id);
+          if (soldItem) {
+            return { ...item, stock: item.stock - soldItem.quantity };
+          }
+          return item;
         });
         setItems(updatedItems);
-        
+
         loadInitialData(); // Reload customers to get updated balance
 
         setCompletedSale(newSale);
@@ -284,13 +284,13 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
   const getFilteredSales = async () => {
     if (!dateRange?.from) {
-        toast({
-            variant: "destructive",
-            title: "Please select a start date.",
-        });
-        return null;
+      toast({
+        variant: "destructive",
+        title: "Please select a start date.",
+      });
+      return null;
     }
-    
+
     const allSales = await getSales(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
@@ -301,7 +301,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       return saleDate >= from && saleDate <= to;
     });
   }
-  
+
   const handleDownloadPdf = async () => {
     const filteredSales = await getFilteredSales();
     if (!filteredSales || !authUser) return;
@@ -313,7 +313,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
-    
+
     // Left side header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
@@ -326,13 +326,13 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     // Right side header
     let yPos = 20;
     if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
     if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
     }
-    
+
     // Report Title
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -355,7 +355,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         `BDT ${sale.total.toFixed(2)}`
       ]),
     });
-    
+
     doc.save(`sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
@@ -372,7 +372,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       'Date': format(new Date(sale.date), 'yyyy-MM-dd'),
       'Sale ID': sale.saleId,
       'Customer': getCustomerName(sale.customerId),
-              'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
+      'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
       'Payment Method': sale.paymentMethod,
       'Total': sale.total,
     }));
@@ -381,14 +381,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     // Auto-fit columns
     const columnWidths = Object.keys(dataToExport[0]).map(key => {
-        const maxLength = Math.max(
-            ...dataToExport.map(row => {
-                const value = row[key as keyof typeof row];
-                return typeof value === 'number' ? String(value).length : (value || '').length;
-            }),
-            key.length
-        );
-        return { wch: maxLength + 2 };
+      const maxLength = Math.max(
+        ...dataToExport.map(row => {
+          const value = row[key as keyof typeof row];
+          return typeof value === 'number' ? String(value).length : (value || '').length;
+        }),
+        key.length
+      );
+      return { wch: maxLength + 2 };
     });
     worksheet['!cols'] = columnWidths;
 
@@ -408,52 +408,52 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               <CardDescription>Create new sales transactions and view past sales history.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
-                <Button onClick={handleAddNew}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Record New Sale
-                </Button>
-                <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline">
-                            <Download className="mr-2 h-4 w-4" /> Download Reports
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Download Sales Report</DialogTitle>
-                            <DialogDescription>Select a date range to download your sales data.</DialogDescription>
-                        </DialogHeader>
-                        <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                            <div className="py-4 flex flex-col items-center gap-4">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={dateRange?.from}
-                                    selected={dateRange}
-                                    onSelect={setDateRange}
-                                    numberOfMonths={1}
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    {dateRange?.from ? (
-                                    dateRange.to ? (
-                                        <>
-                                        Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                                        {format(dateRange.to, "LLL dd, y")}
-                                        </>
-                                    ) : (
-                                        <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                                    )
-                                    ) : (
-                                    <span>Please pick a start and end date.</span>
-                                    )}
-                                </p>
-                            </div>
-                        </ScrollArea>
-                        <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+              <Button onClick={handleAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Record New Sale
+              </Button>
+              <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Download className="mr-2 h-4 w-4" /> Download Reports
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Download Sales Report</DialogTitle>
+                    <DialogDescription>Select a date range to download your sales data.</DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                    <div className="py-4 flex flex-col items-center gap-4">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateRange?.from}
+                        selected={dateRange}
+                        onSelect={setDateRange}
+                        numberOfMonths={1}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            <>
+                              Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
+                              {format(dateRange.to, "LLL dd, y")}
+                            </>
+                          ) : (
+                            <>Selected: {format(dateRange.from, "LLL dd, y")}</>
+                          )
+                        ) : (
+                          <span>Please pick a start and end date.</span>
+                        )}
+                      </p>
+                    </div>
+                  </ScrollArea>
+                  <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                    <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                    <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </CardHeader>
@@ -473,17 +473,17 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               </TableHeader>
               <TableBody>
                 {isInitialLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                        <TableRow key={`skeleton-${i}`}>
-                            <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                            <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                        </TableRow>
-                    ))
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
                 ) : sales.length > 0 ? sales.map((sale) => {
                   const customer = customers.find(c => c.id === sale.customerId);
                   return (
@@ -493,18 +493,18 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell className="font-medium">{customer?.name || 'Unknown Customer'}</TableCell>
                       <TableCell className="max-w-[300px]">
                         {sale.items.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <span>
-                                    {sale.items[0].quantity}x {getItemTitle(sale.items[0].itemId)}
-                                </span>
-                                {sale.items.length > 1 && (
-                                    <SaleDetailsDialog sale={sale} items={items}>
-                                        <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
-                                            +{sale.items.length - 1} more
-                                        </Badge>
-                                    </SaleDetailsDialog>
-                                )}
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {sale.items[0].quantity}x {getItemTitle(sale.items[0].itemId)}
+                            </span>
+                            {sale.items.length > 1 && (
+                              <SaleDetailsDialog sale={sale} items={items}>
+                                <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
+                                  +{sale.items.length - 1} more
+                                </Badge>
+                              </SaleDetailsDialog>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>{sale.paymentMethod}</TableCell>
@@ -530,7 +530,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
           {hasMore && (
             <div className="flex justify-center mt-4">
               <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
               </Button>
             </div>
           )}
@@ -540,7 +540,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-2xl">
           {completedSale && authUser ? (
-             <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} items={items} onNewSale={handleAddNew} user={authUser}/>
+            <SaleMemo sale={completedSale} customer={customers.find(c => c.id === completedSale.customerId)!} items={items} onNewSale={handleAddNew} user={authUser} />
           ) : (
             <>
               <DialogHeader>
@@ -551,72 +551,72 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField
+                      <FormField
                         control={form.control}
                         name="customerId"
                         render={({ field }) => (
-                            <FormItem>
+                          <FormItem>
                             <FormLabel>Customer</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
+                              <FormControl>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select a customer" />
+                                  <SelectValue placeholder="Select a customer" />
                                 </SelectTrigger>
-                                </FormControl>
-                                <SelectPortal>
-                                <SelectContent>
-                                    {customers.map(customer => (
+                              </FormControl>
+                              <SelectPortal>
+                                <SelectContent className="max-h-60 overflow-y-auto">
+                                  {customers.map(customer => (
                                     <SelectItem key={customer.id} value={customer.id}>
-                                        {customer.name}
+                                      {customer.name}
                                     </SelectItem>
-                                    ))}
+                                  ))}
                                 </SelectContent>
-                                </SelectPortal>
+                              </SelectPortal>
                             </Select>
                             {customerCredit > 0 && (
-                                <p className="text-sm text-green-600 mt-2">
-                                    Customer has ৳{customerCredit.toFixed(2)} credit available.
-                                </p>
+                              <p className="text-sm text-green-600 mt-2">
+                                Customer has ৳{customerCredit.toFixed(2)} credit available.
+                              </p>
                             )}
                             <FormMessage />
-                            </FormItem>
+                          </FormItem>
                         )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="date"
-                            render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Sale Date</FormLabel>
-                                <Popover>
-                                <PopoverTrigger asChild>
-                                    <FormControl>
-                                    <Button
-                                        variant={"outline"}
-                                        className={cn(
-                                        "pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                        )}
-                                    >
-                                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                    </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    disabled={(date) => date > new Date()}
-                                    initialFocus
-                                    />
-                                </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
+                      />
+                      <FormField
+                        control={form.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel>Sale Date</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                      "pl-3 text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                  disabled={(date) => date > new Date()}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                     <Separator />
                     <FormLabel>Items</FormLabel>
@@ -642,12 +642,16 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectPortal>
-                                      <SelectContent>
-                                                                        {items.map(item => (
-                                  <SelectItem key={item.id} value={item.id} disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}>
-                                    {item.title}
-                                  </SelectItem>
-                                ))}
+                                      <SelectContent className="max-h-60 overflow-y-auto">
+                                        {items.map(item => (
+                                          <SelectItem
+                                            key={item.id}
+                                            value={item.id}
+                                            disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}
+                                          >
+                                            {item.title}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </SelectPortal>
                                   </Select>
@@ -692,7 +696,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       type="button"
                       variant="outline"
                       size="sm"
-                                                onClick={() => append({ itemId: '', quantity: 1, price: 0 })}
+                      onClick={() => append({ itemId: '', quantity: 1, price: 0 })}
                     >
                       <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                     </Button>
@@ -702,39 +706,39 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         <FormLabel>Discount</FormLabel>
                         <div className="flex gap-2">
                           <FormField
-                              control={form.control}
-                              name="discountType"
-                              render={({ field }) => (
-                                <FormItem className="w-1/2">
-                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Type" />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectPortal>
-                                      <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
-                                        <SelectItem value="percentage">%</SelectItem>
-                                        <SelectItem value="amount">$</SelectItem>
-                                      </SelectContent>
-                                    </SelectPortal>
-                                  </Select>
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="discountValue"
-                                render={({ field }) => (
-                                    <FormItem className={cn("w-1/2", watchDiscountType === 'none' && 'hidden')}>
-                                        <FormControl>
-                                            <Input type="number" placeholder="0" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            control={form.control}
+                            name="discountType"
+                            render={({ field }) => (
+                              <FormItem className="w-1/2">
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Type" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectPortal>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      <SelectItem value="percentage">%</SelectItem>
+                                      <SelectItem value="amount">$</SelectItem>
+                                    </SelectContent>
+                                  </SelectPortal>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="discountValue"
+                            render={({ field }) => (
+                              <FormItem className={cn("w-1/2", watchDiscountType === 'none' && 'hidden')}>
+                                <FormControl>
+                                  <Input type="number" placeholder="0" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
                       </div>
                       <FormField
@@ -761,10 +765,10 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                                   <FormControl><RadioGroupItem value="Due" id="due" /></FormControl>
                                   <FormLabel htmlFor="due" className="font-normal">Due</FormLabel>
                                 </FormItem>
-                                                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl><RadioGroupItem value="Split" id="split" /></FormControl>
-                                    <FormLabel htmlFor="split" className="font-normal">Split</FormLabel>
-                                  </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                  <FormControl><RadioGroupItem value="Split" id="split" /></FormControl>
+                                  <FormLabel htmlFor="split" className="font-normal">Split</FormLabel>
+                                </FormItem>
                               </RadioGroup>
                             </FormControl>
                             <FormMessage />
@@ -772,65 +776,65 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                         )}
                       />
                     </div>
-                     {watchPaymentMethod === 'Split' && (
-                        <div className='flex gap-4 items-end'>
-                            <FormField
-                                control={form.control}
-                                name="amountPaid"
-                                render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                        <FormLabel>Amount Paid Now</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="splitPaymentMethod"
-                                render={({ field }) => (
-                                    <FormItem className="flex-1 space-y-3">
-                                    <FormLabel>Paid Via</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
-                                            <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
-                                            <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" /></FormControl><FormLabel className="font-normal">Bank</FormLabel></FormItem>
-                                        </RadioGroup>
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                    {watchPaymentMethod === 'Split' && (
+                      <div className='flex gap-4 items-end'>
+                        <FormField
+                          control={form.control}
+                          name="amountPaid"
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormLabel>Amount Paid Now</FormLabel>
+                              <FormControl>
+                                <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="splitPaymentMethod"
+                          render={({ field }) => (
+                            <FormItem className="flex-1 space-y-3">
+                              <FormLabel>Paid Via</FormLabel>
+                              <FormControl>
+                                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
+                                  <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
+                                  <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" /></FormControl><FormLabel className="font-normal">Bank</FormLabel></FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                     )}
                     <Separator />
                     <div className="space-y-2 text-sm pr-4">
-                        <div className="flex justify-between">
-                            <span>Subtotal</span>
-                            <span>৳{subtotal.toFixed(2)}</span>
+                      <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>৳{subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Discount</span>
+                        <span>-৳{discountAmount.toFixed(2)}</span>
+                      </div>
+                      {creditToApply > 0 && (
+                        <div className="flex justify-between text-green-600">
+                          <span>Credit Applied</span>
+                          <span>-৳{creditToApply.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-muted-foreground">
-                            <span>Discount</span>
-                            <span>-৳{discountAmount.toFixed(2)}</span>
+                      )}
+                      <div className="flex justify-between font-bold text-base border-t pt-2">
+                        <span>Total</span>
+                        <span>৳{totalAfterCredit.toFixed(2)}</span>
+                      </div>
+                      {(watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
+                        <div className="flex justify-between font-semibold text-destructive">
+                          <span>Due Amount</span>
+                          <span>৳{dueAmount.toFixed(2)}</span>
                         </div>
-                        {creditToApply > 0 && (
-                           <div className="flex justify-between text-green-600">
-                                <span>Credit Applied</span>
-                                <span>-৳{creditToApply.toFixed(2)}</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between font-bold text-base border-t pt-2">
-                            <span>Total</span>
-                            <span>৳{totalAfterCredit.toFixed(2)}</span>
-                        </div>
-                        { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
-                            <div className="flex justify-between font-semibold text-destructive">
-                                <span>Due Amount</span>
-                                <span>৳{dueAmount.toFixed(2)}</span>
-                            </div>
-                        )}
+                      )}
                     </div>
                   </div>
                   <DialogFooter>
