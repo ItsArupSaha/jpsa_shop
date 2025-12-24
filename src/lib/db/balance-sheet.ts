@@ -311,7 +311,21 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date, year?
         getDocs(collection(db, 'users', userId, 'donations')),
     ]);
 
-    const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
+    // Map transactions and include document creation time for accurate balance sheet filtering
+    // Firestore documents have a creation timestamp in metadata that we need to use instead of dueDate
+    // because dueDate can be a future payment date, not the transaction creation date
+    const allTransactions = allTransactionsData.docs.map((doc: any) => {
+        const data = doc.data();
+        // Use document creation time from Firestore metadata if available (most accurate)
+        // Firestore QueryDocumentSnapshot has metadata.createTime property
+        // Fall back to dueDate only if metadata is not available (though this may not be accurate for future due dates)
+        const createdAt = doc.metadata?.createTime || doc._createTime || doc.createTime || data.dueDate;
+        return { 
+            id: doc.id, 
+            ...data,
+            _createdAt: createdAt // Store creation time for filtering
+        } as any;
+    });
     const allDonations = donationsData.docs.map(doc => doc.data());
     const allTransfers = transfersData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
     const allCapital = capitalData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
@@ -508,15 +522,35 @@ export async function getBalanceSheetData(userId: string, asOfDate?: Date, year?
         .reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
 
     // Calculate receivables as of the cutoff date
-    // Receivables should only include pending receivables created DURING the selected year (not from previous years)
-    // This ensures the balance sheet for a specific year only shows receivables from that year
-    // Use filteredTransactions which is already filtered by selected year and cutoff date
-    const pendingReceivables = filteredTransactions.filter((t: any) => t.type === 'Receivable' && t.status === 'Pending');
-    const receivables = pendingReceivables.reduce((sum: number, t: any) => sum + t.amount, 0);
+    // Receivables should include ALL pending receivables that exist as of the cutoff date,
+    // regardless of when they were created. This is because receivables are assets that should
+    // be shown on the balance sheet if they're still outstanding, even if created in previous years.
+    // Use document creation time (not dueDate) to determine if transaction existed as of cutoff date
+    const allPendingReceivables = allTransactions.filter((t: any) => {
+        if (t.type !== 'Receivable' || t.status !== 'Pending') return false;
+        // Use creation time if available (from Firestore document metadata), otherwise fall back to dueDate
+        // Note: dueDate can be a future payment date, not the creation date, so creation time is preferred
+        const creationTime = t._createdAt || t.dueDate;
+        const transactionDate = creationTime instanceof Timestamp ? creationTime : Timestamp.fromDate(new Date(creationTime));
+        // Include receivables that were created on or before the cutoff date (regardless of year or due date)
+        return transactionDate.toMillis() <= finalCutoffTimestamp.toMillis();
+    });
+    const receivables = allPendingReceivables.reduce((sum: number, t: any) => sum + t.amount, 0);
 
-    // Calculate payables as of the date
-    const pendingPayables = filteredTransactions.filter((t: any) => t.type === 'Payable' && t.status === 'Pending');
-    const payables = pendingPayables.reduce((sum: number, t: any) => sum + t.amount, 0);
+    // Calculate payables as of the cutoff date
+    // Payables should include ALL pending payables that exist as of the cutoff date,
+    // regardless of when they were created. This ensures consistency with receivables calculation.
+    // Use document creation time (not dueDate) to determine if transaction existed as of cutoff date
+    const allPendingPayables = allTransactions.filter((t: any) => {
+        if (t.type !== 'Payable' || t.status !== 'Pending') return false;
+        // Use creation time if available (from Firestore document metadata), otherwise fall back to dueDate
+        // Note: dueDate can be a future payment date, not the creation date, so creation time is preferred
+        const creationTime = t._createdAt || t.dueDate;
+        const transactionDate = creationTime instanceof Timestamp ? creationTime : Timestamp.fromDate(new Date(creationTime));
+        // Include payables that were created on or before the cutoff date (regardless of year or due date)
+        return transactionDate.toMillis() <= finalCutoffTimestamp.toMillis();
+    });
+    const payables = allPendingPayables.reduce((sum: number, t: any) => sum + t.amount, 0);
 
     const totalAssets = cash + bank + receivables + stockValue + officeAssetsValue;
     const equity = totalAssets - payables;
