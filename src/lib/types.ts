@@ -121,6 +121,7 @@ export type Purchase = {
 
 export type Expense = {
   id: string;
+  expenseId: string; // The auto-generated ID like EXP-0001
   date: string; // Changed to string for serialization
   name: string;
   description: string;
@@ -130,6 +131,7 @@ export type Expense = {
 
 export type Donation = {
   id: string;
+  donationId: string; // The auto-generated ID like DON-0001
   date: string;
   donorName: string;
   amount: number;
@@ -182,4 +184,6 @@ export type Metadata = {
   lastPurchaseNumber: number;
   lastSaleNumber: number;
   lastReturnNumber: number;
+  lastExpenseNumber: number;
+  lastDonationNumber: number;
 }

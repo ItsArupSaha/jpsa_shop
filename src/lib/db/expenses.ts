@@ -3,7 +3,6 @@
 
 import {
     Timestamp,
-    addDoc,
     collection,
     deleteDoc,
     doc,
@@ -12,13 +11,14 @@ import {
     limit,
     orderBy,
     query,
+    runTransaction,
     startAfter,
     updateDoc,
     where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Expense } from '../types';
+import type { Expense, Metadata } from '../types';
 import { docToExpense } from './utils';
 
 // --- Expenses Actions ---
@@ -81,32 +81,67 @@ export async function getExpensesForMonth(userId: string, year: number, month: n
     return expenses.filter(expense => !expense.description.startsWith('Transfer to'));
 }
 
-export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
+export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'expenseId' | 'date'> & { date: Date }): Promise<Expense> {
     if (!db || !userId) throw new Error("Database not connected");
-    const expensesCollection = collection(db, 'users', userId, 'expenses');
-    const expenseData = {
-        ...data,
-        date: Timestamp.fromDate(data.date),
-    };
-    const newDocRef = await addDoc(expensesCollection, expenseData);
-    revalidatePath('/expenses');
-    revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
-    return { ...data, id: newDocRef.id, date: data.date.toISOString() };
+    
+    try {
+        const result = await runTransaction(db, async (transaction) => {
+            const userRef = doc(db!, 'users', userId);
+            const metadataRef = doc(userRef, 'metadata', 'counters');
+            const expensesCollection = collection(userRef, 'expenses');
+            
+            const metadataDoc = await transaction.get(metadataRef);
+            let lastExpenseNumber = 0;
+            if (metadataDoc.exists()) {
+                lastExpenseNumber = (metadataDoc.data() as Metadata).lastExpenseNumber || 0;
+            }
+            const newExpenseNumber = lastExpenseNumber + 1;
+            const expenseId = `EXP-${String(newExpenseNumber).padStart(4, '0')}`;
+            
+            const expenseData = {
+                ...data,
+                expenseId,
+                date: Timestamp.fromDate(data.date),
+            };
+            
+            const newDocRef = doc(expensesCollection);
+            transaction.set(newDocRef, expenseData);
+            transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
+            
+            return { id: newDocRef.id, expenseId, ...data, date: data.date.toISOString() };
+        });
+        
+        revalidatePath('/expenses');
+        revalidatePath('/dashboard');
+        revalidatePath('/balance-sheet');
+        return result;
+    } catch (e) {
+        console.error("Expense creation failed: ", e);
+        throw e instanceof Error ? e : new Error('An unknown error occurred during expense creation.');
+    }
 }
 
-export async function updateExpense(userId: string, id: string, data: Omit<Expense, 'id' | 'date'> & { date: Date }): Promise<Expense> {
+export async function updateExpense(userId: string, id: string, data: Omit<Expense, 'id' | 'expenseId' | 'date'> & { date: Date }): Promise<Expense> {
     if (!db || !userId) throw new Error("Database not connected");
     const expenseRef = doc(db, 'users', userId, 'expenses', id);
+    
+    // Get existing expense to preserve expenseId
+    const existingExpense = await getDoc(expenseRef);
+    if (!existingExpense.exists()) {
+        throw new Error("Expense not found");
+    }
+    const existingData = existingExpense.data();
+    
     const expenseData = {
         ...data,
+        expenseId: existingData.expenseId, // Preserve existing expenseId
         date: Timestamp.fromDate(data.date),
     };
     await updateDoc(expenseRef, expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     revalidatePath('/balance-sheet');
-    return { ...data, id, date: data.date.toISOString() };
+    return { ...data, id, expenseId: existingData.expenseId, date: data.date.toISOString() };
 }
 
 export async function deleteExpense(userId: string, id: string) {

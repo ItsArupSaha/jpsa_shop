@@ -3,20 +3,17 @@
 
 import {
   Timestamp,
-  addDoc,
   collection,
   doc,
-  getDoc,
   getDocs,
-  limit,
   orderBy,
   query,
-  startAfter,
+  runTransaction,
   where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
-import type { Donation } from '../types';
+import type { Donation, Metadata } from '../types';
 import { docToDonation } from './utils';
 
 // --- Donations Actions ---
@@ -79,15 +76,41 @@ export async function getDonationsForMonth(userId: string, year: number, month: 
     );
 }
 
-export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'date'> & { date: Date }): Promise<Donation> {
+export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'donationId' | 'date'> & { date: Date }): Promise<Donation> {
   if (!db || !userId) throw new Error("Database not connected.");
-  const donationsCollection = collection(db, 'users', userId, 'donations');
-  const donationData = {
-      ...data,
-      date: Timestamp.fromDate(data.date),
-  };
-  const newDocRef = await addDoc(donationsCollection, donationData);
-  revalidatePath('/donations');
-  revalidatePath('/balance-sheet');
-  return { ...data, id: newDocRef.id, date: data.date.toISOString() };
+  
+  try {
+      const result = await runTransaction(db, async (transaction) => {
+          const userRef = doc(db!, 'users', userId);
+          const metadataRef = doc(userRef, 'metadata', 'counters');
+          const donationsCollection = collection(userRef, 'donations');
+          
+          const metadataDoc = await transaction.get(metadataRef);
+          let lastDonationNumber = 0;
+          if (metadataDoc.exists()) {
+              lastDonationNumber = (metadataDoc.data() as Metadata).lastDonationNumber || 0;
+          }
+          const newDonationNumber = lastDonationNumber + 1;
+          const donationId = `DON-${String(newDonationNumber).padStart(4, '0')}`;
+          
+          const donationData = {
+              ...data,
+              donationId,
+              date: Timestamp.fromDate(data.date),
+          };
+          
+          const newDocRef = doc(donationsCollection);
+          transaction.set(newDocRef, donationData);
+          transaction.set(metadataRef, { lastDonationNumber: newDonationNumber }, { merge: true });
+          
+          return { id: newDocRef.id, donationId, ...data, date: data.date.toISOString() };
+      });
+      
+      revalidatePath('/donations');
+      revalidatePath('/balance-sheet');
+      return result;
+  } catch (e) {
+      console.error("Donation creation failed: ", e);
+      throw e instanceof Error ? e : new Error('An unknown error occurred during donation creation.');
+  }
 }

@@ -41,7 +41,7 @@ const donationSchema = z.object({
 type DonationFormValues = z.infer<typeof donationSchema>;
 
 interface DonationsManagementProps {
-    userId: string;
+  userId: string;
 }
 
 export default function DonationsManagement({ userId }: DonationsManagementProps) {
@@ -55,7 +55,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
-  
+
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({ userId, pageLimit: 10 });
@@ -65,8 +65,8 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
   }, [userId]);
 
   React.useEffect(() => {
-    if(userId) {
-        loadInitialData();
+    if (userId) {
+      loadInitialData();
     }
   }, [userId, loadInitialData]);
 
@@ -97,22 +97,22 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-        const newDonation = await addDonation(userId, data);
-        setDonations(prev => [newDonation, ...prev]);
-        toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
-        setIsDialogOpen(false);
+      const newDonation = await addDonation(userId, data);
+      setDonations(prev => [newDonation, ...prev]);
+      toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
+      setIsDialogOpen(false);
     });
   };
 
   const getFilteredDonations = async () => {
     if (!dateRange?.from) {
-        toast({
-            variant: "destructive",
-            title: "Please select a start date.",
-        });
-        return null;
+      toast({
+        variant: "destructive",
+        title: "Please select a start date.",
+      });
+      return null;
     }
-    
+
     const allDonations = await getDonations(userId);
     const from = dateRange.from;
     const to = dateRange.to || dateRange.from;
@@ -149,11 +149,11 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
     // Right side header
     let yPos = 20;
     if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
     if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
     }
 
     // Report Title
@@ -165,23 +165,24 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
     doc.setTextColor(100);
     doc.text(`For the period: ${dateString}`, 105, 51, { align: 'center' });
     doc.setTextColor(0);
-    
+
     autoTable(doc, {
       startY: 60,
-      head: [['Date', 'Donor', 'Method', 'Notes', 'Amount']],
+      head: [['Date', 'Donation ID', 'Donor', 'Method', 'Notes', 'Amount']],
       body: filteredDonations.map(d => [
         format(new Date(d.date), 'yyyy-MM-dd'),
+        d.donationId || 'N/A',
         d.donorName,
         d.paymentMethod,
         d.notes || '',
         `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(d.amount)}`
       ]),
       foot: [
-        [{ content: 'Total', colSpan: 4, styles: { halign: 'right' } }, `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDonations)}`],
+        [{ content: 'Total', colSpan: 5, styles: { halign: 'right' } }, `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDonations)}`],
       ],
       footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
     });
-    
+
     doc.save(`donations-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
@@ -196,6 +197,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
 
     const dataToExport = filteredDonations.map(d => ({
       'Date': format(new Date(d.date), 'yyyy-MM-dd'),
+      'Donation ID': d.donationId || 'N/A',
       'Donor Name': d.donorName,
       'Payment Method': d.paymentMethod,
       'Amount': d.amount,
@@ -206,14 +208,14 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
 
     // Auto-fit columns
     const columnWidths = Object.keys(dataToExport[0]).map(key => {
-        const maxLength = Math.max(
-            ...dataToExport.map(row => {
-                const value = row[key as keyof typeof row];
-                return typeof value === 'number' ? String(value).length : (value || '').length;
-            }),
-            key.length
-        );
-        return { wch: maxLength + 2 };
+      const maxLength = Math.max(
+        ...dataToExport.map(row => {
+          const value = row[key as keyof typeof row];
+          return typeof value === 'number' ? String(value).length : (value || '').length;
+        }),
+        key.length
+      );
+      return { wch: maxLength + 2 };
     });
     worksheet['!cols'] = columnWidths;
 
@@ -235,33 +237,33 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Donation
             </Button>
             <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button variant="outline">
-                        <Download className="mr-2 h-4 w-4" /> Download Report
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Download Donations Report</DialogTitle>
-                        <DialogDescription>Select a date range to download your donation data.</DialogDescription>
-                    </DialogHeader>
-                    <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                        <div className="py-4 flex flex-col items-center gap-4">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={1}
-                            />
-                        </div>
-                    </ScrollArea>
-                    <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                      <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                      <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
-                    </DialogFooter>
-                </DialogContent>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" /> Download Report
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Download Donations Report</DialogTitle>
+                  <DialogDescription>Select a date range to download your donation data.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                  <div className="py-4 flex flex-col items-center gap-4">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={1}
+                    />
+                  </div>
+                </ScrollArea>
+                <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                  <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
+                  <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
+                </DialogFooter>
+              </DialogContent>
             </Dialog>
           </div>
         </div>
@@ -272,6 +274,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
+                <TableHead>Donation ID</TableHead>
                 <TableHead>Donor</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Method</TableHead>
@@ -279,27 +282,29 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
               </TableRow>
             </TableHeader>
             <TableBody>
-               {isInitialLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={`skeleton-${i}`}>
-                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : donations.length > 0 ? donations.map((donation) => (
+              {isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`}>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : donations.length > 0 ? donations.map((donation) => (
                 <TableRow key={donation.id}>
                   <TableCell>{format(new Date(donation.date), 'PPP')}</TableCell>
+                  <TableCell className="font-mono">{donation.donationId || 'N/A'}</TableCell>
                   <TableCell className="font-medium">{donation.donorName}</TableCell>
                   <TableCell>{donation.notes}</TableCell>
                   <TableCell>{donation.paymentMethod}</TableCell>
-                                          <TableCell className="text-right">৳{donation.amount.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">৳{donation.amount.toFixed(2)}</TableCell>
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">No donations recorded yet.</TableCell>
+                  <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">No donations recorded yet.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -308,7 +313,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
         {hasMore && (
           <div className="flex justify-center mt-4">
             <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
             </Button>
           </div>
         )}
@@ -322,7 +327,7 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
-               <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
+              <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
                 <div className="space-y-4 py-4 px-4">
                   <FormField
                     control={form.control}
@@ -383,51 +388,51 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
                       <FormItem className="flex flex-col">
                         <FormLabel>Donation Date</FormLabel>
                         <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date > new Date()}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date > new Date()}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                   <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Notes (Optional)</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="e.g., For new childrens books" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="e.g., For new childrens books" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
               <DialogFooter className="pt-4 border-t">

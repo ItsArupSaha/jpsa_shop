@@ -2,17 +2,17 @@
 'use server';
 
 import {
-    Timestamp,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    runTransaction,
-    startAfter,
-    where
+  Timestamp,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  runTransaction,
+  startAfter,
+  where
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
@@ -121,8 +121,14 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               }
           }
 
+          // Get expense counter for generating expense IDs
+          let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
+
           if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
+              lastExpenseNumber += 1;
+              const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
               const expenseData = {
+                  expenseId,
                   description: `Payment for Purchase ${purchaseId}`,
                   amount: totalAmount,
                   date: Timestamp.fromDate(new Date()),
@@ -134,7 +140,10 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               const payableAmount = totalAmount - amountPaid;
 
               if (amountPaid > 0) {
+                  lastExpenseNumber += 1;
+                  const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
                   const expenseData = {
+                      expenseId,
                       description: `Partial payment for Purchase ${purchaseId}`,
                       amount: amountPaid,
                       date: Timestamp.fromDate(new Date()),
@@ -162,6 +171,11 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   type: 'Payable' as const,
               };
               transaction.set(doc(transactionsCollection), payableData);
+          }
+          
+          // Update metadata with new expense counter if it changed
+          if (lastExpenseNumber > ((metadataDoc.data() as Metadata)?.lastExpenseNumber || 0)) {
+              transaction.set(metadataRef, { lastExpenseNumber }, { merge: true });
           }
 
           return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate } };
@@ -227,13 +241,20 @@ export async function addOfficeAsset(
         transaction.set(newPurchaseRef, purchaseData);
         transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
   
+        // Get expense counter for generating expense ID
+        let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
+        lastExpenseNumber += 1;
+        const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
+        
         const expenseData = {
+          expenseId,
           description: `Asset Purchase: ${data.itemName}`,
           amount: totalAmount,
           date: Timestamp.fromDate(data.date),
           paymentMethod: data.paymentMethod,
         };
         transaction.set(doc(expensesCollection), expenseData);
+        transaction.set(metadataRef, { lastExpenseNumber }, { merge: true });
   
         return { success: true };
       });
