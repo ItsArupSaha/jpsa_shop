@@ -1,6 +1,16 @@
 
-
 import type { Customer, Donation, Expense, Item, Purchase, Sale, SalesReturn, Transaction, Transfer } from '../types';
+
+// Helper function to get current year (January 1st, 12:00 AM)
+export function getCurrentYear(): number {
+  return new Date().getFullYear();
+}
+
+// Helper function to check if we need to reset counters for new year
+export function shouldResetCounters(metadataYear: number | undefined, currentYear: number): boolean {
+  if (!metadataYear) return false; // First time, don't reset
+  return metadataYear < currentYear;
+}
 
 // Helper to convert Firestore docs to our types
 export function docToItem(d: any): Item {
@@ -14,7 +24,7 @@ export function docToSale(d: any): Sale {
     return { 
         id: d.id, 
         ...data,
-        date: data.date.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
     } as Sale;
 }
 export function docToSalesReturn(d: any): SalesReturn {
@@ -22,7 +32,7 @@ export function docToSalesReturn(d: any): SalesReturn {
     return { 
         id: d.id, 
         ...data,
-        date: data.date.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
     } as SalesReturn;
 }
 export function docToPurchase(d: any): Purchase {
@@ -30,8 +40,8 @@ export function docToPurchase(d: any): Purchase {
     return { 
         id: d.id, 
         ...data,
-        date: data.date.toDate().toISOString(),
-        dueDate: data.dueDate.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
+        dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : new Date(data.dueDate || Date.now()).toISOString(),
     } as Purchase;
 }
 export function docToExpense(d: any): Expense {
@@ -40,7 +50,7 @@ export function docToExpense(d: any): Expense {
         id: d.id, 
         expenseId: data.expenseId || `EXP-${String(d.id).slice(0, 8)}`, // Fallback for existing expenses
         ...data,
-        date: data.date.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
     } as Expense;
 }
 export function docToDonation(d: any): Donation {
@@ -49,7 +59,7 @@ export function docToDonation(d: any): Donation {
         id: d.id, 
         donationId: data.donationId || `DON-${String(d.id).slice(0, 8)}`, // Fallback for existing donations
         ...data,
-        date: data.date.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
     } as Donation;
 }
 export function docToTransaction(d: any): Transaction {
@@ -57,7 +67,7 @@ export function docToTransaction(d: any): Transaction {
     return { 
         id: d.id, 
         ...data,
-        dueDate: data.dueDate.toDate().toISOString(),
+        dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : new Date(data.dueDate || Date.now()).toISOString(),
     } as Transaction;
 }
 export function docToTransfer(d: any): Transfer {
@@ -65,6 +75,6 @@ export function docToTransfer(d: any): Transfer {
     return { 
         id: d.id, 
         ...data,
-        date: data.date.toDate().toISOString(),
+        date: data.date?.toDate ? data.date.toDate().toISOString() : new Date(data.date || Date.now()).toISOString(),
     } as Transfer;
 }

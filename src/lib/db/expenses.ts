@@ -19,7 +19,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Expense, Metadata } from '../types';
-import { docToExpense } from './utils';
+import { docToExpense, getCurrentYear, shouldResetCounters } from './utils';
 
 // --- Expenses Actions ---
 export async function getExpenses(userId: string): Promise<Expense[]> {
@@ -91,10 +91,28 @@ export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'exp
             const expensesCollection = collection(userRef, 'expenses');
             
             const metadataDoc = await transaction.get(metadataRef);
-            let lastExpenseNumber = 0;
-            if (metadataDoc.exists()) {
-                lastExpenseNumber = (metadataDoc.data() as Metadata).lastExpenseNumber || 0;
+            const currentYear = getCurrentYear();
+            const metadata = metadataDoc.exists() ? (metadataDoc.data() as Metadata) : null;
+            const metadataYear = metadata?.currentYear;
+            
+            // Check if we need to reset counters for new year
+            let lastExpenseNumber = metadata?.lastExpenseNumber || 0;
+            if (shouldResetCounters(metadataYear, currentYear)) {
+                lastExpenseNumber = 0;
+                // Reset all counters and update year
+                transaction.set(metadataRef, {
+                    lastSaleNumber: 0,
+                    lastPurchaseNumber: 0,
+                    lastReturnNumber: 0,
+                    lastExpenseNumber: 0,
+                    lastDonationNumber: 0,
+                    currentYear: currentYear
+                }, { merge: true });
+            } else if (metadataYear !== currentYear) {
+                // First time setting year, but don't reset counters
+                transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
             }
+            
             const newExpenseNumber = lastExpenseNumber + 1;
             const expenseId = `EXP-${String(newExpenseNumber).padStart(4, '0')}`;
             
@@ -106,7 +124,10 @@ export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'exp
             
             const newDocRef = doc(expensesCollection);
             transaction.set(newDocRef, expenseData);
-            transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
+            transaction.set(metadataRef, { 
+                lastExpenseNumber: newExpenseNumber,
+                currentYear: currentYear
+            }, { merge: true });
             
             return { id: newDocRef.id, expenseId, ...data, date: data.date.toISOString() };
         });

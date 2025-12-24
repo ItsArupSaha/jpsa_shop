@@ -1,41 +1,45 @@
 
 'use client';
 
-import * as React from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
 import {
-  Book,
-  Home,
-  CreditCard,
+  ArrowLeftRight,
   ArrowRightLeft,
+  Book,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
   FileText,
+  Gift,
+  Home,
+  LogIn,
+  LogOut,
+  RotateCcw,
+  Scale,
+  ShoppingBag,
   ShoppingCart,
   Users,
-  ShoppingBag,
-  Scale,
-  Gift,
-  LogOut,
-  LogIn,
-  ArrowLeftRight,
-  RotateCcw,
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import * as React from 'react';
 
-import {
-  Sidebar,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
-  SidebarInset,
-  SidebarProvider,
-  SidebarContent,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/use-auth';
+import { YearProvider, useYear } from '@/hooks/use-year';
 
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -54,49 +58,116 @@ const navItems = [
 ];
 
 function ProfileButton() {
-    const { user, signOut } = useAuth();
-    const router = useRouter();
+  const { user, signOut } = useAuth();
+  const router = useRouter();
 
-    const handleSignOut = async () => {
-        await signOut();
-        router.push('/login');
-    };
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
-    const handleSignIn = () => {
-        router.push('/login');
-    };
+  const handleSignIn = () => {
+    router.push('/login');
+  };
 
-    if (user) {
-        return (
-            <div className="flex w-full items-center gap-3">
-                <Avatar>
-                    <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png`} alt={user.displayName || 'User'} data-ai-hint="person" />
-                    <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col truncate flex-1">
-                    <span className="font-semibold text-sm truncate" title={user.displayName || 'User'}>{user.displayName || 'User'}</span>
-                    <span className="text-xs text-muted-foreground truncate" title={user.email || ''}>{user.email}</span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
-                    <LogOut />
-                </Button>
-            </div>
-        );
-    }
-
+  if (user) {
     return (
-        <Button onClick={handleSignIn} className="w-full">
-            <LogIn className="mr-2 h-4 w-4" /> Sign In
+      <div className="flex w-full items-center gap-3">
+        <Avatar>
+          <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png`} alt={user.displayName || 'User'} data-ai-hint="person" />
+          <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col truncate flex-1">
+          <span className="font-semibold text-sm truncate" title={user.displayName || 'User'}>{user.displayName || 'User'}</span>
+          <span className="text-xs text-muted-foreground truncate" title={user.email || ''}>{user.email}</span>
+        </div>
+        <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
+          <LogOut />
         </Button>
-    )
+      </div>
+    );
+  }
+
+  return (
+    <Button onClick={handleSignIn} className="w-full">
+      <LogIn className="mr-2 h-4 w-4" /> Sign In
+    </Button>
+  )
 }
 
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+function YearSelector() {
+  const { selectedYear, setSelectedYear, isCurrentYear, currentYear } = useYear();
+  const { authUser } = useAuth();
+
+  const getAvailableYears = (): number[] => {
+    const years: number[] = [];
+    const startYear = authUser?.createdAt
+      ? new Date(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt)).getFullYear()
+      : currentYear;
+    for (let year = startYear; year <= currentYear; year++) {
+      years.push(year);
+    }
+    return years.reverse(); // Most recent first
+  };
+
+  const years = getAvailableYears();
+  const currentIndex = years.indexOf(selectedYear);
+
+  return (
+    <div className="flex items-center gap-1 border rounded-md bg-background">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9"
+        onClick={() => {
+          if (currentIndex < years.length - 1) {
+            setSelectedYear(years[currentIndex + 1]);
+          }
+        }}
+        disabled={currentIndex >= years.length - 1}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Select value={selectedYear.toString()} onValueChange={(value: string) => {
+        setSelectedYear(parseInt(value));
+      }}>
+        <SelectTrigger className="w-[120px] h-9 border-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {years.map((year) => (
+            <SelectItem key={year} value={year.toString()}>
+              {year} {year === currentYear ? '(Current)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9"
+        onClick={() => {
+          if (currentIndex > 0) {
+            setSelectedYear(years[currentIndex - 1]);
+          }
+        }}
+        disabled={currentIndex <= 0}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      {!isCurrentYear && (
+        <span className="px-2 text-xs text-amber-600 font-semibold">Read Only</span>
+      )}
+    </div>
+  );
+}
+
+function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { authUser } = useAuth();
   const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard';
-  
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-background">
@@ -104,7 +175,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                 <Book className="h-6 w-6 text-primary-foreground" />
+                <Book className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="flex flex-col">
                 <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Bookstore'}</h1>
@@ -130,8 +201,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               ))}
             </SidebarMenu>
           </SidebarContent>
-           <SidebarFooter className="p-4 border-t flex flex-col gap-4">
-             <ProfileButton />
+          <SidebarFooter className="p-4 border-t flex flex-col gap-4">
+            <ProfileButton />
           </SidebarFooter>
         </Sidebar>
         <SidebarInset className="max-w-full flex-1 overflow-y-auto">
@@ -142,10 +213,19 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 {pageTitle}
               </h2>
             </div>
+            <YearSelector />
           </header>
           <main className="p-4 sm:p-6">{children}</main>
         </SidebarInset>
       </div>
     </SidebarProvider>
+  );
+}
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <YearProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </YearProvider>
   );
 }

@@ -186,4 +186,5 @@ export type Metadata = {
   lastReturnNumber: number;
   lastExpenseNumber: number;
   lastDonationNumber: number;
+  currentYear?: number; // Track the current year for ID resets
 }

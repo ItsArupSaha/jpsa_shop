@@ -14,7 +14,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Donation, Metadata } from '../types';
-import { docToDonation } from './utils';
+import { docToDonation, getCurrentYear, shouldResetCounters } from './utils';
 
 // --- Donations Actions ---
 export async function getDonations(userId: string): Promise<Donation[]> {
@@ -86,10 +86,28 @@ export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'd
           const donationsCollection = collection(userRef, 'donations');
           
           const metadataDoc = await transaction.get(metadataRef);
-          let lastDonationNumber = 0;
-          if (metadataDoc.exists()) {
-              lastDonationNumber = (metadataDoc.data() as Metadata).lastDonationNumber || 0;
+          const currentYear = getCurrentYear();
+          const metadata = metadataDoc.exists() ? (metadataDoc.data() as Metadata) : null;
+          const metadataYear = metadata?.currentYear;
+          
+          // Check if we need to reset counters for new year
+          let lastDonationNumber = metadata?.lastDonationNumber || 0;
+          if (shouldResetCounters(metadataYear, currentYear)) {
+              lastDonationNumber = 0;
+              // Reset all counters and update year
+              transaction.set(metadataRef, {
+                  lastSaleNumber: 0,
+                  lastPurchaseNumber: 0,
+                  lastReturnNumber: 0,
+                  lastExpenseNumber: 0,
+                  lastDonationNumber: 0,
+                  currentYear: currentYear
+              }, { merge: true });
+          } else if (metadataYear !== currentYear) {
+              // First time setting year, but don't reset counters
+              transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
           }
+          
           const newDonationNumber = lastDonationNumber + 1;
           const donationId = `DON-${String(newDonationNumber).padStart(4, '0')}`;
           
@@ -101,7 +119,10 @@ export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'd
           
           const newDocRef = doc(donationsCollection);
           transaction.set(newDocRef, donationData);
-          transaction.set(metadataRef, { lastDonationNumber: newDonationNumber }, { merge: true });
+          transaction.set(metadataRef, { 
+              lastDonationNumber: newDonationNumber,
+              currentYear: currentYear
+          }, { merge: true });
           
           return { id: newDocRef.id, donationId, ...data, date: data.date.toISOString() };
       });

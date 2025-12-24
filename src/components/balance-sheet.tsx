@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useYear } from '@/hooks/use-year';
 import { getBalanceSheetData, getInitialCapital } from '@/lib/actions';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -22,7 +23,7 @@ import * as XLSX from 'xlsx';
 type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
 
 interface BalanceSheetProps {
-    userId: string;
+  userId: string;
 }
 
 export default function BalanceSheet({ userId }: BalanceSheetProps) {
@@ -33,12 +34,18 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
   const [initialCapital, setInitialCapital] = React.useState<{ cash: number, bank: number } | null>(null);
   const { authUser } = useAuth();
   const { toast } = useToast();
+  const { selectedYear, isCurrentYear } = useYear();
+
+  // Reset viewAsOfDate when selectedYear changes to prevent stale dates
+  React.useEffect(() => {
+    setViewAsOfDate(undefined);
+  }, [selectedYear]);
 
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
       const [balanceSheetData, initial] = await Promise.all([
-        getBalanceSheetData(userId, viewAsOfDate),
+        getBalanceSheetData(userId, viewAsOfDate, selectedYear),
         getInitialCapital(userId)
       ]);
       setData(balanceSheetData);
@@ -46,9 +53,10 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
       setIsLoading(false);
     }
     if (userId) {
-        loadData();
+      loadData();
     }
-  }, [userId, viewAsOfDate]);
+  }, [userId, viewAsOfDate, selectedYear]);
+
 
   const formatCurrency = (amount: number) => {
     return `BDT ${amount.toLocaleString(undefined, {
@@ -75,12 +83,12 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     // Right side header
     let yPos = 20;
     if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
     if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
 
     // Report Title
@@ -125,17 +133,17 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
         ['Owner\'s Equity', formatCurrency(data.equity)],
       ],
       foot: [
-         [{ content: 'Total Liabilities + Equity', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables + data.equity), styles: { fontStyle: 'bold' } }],
+        [{ content: 'Total Liabilities + Equity', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables + data.equity), styles: { fontStyle: 'bold' } }],
       ],
       theme: 'striped',
       headStyles: { fillColor: '#306754', fontStyle: 'bold' },
       footStyles: { fillColor: '#F5F5DC', textColor: '#000000', fontStyle: 'bold' },
       columnStyles: { 1: { halign: 'right' } },
     });
-    
-    const fileName = viewAsOfDate 
-      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.pdf`
-      : `balance-sheet-current.pdf`;
+
+    const fileName = viewAsOfDate
+      ? `balance-sheet-${selectedYear}-${format(viewAsOfDate, 'yyyy-MM-dd')}.pdf`
+      : `balance-sheet-${selectedYear}.pdf`;
     doc.save(fileName);
   };
 
@@ -161,9 +169,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Balance Sheet');
 
-    const fileName = viewAsOfDate 
-      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.xlsx`
-      : `balance-sheet-current.xlsx`;
+    const fileName = viewAsOfDate
+      ? `balance-sheet-${selectedYear}-${format(viewAsOfDate, 'yyyy-MM-dd')}.xlsx`
+      : `balance-sheet-${selectedYear}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -171,14 +179,14 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-2">
-            <Skeleton className="h-8 w-2/4" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-8 w-2/4" />
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
         </div>
         <div className="space-y-2">
-            <Skeleton className="h-8 w-2/4" />
-            <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-8 w-2/4" />
+          <Skeleton className="h-6 w-full" />
         </div>
       </div>
       <Skeleton className="h-px w-full" />
@@ -196,6 +204,9 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
           <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
           <CardDescription>
             A financial snapshot of your business's assets, liabilities, and equity.
+            {!isCurrentYear && (
+              <span className="block mt-1 text-xs text-amber-600 font-semibold">Viewing {selectedYear} (Read Only)</span>
+            )}
             {viewAsOfDate && (
               <span className="block mt-1 text-xs">As of {format(viewAsOfDate, "PPP")}</span>
             )}
@@ -210,10 +221,10 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
             )}
           </CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" disabled={!isCurrentYear}>
                 {viewAsOfDate ? format(viewAsOfDate, "PPP") : "View As Of Date"}
               </Button>
             </PopoverTrigger>
@@ -221,8 +232,16 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
               <Calendar
                 mode="single"
                 selected={viewAsOfDate}
-                onSelect={(date) => setViewAsOfDate(date)}
+                onSelect={(date) => {
+                  if (isCurrentYear) {
+                    setViewAsOfDate(date);
+                  }
+                }}
                 initialFocus
+                disabled={(date) => {
+                  const year = date.getFullYear();
+                  return year !== selectedYear;
+                }}
               />
               {viewAsOfDate && (
                 <div className="p-3 border-t">
@@ -244,7 +263,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
               <DialogHeader>
                 <DialogTitle>Download Balance Sheet Report</DialogTitle>
                 <DialogDescription>
-                  Download the balance sheet for {viewAsOfDate ? format(viewAsOfDate, "PPP") : "current period"}.
+                  Download the balance sheet for {selectedYear} {viewAsOfDate ? `as of ${format(viewAsOfDate, "PPP")}` : ""}.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
@@ -280,7 +299,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
                       <TableCell>Stock Value</TableCell>
                       <TableCell className="text-right">{formatCurrency(data.stockValue)}</TableCell>
                     </TableRow>
-                     <TableRow>
+                    <TableRow>
                       <TableCell>Office Assets</TableCell>
                       <TableCell className="text-right">{formatCurrency(data.officeAssetsValue)}</TableCell>
                     </TableRow>
@@ -306,7 +325,7 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
                       <TableCell className="text-right">{formatCurrency(data.payables)}</TableCell>
                     </TableRow>
                     <TableRow>
-                        <TableCell colSpan={2}>&nbsp;</TableCell>
+                      <TableCell colSpan={2}>&nbsp;</TableCell>
                     </TableRow>
                     <TableRow className="font-bold bg-primary/10">
                       <TableCell>Owner's Equity</TableCell>
@@ -318,16 +337,16 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
             </div>
 
             <Separator />
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-lg font-bold">
-                <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
-                    <span>Total Assets</span>
-                    <span>{formatCurrency(data.totalAssets)}</span>
-                </div>
-                 <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
-                    <span>Total Liabilities + Equity</span>
-                    <span>{formatCurrency(data.payables + data.equity)}</span>
-                </div>
+              <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
+                <span>Total Assets</span>
+                <span>{formatCurrency(data.totalAssets)}</span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
+                <span>Total Liabilities + Equity</span>
+                <span>{formatCurrency(data.payables + data.equity)}</span>
+              </div>
             </div>
           </div>
         )}

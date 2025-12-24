@@ -17,7 +17,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Item, Metadata, Purchase } from '../types';
-import { docToPurchase } from './utils';
+import { docToPurchase, getCurrentYear, shouldResetCounters } from './utils';
 
 // --- Purchases Actions ---
 export async function getPurchases(userId: string): Promise<Purchase[]> {
@@ -73,10 +73,32 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           const purchaseDate = new Date();
 
           const metadataDoc = await transaction.get(metadataRef);
-          let lastPurchaseNumber = 0;
-          if (metadataDoc.exists()) {
-              lastPurchaseNumber = (metadataDoc.data() as Metadata).lastPurchaseNumber || 0;
+          const currentYear = getCurrentYear();
+          const metadata = metadataDoc.exists() ? (metadataDoc.data() as Metadata) : null;
+          const metadataYear = metadata?.currentYear;
+          
+          // Check if we need to reset counters for new year
+          let lastPurchaseNumber = metadata?.lastPurchaseNumber || 0;
+          let lastExpenseNumber = metadata?.lastExpenseNumber || 0;
+          const didResetCounters = shouldResetCounters(metadataYear, currentYear);
+          
+          if (didResetCounters) {
+              lastPurchaseNumber = 0;
+              lastExpenseNumber = 0; // Reset expense counter too
+              // Reset all counters and update year
+              transaction.set(metadataRef, {
+                  lastSaleNumber: 0,
+                  lastPurchaseNumber: 0,
+                  lastReturnNumber: 0,
+                  lastExpenseNumber: 0,
+                  lastDonationNumber: 0,
+                  currentYear: currentYear
+              }, { merge: true });
+          } else if (metadataYear !== currentYear) {
+              // First time setting year, but don't reset counters
+              transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
           }
+          
           const newPurchaseNumber = lastPurchaseNumber + 1;
           const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
           
@@ -94,7 +116,10 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               totalAmount: totalAmount,
           };
           transaction.set(newPurchaseRef, purchaseData);
-          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
+          transaction.set(metadataRef, { 
+              lastPurchaseNumber: newPurchaseNumber,
+              currentYear: currentYear
+          }, { merge: true });
 
           for (const item of data.items) {
               const q = query(itemsCollection, where("title", "==", item.itemName));
@@ -122,7 +147,9 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           }
 
           // Get expense counter for generating expense IDs
-          let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
+          // Use the reset value if we detected a year change
+          // Track the initial value to know if we incremented it
+          const initialExpenseNumber = lastExpenseNumber;
 
           if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
               lastExpenseNumber += 1;
@@ -173,9 +200,17 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               transaction.set(doc(transactionsCollection), payableData);
           }
           
-          // Update metadata with new expense counter if it changed
-          if (lastExpenseNumber > ((metadataDoc.data() as Metadata)?.lastExpenseNumber || 0)) {
-              transaction.set(metadataRef, { lastExpenseNumber }, { merge: true });
+          // Update metadata with new expense counter if it was incremented
+          // The issue: After a year reset, lastExpenseNumber is reset to 0 locally, then incremented
+          // But metadataDoc.data() still contains old values from transaction start
+          // So we compare against the initial value we had, not the metadata value
+          if (lastExpenseNumber > initialExpenseNumber) {
+              // Always update metadata when we've incremented the counter
+              // This ensures the counter is persisted even after a year reset
+              transaction.set(metadataRef, { 
+                  lastExpenseNumber,
+                  currentYear: currentYear
+              }, { merge: true });
           }
 
           return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate } };
@@ -214,7 +249,32 @@ export async function addOfficeAsset(
         const expensesCollection = collection(userRef, 'expenses');
   
         const metadataDoc = await transaction.get(metadataRef);
-        let lastPurchaseNumber = (metadataDoc.data() as Metadata)?.lastPurchaseNumber || 0;
+        const currentYear = getCurrentYear();
+        const metadata = metadataDoc.exists() ? (metadataDoc.data() as Metadata) : null;
+        const metadataYear = metadata?.currentYear;
+        
+        // Check if we need to reset counters for new year
+        let lastPurchaseNumber = metadata?.lastPurchaseNumber || 0;
+        let lastExpenseNumber = metadata?.lastExpenseNumber || 0;
+        const didResetCounters = shouldResetCounters(metadataYear, currentYear);
+        
+        if (didResetCounters) {
+            lastPurchaseNumber = 0;
+            lastExpenseNumber = 0; // Reset expense counter too
+            // Reset all counters and update year
+            transaction.set(metadataRef, {
+                lastSaleNumber: 0,
+                lastPurchaseNumber: 0,
+                lastReturnNumber: 0,
+                lastExpenseNumber: 0,
+                lastDonationNumber: 0,
+                currentYear: currentYear
+            }, { merge: true });
+        } else if (metadataYear !== currentYear) {
+            // First time setting year, but don't reset counters
+            transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
+        }
+        
         const newPurchaseNumber = lastPurchaseNumber + 1;
         const purchaseId = `PUR-A-${String(newPurchaseNumber).padStart(4, '0')}`;
   
@@ -239,10 +299,13 @@ export async function addOfficeAsset(
           paymentMethod: data.paymentMethod,
         };
         transaction.set(newPurchaseRef, purchaseData);
-        transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
+        transaction.set(metadataRef, { 
+            lastPurchaseNumber: newPurchaseNumber,
+            currentYear: currentYear
+        }, { merge: true });
   
         // Get expense counter for generating expense ID
-        let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
+        // Use the reset value if we detected a year change
         lastExpenseNumber += 1;
         const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
         
@@ -254,7 +317,10 @@ export async function addOfficeAsset(
           paymentMethod: data.paymentMethod,
         };
         transaction.set(doc(expensesCollection), expenseData);
-        transaction.set(metadataRef, { lastExpenseNumber }, { merge: true });
+        transaction.set(metadataRef, { 
+            lastExpenseNumber,
+            currentYear: currentYear
+        }, { merge: true });
   
         return { success: true };
       });

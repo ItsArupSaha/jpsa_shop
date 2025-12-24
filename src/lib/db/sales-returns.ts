@@ -16,7 +16,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Item, Metadata, SalesReturn } from '../types';
-import { docToSalesReturn } from './utils';
+import { docToSalesReturn, getCurrentYear, shouldResetCounters } from './utils';
 
 // --- Sales Returns Actions ---
 export async function getSalesReturns(userId: string): Promise<SalesReturn[]> {
@@ -83,8 +83,28 @@ export async function addSalesReturn(
         
         if (!customerDoc.exists()) throw new Error(`Customer with id ${data.customerId} does not exist!`);
 
+        const currentYear = getCurrentYear();
         const metadata = metadataDoc.data() as Metadata;
-        const lastReturnNumber = metadata?.lastReturnNumber || 0;
+        const metadataYear = metadata?.currentYear;
+        
+        // Check if we need to reset counters for new year
+        let lastReturnNumber = metadata?.lastReturnNumber || 0;
+        if (shouldResetCounters(metadataYear, currentYear)) {
+            lastReturnNumber = 0;
+            // Reset all counters and update year
+            transaction.set(metadataRef, {
+                lastSaleNumber: 0,
+                lastPurchaseNumber: 0,
+                lastReturnNumber: 0,
+                lastExpenseNumber: 0,
+                lastDonationNumber: 0,
+                currentYear: currentYear
+            }, { merge: true });
+        } else if (metadataYear !== currentYear) {
+            // First time setting year, but don't reset counters
+            transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
+        }
+        
         const newReturnNumber = lastReturnNumber + 1;
         const returnId = `RTN-${String(newReturnNumber).padStart(4, '0')}`;
         
@@ -112,7 +132,10 @@ export async function addSalesReturn(
           date: Timestamp.fromDate(returnDate),
         };
         transaction.set(newReturnRef, returnDataToSave);
-        transaction.set(metadataRef, { lastReturnNumber: newReturnNumber }, { merge: true });
+        transaction.set(metadataRef, { 
+            lastReturnNumber: newReturnNumber,
+            currentYear: currentYear
+        }, { merge: true });
 
         // Always adjust the customer's due balance
         const currentDue = customerDoc.data()?.dueBalance || 0;

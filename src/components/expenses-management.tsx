@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addExpense, deleteExpense, getExpenses, getExpensesPaginated, updateExpense } from '@/lib/actions';
+import { addExpense, deleteExpense, getExpenses, updateExpense } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useYear } from '@/hooks/use-year';
 import type { Expense } from '@/lib/types';
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarIcon } from "lucide-react";
@@ -46,6 +47,8 @@ interface ExpensesManagementProps {
 
 export default function ExpensesManagement({ userId }: ExpensesManagementProps) {
   const { authUser } = useAuth();
+  const { selectedYear, isCurrentYear } = useYear();
+  const [allExpenses, setAllExpenses] = React.useState<Expense[]>([]);
   const [expenses, setExpenses] = React.useState<Expense[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -57,11 +60,30 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
+  // Helper function to check if a date (ISO string) falls within the selected year
+  // Uses UTC timestamps to avoid timezone issues (consistent with balance sheet approach)
+  const isExpenseInSelectedYear = React.useCallback((expenseDateString: string): boolean => {
+    if (!expenseDateString) return false;
+    // Create year boundaries in UTC (Jan 1 00:00:00 UTC to Dec 31 23:59:59.999 UTC)
+    const yearStartUTC = Date.UTC(selectedYear, 0, 1, 0, 0, 0, 0);
+    const yearEndUTC = Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999);
+    // Parse expense date (ISO string) and get UTC timestamp
+    const expenseDateUTC = new Date(expenseDateString).getTime();
+    return expenseDateUTC >= yearStartUTC && expenseDateUTC <= yearEndUTC;
+  }, [selectedYear]);
+
+  // Filter expenses by selected year
+  React.useEffect(() => {
+    const filtered = allExpenses.filter(expense => isExpenseInSelectedYear(expense.date));
+    setExpenses(filtered.slice(0, 5)); // Show first 5 for pagination
+    setHasMore(filtered.length > 5);
+  }, [allExpenses, selectedYear]);
+
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5 });
-    setExpenses(newExpenses);
-    setHasMore(newHasMore);
+    // Load all expenses to filter by year
+    const allExpensesData = await getExpenses(userId);
+    setAllExpenses(allExpensesData);
     setIsInitialLoading(false);
   }, [userId]);
 
@@ -75,10 +97,11 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
-    const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5, lastVisibleId: lastExpenseId });
-    setExpenses(prev => [...prev, ...newExpenses]);
-    setHasMore(newHasMore);
+    // Load more from filtered expenses
+    const filtered = allExpenses.filter(expense => isExpenseInSelectedYear(expense.date));
+    const currentCount = expenses.length;
+    setExpenses(filtered.slice(0, currentCount + 5));
+    setHasMore(filtered.length > currentCount + 5);
     setIsLoadingMore(false);
   };
 
@@ -114,7 +137,9 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
   const handleDelete = (id: string) => {
     startTransition(async () => {
       await deleteExpense(userId, id);
+      // Update both expenses (for display) and allExpenses (for year filtering)
       setExpenses(prev => prev.filter(e => e.id !== id));
+      setAllExpenses(prev => prev.filter(e => e.id !== id));
       toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
     });
   };
@@ -123,11 +148,37 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
     startTransition(async () => {
       if (editingExpense) {
         const updatedExpense = await updateExpense(userId, editingExpense.id, data);
-        setExpenses(prev => prev.map(e => e.id === editingExpense.id ? updatedExpense : e));
+        // Always update allExpenses (for year filtering)
+        setAllExpenses(prev => prev.map(e => e.id === editingExpense.id ? updatedExpense : e));
+
+        // Only update expenses (for display) if the expense date matches the selected year
+        // This prevents the expense from disappearing immediately if it's moved to a different year
+        // Use UTC-based comparison to avoid timezone issues
+        const isInSelectedYear = isExpenseInSelectedYear(updatedExpense.date);
+
+        if (isInSelectedYear) {
+          setExpenses(prev => prev.map(e => e.id === editingExpense.id ? updatedExpense : e));
+        } else {
+          // Expense moved to different year - remove from current view
+          setExpenses(prev => prev.filter(e => e.id !== editingExpense.id));
+        }
+
         toast({ title: 'Expense Updated', description: 'The expense has been updated successfully.' });
       } else {
         const newExpense = await addExpense(userId, data);
-        setExpenses(prev => [newExpense, ...prev]);
+        // Always update allExpenses (for year filtering)
+        setAllExpenses(prev => [newExpense, ...prev]);
+
+        // Only update expenses (for display) if the expense date matches the selected year
+        // This prevents the expense from disappearing immediately if it's added with a different year
+        // Use UTC-based comparison to avoid timezone issues
+        const isInSelectedYear = isExpenseInSelectedYear(newExpense.date);
+
+        if (isInSelectedYear) {
+          setExpenses(prev => [newExpense, ...prev]);
+        }
+        // If not in selected year, don't add to expenses - it will appear when user switches to that year
+
         toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
       }
       setIsAddDialogOpen(false);
@@ -264,10 +315,15 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="font-headline text-2xl">Track Expenses</CardTitle>
-            <CardDescription>Record and manage all bookstore expenses.</CardDescription>
+            <CardDescription>
+              Record and manage all bookstore expenses.
+              {!isCurrentYear && (
+                <span className="block mt-1 text-xs text-amber-600 font-semibold">Viewing {selectedYear} (Read Only)</span>
+              )}
+            </CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <Button onClick={handleAddNew}>
+            <Button onClick={handleAddNew} disabled={!isCurrentYear}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Expense
             </Button>
             <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
@@ -351,10 +407,10 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
                   <TableCell>{expense.paymentMethod}</TableCell>
                   <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(expense)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(expense)} disabled={!isCurrentYear}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending || !isCurrentYear}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>

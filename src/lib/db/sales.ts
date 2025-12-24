@@ -17,7 +17,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Item, Metadata, Sale, SaleItem } from '../types';
-import { docToSale } from './utils';
+import { docToSale, getCurrentYear, shouldResetCounters } from './utils';
 
 // --- Sales Actions ---
 export async function getSales(userId: string): Promise<Sale[]> {
@@ -113,7 +113,28 @@ export async function addSale(
             throw new Error(`Customer with id ${data.customerId} does not exist!`);
         }
 
-        const lastSaleNumber = (metadataDoc.data() as Metadata)?.lastSaleNumber || 0;
+        const currentYear = getCurrentYear();
+        const metadata = metadataDoc.data() as Metadata;
+        const metadataYear = metadata?.currentYear;
+        
+        // Check if we need to reset counters for new year
+        let lastSaleNumber = metadata?.lastSaleNumber || 0;
+        if (shouldResetCounters(metadataYear, currentYear)) {
+            lastSaleNumber = 0;
+            // Reset all counters and update year
+            transaction.set(metadataRef, {
+                lastSaleNumber: 0,
+                lastPurchaseNumber: 0,
+                lastReturnNumber: 0,
+                lastExpenseNumber: 0,
+                lastDonationNumber: 0,
+                currentYear: currentYear
+            }, { merge: true });
+        } else if (metadataYear !== currentYear) {
+            // First time setting year, but don't reset counters
+            transaction.set(metadataRef, { currentYear: currentYear }, { merge: true });
+        }
+        
         const newSaleNumber = lastSaleNumber + 1;
         const saleId = `SALE-${String(newSaleNumber).padStart(4, '0')}`;
         
@@ -174,7 +195,10 @@ export async function addSale(
           paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
         };
         transaction.set(newSaleRef, saleDataToSave);
-        transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
+        transaction.set(metadataRef, { 
+            lastSaleNumber: newSaleNumber,
+            currentYear: currentYear
+        }, { merge: true });
   
         for (let i = 0; i < itemDocs.length; i++) {
           const saleItem = data.items[i];
