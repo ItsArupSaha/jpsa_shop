@@ -78,49 +78,49 @@ export function AddExistingAssetDialog({ userId, onAssetAdded, children }: AddEx
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
-                <div className="space-y-4 py-4 px-4">
-                    <FormField
+              <div className="space-y-4 py-4 px-4">
+                <FormField
+                  control={form.control}
+                  name="itemName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Asset Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Office Desk" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
                     control={form.control}
-                    name="itemName"
+                    name="quantity"
                     render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Asset Name</FormLabel>
+                      <FormItem>
+                        <FormLabel>Quantity</FormLabel>
                         <FormControl>
-                            <Input placeholder="e.g., Office Desk" {...field} />
+                          <Input type="number" {...field} />
                         </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="quantity"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Quantity</FormLabel>
-                            <FormControl>
-                            <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="value"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Value</FormLabel>
-                            <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    </div>
+                  />
+                  <FormField
+                    control={form.control}
+                    name="value"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Value</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
+              </div>
             </div>
             <DialogFooter className="pt-4 border-t">
               <Button type="submit" disabled={isPending}>
@@ -134,3 +134,5 @@ export function AddExistingAssetDialog({ userId, onAssetAdded, children }: AddEx
     </Dialog>
   );
 }
+
+
