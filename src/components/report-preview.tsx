@@ -17,28 +17,28 @@ interface ReportPreviewProps {
 }
 
 const formatCurrency = (amount: number) => {
-    return `BDT ${new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)}`;
+  return `BDT ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)}`;
 };
 
 // Separate function for PDF formatting to avoid BDT symbol issues
 const formatCurrencyForPdf = (amount: number) => {
-    return `BDT ${new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)}`;
+  return `BDT ${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)}`;
 };
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {
   const { authUser } = useAuth();
-  const { monthlyActivity, netResult } = reportData;
+  const { monthlyActivity, cashFlow, netResult } = reportData;
 
   const handleDownloadPdf = () => {
     if (!authUser) return;
     const doc = new jsPDF();
-    
+
     // Left side header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
@@ -51,11 +51,11 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     // Right side header
     let yPos = 20;
     if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
     if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
     }
 
     // Report Title
@@ -67,36 +67,47 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.setTextColor(100);
     doc.text(`${month} ${year}`, 105, 51, { align: 'center' });
     doc.setTextColor(0);
-    
+
     // Monthly Activity Table
-    let activityBody = [
-        ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
-        ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
-        ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
-        ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
-        ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
+    const activityBody = [
+      ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
+      ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
+      ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
+      ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
+      ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
     ];
-    
+
     autoTable(doc, {
-        startY: 60,
-        head: [['Monthly Activity', 'Amount']],
-        body: activityBody,
-        theme: 'striped',
-        headStyles: { fillColor: '#306754' },
+      startY: 60,
+      head: [['Monthly Activity', 'Amount']],
+      body: activityBody,
+      theme: 'striped',
+      headStyles: { fillColor: '#306754' },
     });
-    
+
     let finalY = (doc as any).lastAutoTable.finalY + 10;
 
-    // Profit Breakdown Section
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Profit Breakdown:", 14, finalY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`• Paid Sales: ${formatCurrencyForPdf(monthlyActivity.profitFromPaidSales)}`, 20, finalY + 8);
-    doc.text(`• Due Payments: ${formatCurrencyForPdf(monthlyActivity.profitFromDuePayments)}`, 20, finalY + 16);
+    // Cash Flow Summary Table
+    const cashFlowBody = [
+      ['Sales - Cash', formatCurrencyForPdf(cashFlow.sales.cash)],
+      ['Sales - Bank', formatCurrencyForPdf(cashFlow.sales.bank)],
+      ['Due Payments - Cash', formatCurrencyForPdf(cashFlow.duePayments.cash)],
+      ['Due Payments - Bank', formatCurrencyForPdf(cashFlow.duePayments.bank)],
+      ['Donations - Cash', formatCurrencyForPdf(cashFlow.donations.cash)],
+      ['Donations - Bank', formatCurrencyForPdf(cashFlow.donations.bank)],
+      ['Expenses - Cash', `(${formatCurrencyForPdf(cashFlow.expenses.cash)})`],
+      ['Expenses - Bank', `(${formatCurrencyForPdf(cashFlow.expenses.bank)})`],
+    ];
 
-    finalY += 25;
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Cash Flow Summary', 'Amount']],
+      body: cashFlowBody,
+      theme: 'striped',
+      headStyles: { fillColor: '#306754' },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
 
     // Net Result
     doc.setFontSize(12);
@@ -106,7 +117,7 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     doc.setTextColor(netColor);
     doc.text(formatCurrencyForPdf(netResult.netProfitOrLoss), 200, finalY + 15, { align: 'right' });
     doc.setTextColor(0); // Reset color
-    
+
     doc.save(`report-${month}-${year}.pdf`);
   };
 
@@ -141,21 +152,69 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                   <TableRow><TableCell>Total Expenses</TableCell><TableCell className="text-right text-destructive">({formatCurrency(monthlyActivity.totalExpenses)})</TableCell></TableRow>
                 </TableBody>
               </Table>
-              <div className="mt-3 p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-                <p className="font-medium mb-1">Profit Breakdown:</p>
-                <p>• Paid Sales: {formatCurrency(monthlyActivity.profitFromPaidSales)}</p>
-                <p>• Due Payments: {formatCurrency(monthlyActivity.profitFromDuePayments)}</p>
-              </div>
             </div>
           </div>
-          {/* Net Result */}
+          {/* Net Result & Cash Flow */}
           <div className="space-y-6">
             <div>
-                <h3 className="text-lg font-semibold mb-2 font-headline">Net Result for {month}</h3>
-                <div className={`p-4 rounded-lg bg-muted/50 text-center`}>
-                    <p className="text-sm text-muted-foreground">Net Profit / Loss</p>
-                    <p className={`text-3xl font-bold ${netColor}`}>{formatCurrency(netResult.netProfitOrLoss)}</p>
+              <h3 className="text-lg font-semibold mb-2 font-headline">Net Result for {month}</h3>
+              <div className="p-4 rounded-lg bg-muted/50 text-center">
+                <p className="text-sm text-muted-foreground">Net Profit / Loss</p>
+                <p className={`text-3xl font-bold ${netColor}`}>{formatCurrency(netResult.netProfitOrLoss)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold font-headline">Cash Flow Overview</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-primary/5">
+                  <p className="text-xs text-muted-foreground mb-1">Sales</p>
+                  <div className="flex justify-between text-sm">
+                    <span>Cash</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.sales.cash)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Bank</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.sales.bank)}</span>
+                  </div>
                 </div>
+
+                <div className="p-3 rounded-lg bg-primary/5">
+                  <p className="text-xs text-muted-foreground mb-1">Due Payments (Received)</p>
+                  <div className="flex justify-between text-sm">
+                    <span>Cash</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.duePayments.cash)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Bank</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.duePayments.bank)}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                  <p className="text-xs text-muted-foreground mb-1">Donations</p>
+                  <div className="flex justify-between text-sm">
+                    <span>Cash</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.donations.cash)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Bank</span>
+                    <span className="font-semibold">{formatCurrency(cashFlow.donations.bank)}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20">
+                  <p className="text-xs text-muted-foreground mb-1">Expenses (Outflow)</p>
+                  <div className="flex justify-between text-sm">
+                    <span>Cash</span>
+                    <span className="font-semibold text-destructive">({formatCurrency(cashFlow.expenses.cash)})</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Bank</span>
+                    <span className="font-semibold text-destructive">({formatCurrency(cashFlow.expenses.bank)})</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

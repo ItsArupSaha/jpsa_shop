@@ -2,7 +2,7 @@
 // It imports from the /lib/db directory and re-exports everything.
 // This allows components to import from a single file, while keeping the actions organized.
 
-export * from './db/balance-sheet';
+export * from './db/account-overview';
 export * from './db/categories';
 export * from './db/customers';
 export * from './db/dashboard';

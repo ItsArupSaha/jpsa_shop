@@ -140,7 +140,7 @@ export async function resetDatabase(userId: string) {
   console.log(`Database reset and re-initialized for user: ${userId}`);
 
   // Revalidate all paths
-  const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases', '/balance-sheet'];
+  const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases'];
   paths.forEach(path => revalidatePath(path));
 }
 
@@ -192,7 +192,6 @@ export async function adjustInitialCapital(userId: string, adjustments: { cash: 
     }
 
     if (adjustments.cash !== 0 || adjustments.bank !== 0) {
-        revalidatePath('/balance-sheet');
         revalidatePath('/dashboard');
     }
 }

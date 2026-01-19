@@ -151,7 +151,6 @@ export async function addTransaction(userId: string, data: Omit<Transaction, 'id
     const newDocRef = await addDoc(transactionsCollection, transactionData);
     revalidatePath(`/${data.type.toLowerCase()}s`);
     revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
     if (data.customerId) {
       revalidatePath(`/customers/${data.customerId}`);
     }
@@ -246,7 +245,6 @@ export async function addPayment(userId: string, data: { customerId: string, amo
 
         revalidatePath('/receivables');
         revalidatePath('/dashboard');
-        revalidatePath('/balance-sheet');
         revalidatePath('/reports');
         if (data.customerId) {
             revalidatePath(`/customers/${data.customerId}`);
@@ -317,7 +315,6 @@ export async function recordTransfer(
   
   await addDoc(transfersCollection, transferData);
   
-  revalidatePath('/balance-sheet');
   revalidatePath('/dashboard');
 }
 
@@ -331,7 +328,6 @@ export async function updateTransactionStatus(userId: string, id: string, status
 
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
     if (transDoc.exists()){
       const customerId = transDoc.data().customerId;
       if (customerId) {
@@ -347,7 +343,6 @@ export async function deleteTransaction(userId: string, id: string, type: 'Recei
     await deleteDoc(transRef);
     revalidatePath(`/${type.toLowerCase()}s`);
     revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
 }
 
 export async function getTransactionsForMonth(userId: string, year: number, month: number): Promise<Transaction[]> {

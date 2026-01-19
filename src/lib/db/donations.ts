@@ -107,7 +107,6 @@ export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'd
       });
       
       revalidatePath('/donations');
-      revalidatePath('/balance-sheet');
       return result;
   } catch (e) {
       console.error("Donation creation failed: ", e);

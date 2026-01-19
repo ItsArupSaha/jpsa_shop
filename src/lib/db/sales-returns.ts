@@ -131,7 +131,6 @@ export async function addSalesReturn(
       revalidatePath('/dashboard');
       revalidatePath('/items');
       revalidatePath('/receivables');
-      revalidatePath('/balance-sheet');
       if (data.customerId) {
           revalidatePath(`/customers/${data.customerId}`);
       }

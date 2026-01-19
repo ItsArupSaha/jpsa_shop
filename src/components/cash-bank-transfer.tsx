@@ -2,49 +2,48 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, getTransfersPaginated, recordTransfer } from '@/lib/actions';
-import { CalendarIcon, Loader2 } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { Calendar } from './ui/calendar';
-import { Skeleton } from './ui/skeleton';
+import { getAccountBalances, getTransfersPaginated, recordTransfer } from '@/lib/actions';
 import type { Transfer } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { CalendarIcon, Loader2 } from 'lucide-react';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Separator } from './ui/separator';
 
 const transferSchema = z.object({
-  from: z.enum(['Cash', 'Bank'], { required_error: 'Please select a source.' }),
-  to: z.enum(['Cash', 'Bank'], { required_error: 'Please select a destination.' }),
-  amount: z.coerce.number().min(0.01, 'Amount must be positive'),
-  date: z.date({ required_error: "A transfer date is required." }),
+    from: z.enum(['Cash', 'Bank'], { required_error: 'Please select a source.' }),
+    to: z.enum(['Cash', 'Bank'], { required_error: 'Please select a destination.' }),
+    amount: z.coerce.number().min(0.01, 'Amount must be positive'),
+    date: z.date({ required_error: "A transfer date is required." }),
 }).refine(data => data.from !== data.to, {
-  message: "Source and destination cannot be the same.",
-  path: ['to'],
+    message: "Source and destination cannot be the same.",
+    path: ['to'],
 });
 
 type TransferFormValues = z.infer<typeof transferSchema>;
@@ -67,7 +66,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
     const fetchBalances = React.useCallback(async () => {
         setIsLoadingBalances(true);
         try {
-            const balanceData = await getBalanceSheetData(userId);
+            const balanceData = await getAccountBalances(userId);
             setBalances({ cash: balanceData.cash, bank: balanceData.bank });
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch account balances.' });
@@ -75,7 +74,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
             setIsLoadingBalances(false);
         }
     }, [userId, toast]);
-    
+
     const fetchTransfers = React.useCallback(async () => {
         setIsLoadingTransfers(true);
         try {
@@ -90,7 +89,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
     }, [userId, toast]);
 
     React.useEffect(() => {
-        if(userId) {
+        if (userId) {
             fetchBalances();
             fetchTransfers();
         }
@@ -105,7 +104,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
             setTransfers(prev => [...prev, ...newTransfers]);
             setHasMore(newHasMore);
         } catch (error) {
-             toast({ variant: 'destructive', title: 'Error', description: 'Could not load more transfers.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load more transfers.' });
         } finally {
             setIsLoadingMore(false);
         }
@@ -141,7 +140,7 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
             setIsSubmitting(false);
         }
     };
-    
+
     const formatCurrency = (amount: number) => `৳${amount.toFixed(2)}`;
 
     return (
@@ -231,38 +230,38 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
                                 control={form.control}
                                 name="date"
                                 render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                    <FormLabel>Transfer Date</FormLabel>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                                "w-[240px] pl-3 text-left font-normal",
-                                                !field.value && "text-muted-foreground"
-                                            )}
-                                            >
-                                            {field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}
-                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                            </Button>
-                                        </FormControl>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="single"
-                                            selected={field.value}
-                                            onSelect={field.onChange}
-                                            disabled={(date) => date > new Date()}
-                                            initialFocus
-                                        />
-                                        </PopoverContent>
-                                    </Popover>
-                                    <FormMessage />
-                                </FormItem>
+                                    <FormItem className="flex flex-col">
+                                        <FormLabel>Transfer Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button
+                                                        variant={"outline"}
+                                                        className={cn(
+                                                            "w-[240px] pl-3 text-left font-normal",
+                                                            !field.value && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        {field.value ? format(field.value, "PPP") : (<span>Pick a date</span>)}
+                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={field.value}
+                                                    onSelect={field.onChange}
+                                                    disabled={(date) => date > new Date()}
+                                                    initialFocus
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
                                 )}
                             />
-                            
+
                             <CardFooter className="px-0 pt-6">
                                 <Button type="submit" disabled={isSubmitting || isLoadingBalances}>
                                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

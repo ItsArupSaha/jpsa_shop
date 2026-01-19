@@ -1,17 +1,17 @@
 'use server';
 
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    startAfter,
-    updateDoc
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+  updateDoc
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
@@ -68,7 +68,6 @@ export async function addItem(userId: string, data: Omit<Item, 'id'>) {
   const itemsCollection = collection(db, 'users', userId, 'items');
   const newDocRef = await addDoc(itemsCollection, data);
   revalidatePath('/items');
-  revalidatePath('/balance-sheet');
   return { id: newDocRef.id, ...data };
 }
 
@@ -77,7 +76,6 @@ export async function updateItem(userId: string, id: string, data: Omit<Item, 'i
   const itemRef = doc(db, 'users', userId, 'items', id);
   await updateDoc(itemRef, data);
   revalidatePath('/items');
-  revalidatePath('/balance-sheet');
 }
 
 export async function deleteItem(userId: string, id: string) {
@@ -85,5 +83,4 @@ export async function deleteItem(userId: string, id: string) {
   const itemRef = doc(db, 'users', userId, 'items', id);
   await deleteDoc(itemRef);
   revalidatePath('/items');
-  revalidatePath('/balance-sheet');
 }

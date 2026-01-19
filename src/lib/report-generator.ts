@@ -11,6 +11,12 @@ export interface ReportAnalysis {
     totalExpenses: number;
     totalDonations: number;
   };
+  cashFlow: {
+    sales: { cash: number; bank: number };
+    duePayments: { cash: number; bank: number };
+    donations: { cash: number; bank: number };
+    expenses: { cash: number; bank: number };
+  };
   netResult: {
     netProfitOrLoss: number;
   };
@@ -72,12 +78,70 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
 
   const totalSales = salesData.reduce((sum, sale) => sum + sale.total, 0);
 
-  const receivedPaymentsFromDues = transactionsData
-    .filter(t => t.type === 'Receivable' && t.status === 'Paid' && t.description?.startsWith('Payment from customer'))
+  // Cash/bank breakdown for sales based on payment method
+  const salesCashBank = salesData.reduce(
+    (acc, sale) => {
+      if (sale.paymentMethod === 'Cash') {
+        acc.cash += sale.total;
+      } else if (sale.paymentMethod === 'Bank') {
+        acc.bank += sale.total;
+      } else if (sale.paymentMethod === 'Split' && sale.amountPaid && sale.amountPaid > 0 && sale.splitPaymentMethod) {
+        // Only the immediate paid portion counts towards cash/bank; the rest is due
+        if (sale.splitPaymentMethod === 'Cash') {
+          acc.cash += sale.amountPaid;
+        } else if (sale.splitPaymentMethod === 'Bank') {
+          acc.bank += sale.amountPaid;
+        }
+      }
+      // 'Due' and 'Paid by Credit' do not contribute to cash/bank directly
+      return acc;
+    },
+    { cash: 0, bank: 0 }
+  );
+
+  const duePayments = transactionsData
+    .filter(t => t.type === 'Receivable' && t.status === 'Paid' && t.description?.startsWith('Payment from customer'));
+
+  const receivedPaymentsFromDues = duePayments
     .reduce((total, payment) => total + payment.amount, 0);
 
+  const duePaymentsCashBank = duePayments.reduce(
+    (acc, t) => {
+      if (t.paymentMethod === 'Cash') {
+        acc.cash += t.amount;
+      } else if (t.paymentMethod === 'Bank') {
+        acc.bank += t.amount;
+      }
+      return acc;
+    },
+    { cash: 0, bank: 0 }
+  );
+
   const totalExpenses = expensesData.reduce((sum, expense) => sum + expense.amount, 0);
+  const expensesCashBank = expensesData.reduce(
+    (acc, expense) => {
+      if (expense.paymentMethod === 'Cash') {
+        acc.cash += expense.amount;
+      } else if (expense.paymentMethod === 'Bank') {
+        acc.bank += expense.amount;
+      }
+      return acc;
+    },
+    { cash: 0, bank: 0 }
+  );
+
   const totalDonations = donationsData.reduce((sum, donation) => sum + donation.amount, 0);
+  const donationsCashBank = donationsData.reduce(
+    (acc, donation) => {
+      if (donation.paymentMethod === 'Cash') {
+        acc.cash += donation.amount;
+      } else if (donation.paymentMethod === 'Bank') {
+        acc.bank += donation.amount;
+      }
+      return acc;
+    },
+    { cash: 0, bank: 0 }
+  );
 
   const totalProfit = profitFromPaidSales + profitFromDuePayments;
 
@@ -91,6 +155,13 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     totalDonations,
   };
 
+  const cashFlow = {
+    sales: salesCashBank,
+    duePayments: duePaymentsCashBank,
+    donations: donationsCashBank,
+    expenses: expensesCashBank,
+  };
+
   // Net result: Profit + Donations - Expenses
   const netProfitOrLoss = totalProfit + totalDonations - totalExpenses;
 
@@ -100,6 +171,7 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
 
   return {
     monthlyActivity,
+    cashFlow,
     netResult,
   };
 }

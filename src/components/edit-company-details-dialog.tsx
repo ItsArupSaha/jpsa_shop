@@ -1,10 +1,6 @@
 
 'use client';
 
-import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,11 +22,15 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { updateCompanyDetails, getBalanceSheetData, adjustInitialCapital } from '@/lib/actions';
+import { adjustInitialCapital, getAccountBalances, updateCompanyDetails } from '@/lib/actions';
 import type { AuthUser } from '@/lib/types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 import { Separator } from './ui/separator';
 import { Skeleton } from './ui/skeleton';
 
@@ -63,12 +63,12 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
 
   React.useEffect(() => {
     async function loadCapital() {
-        if (isOpen && user.uid) {
-            setIsLoadingCapital(true);
-            const balanceData = await getBalanceSheetData(user.uid);
-            setBalances({ cash: balanceData.cash, bank: balanceData.bank });
-            setIsLoadingCapital(false);
-        }
+      if (isOpen && user.uid) {
+        setIsLoadingCapital(true);
+        const balanceData = await getAccountBalances(user.uid);
+        setBalances({ cash: balanceData.cash, bank: balanceData.bank });
+        setIsLoadingCapital(false);
+      }
     }
     loadCapital();
   }, [isOpen, user.uid]);
@@ -91,25 +91,25 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
   const onSubmit = async (data: CompanyDetailsFormValues) => {
     setIsSubmitting(true);
     try {
-        const { cashAdjustment, bankAdjustment, ...companyData } = data;
-        const adjustments = {
-            cash: cashAdjustment || 0,
-            bank: bankAdjustment || 0,
-        };
+      const { cashAdjustment, bankAdjustment, ...companyData } = data;
+      const adjustments = {
+        cash: cashAdjustment || 0,
+        bank: bankAdjustment || 0,
+      };
 
-        // Run both updates in parallel
-        await Promise.all([
-            updateCompanyDetails(user.uid, companyData),
-            adjustInitialCapital(user.uid, adjustments),
-        ]);
+      // Run both updates in parallel
+      await Promise.all([
+        updateCompanyDetails(user.uid, companyData),
+        adjustInitialCapital(user.uid, adjustments),
+      ]);
 
-        toast({
-            title: 'Details Updated!',
-            description: 'Your store information has been successfully saved.',
-        });
-        setIsOpen(false);
-        // Force a reload to reflect changes everywhere
-        router.refresh();
+      toast({
+        title: 'Details Updated!',
+        description: 'Your store information has been successfully saved.',
+      });
+      setIsOpen(false);
+      // Force a reload to reflect changes everywhere
+      router.refresh();
     } catch (error) {
       console.error(error);
       toast({
@@ -158,7 +158,7 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                       <Input placeholder="A cozy corner for book lovers" {...field} />
                     </FormControl>
                     <FormDescription>
-                        A short, descriptive tagline for your store.
+                      A short, descriptive tagline for your store.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -239,65 +239,65 @@ export function EditCompanyDetailsDialog({ user, children }: EditCompanyDetailsD
                   )}
                 />
               )}
-            
+
               <Separator />
-              
+
               <div className="space-y-4 rounded-md border p-4">
                 <h3 className="text-lg font-semibold">Capital Adjustment</h3>
                 <p className="text-sm text-muted-foreground">
-                    To adjust capital, enter a positive number to add or a negative number to subtract. This only affects the capital contribution, not current balances.
+                  To adjust capital, enter a positive number to add or a negative number to subtract. This only affects the capital contribution, not current balances.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {isLoadingCapital ? (
-                        <Skeleton className="h-10 w-full" />
-                    ) : (
-                        <div className="space-y-2">
-                            <FormLabel>Current Cash Balance</FormLabel>
-                            <Input value={`৳${balances?.cash.toFixed(2) || '0.00'}`} readOnly disabled/>
-                        </div>
+                  {isLoadingCapital ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <div className="space-y-2">
+                      <FormLabel>Current Cash Balance</FormLabel>
+                      <Input value={`৳${balances?.cash.toFixed(2) || '0.00'}`} readOnly disabled />
+                    </div>
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="cashAdjustment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Adjust Cash Capital By</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                     <FormField
-                        control={form.control}
-                        name="cashAdjustment"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Adjust Cash Capital By</FormLabel>
-                            <FormControl>
-                                <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
+                  />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {isLoadingCapital ? (
-                        <Skeleton className="h-10 w-full" />
-                    ) : (
-                        <div className="space-y-2">
-                            <FormLabel>Current Bank Balance</FormLabel>
-                            <Input value={`৳${balances?.bank.toFixed(2) || '0.00'}`} readOnly disabled/>
-                        </div>
+                  {isLoadingCapital ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <div className="space-y-2">
+                      <FormLabel>Current Bank Balance</FormLabel>
+                      <Input value={`৳${balances?.bank.toFixed(2) || '0.00'}`} readOnly disabled />
+                    </div>
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="bankAdjustment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Adjust Bank Capital By</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                     <FormField
-                        control={form.control}
-                        name="bankAdjustment"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Adjust Bank Capital By</FormLabel>
-                            <FormControl>
-                                <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
+                  />
                 </div>
               </div>
 
 
             </div>
-            
+
             <DialogFooter className="pt-4 border-t">
               <Button type="submit" disabled={isSubmitting || isLoadingCapital}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -186,7 +186,6 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
       revalidatePath('/payables');
       revalidatePath('/expenses');
       revalidatePath('/dashboard');
-      revalidatePath('/balance-sheet');
       return result;
   } catch (e) {
       console.error("Purchase creation failed: ", e);
@@ -261,7 +260,6 @@ export async function addOfficeAsset(
   
       revalidatePath('/purchases');
       revalidatePath('/expenses');
-      revalidatePath('/balance-sheet');
       return result;
     } catch (e) {
       console.error("Office asset creation failed: ", e);
@@ -328,7 +326,6 @@ export async function addExistingAsset(
       });
   
       revalidatePath('/items');
-      revalidatePath('/balance-sheet');
       return { success: true };
     } catch (e) {
       console.error("Existing asset creation failed: ", e);

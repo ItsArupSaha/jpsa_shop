@@ -113,7 +113,6 @@ export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'exp
         
         revalidatePath('/expenses');
         revalidatePath('/dashboard');
-        revalidatePath('/balance-sheet');
         return result;
     } catch (e) {
         console.error("Expense creation failed: ", e);
@@ -140,7 +139,6 @@ export async function updateExpense(userId: string, id: string, data: Omit<Expen
     await updateDoc(expenseRef, expenseData);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
     return { ...data, id, expenseId: existingData.expenseId, date: data.date.toISOString() };
 }
 
@@ -150,5 +148,4 @@ export async function deleteExpense(userId: string, id: string) {
     await deleteDoc(expenseRef);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    revalidatePath('/balance-sheet');
 }

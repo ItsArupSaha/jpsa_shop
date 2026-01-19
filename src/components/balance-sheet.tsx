@@ -1,337 +1,211 @@
-
 'use client';
+
+import { format } from 'date-fns';
+import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
-import { getBalanceSheetData, getInitialCapital } from '@/lib/actions';
-import { format } from 'date-fns';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, FileText } from 'lucide-react';
-import * as React from 'react';
-import * as XLSX from 'xlsx';
-
-type BalanceSheetData = Awaited<ReturnType<typeof getBalanceSheetData>>;
+import { getAccountOverview } from '@/lib/actions';
+import { CalendarIcon } from 'lucide-react';
 
 interface BalanceSheetProps {
     userId: string;
 }
 
-export default function BalanceSheet({ userId }: BalanceSheetProps) {
-  const [data, setData] = React.useState<BalanceSheetData | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
-  const [viewAsOfDate, setViewAsOfDate] = React.useState<Date | undefined>(undefined);
-  const [initialCapital, setInitialCapital] = React.useState<{ cash: number, bank: number } | null>(null);
-  const { authUser } = useAuth();
-  const { toast } = useToast();
+type Overview = Awaited<ReturnType<typeof getAccountOverview>>;
 
-  React.useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const [balanceSheetData, initial] = await Promise.all([
-        getBalanceSheetData(userId, viewAsOfDate),
-        getInitialCapital(userId)
-      ]);
-      setData(balanceSheetData);
-      setInitialCapital(initial);
-      setIsLoading(false);
-    }
-    if (userId) {
-        loadData();
-    }
-  }, [userId, viewAsOfDate]);
-
-  const formatCurrency = (amount: number) => {
-    return `BDT ${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+const formatCurrency = (amount: number) =>
+    `BDT ${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
     })}`;
-  };
 
-  const handleDownloadPdf = async () => {
-    if (!data || !authUser) return;
 
-    const doc = new jsPDF();
-    const dateString = viewAsOfDate ? format(viewAsOfDate, 'PPP') : 'Current';
+export default function BalanceSheet({ userId }: BalanceSheetProps) {
+    const [asOfDate, setAsOfDate] = React.useState<Date | undefined>(undefined);
+    const [current, setCurrent] = React.useState<Overview | null>(null);
+    const [isLoading, setIsLoading] = React.useState(true);
 
-    // Left side header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(authUser.companyName || 'Bookstore', 14, 20);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(authUser.address || '', 14, 26);
-    doc.text(authUser.phone || '', 14, 32);
+    React.useEffect(() => {
+        if (!userId) return;
 
-    // Right side header
-    let yPos = 20;
-    if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
-    }
-    if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
-        yPos += 6;
-    }
+        async function loadData() {
+            setIsLoading(true);
+            const targetDate = asOfDate ?? new Date();
 
-    // Report Title
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Balance Sheet', 105, 45, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100);
-    doc.text(viewAsOfDate ? `As of: ${dateString}` : dateString, 105, 51, { align: 'center' });
-    doc.setTextColor(0);
+            const currentSnapshot = await getAccountOverview(userId, targetDate);
 
-    // Assets
-    autoTable(doc, {
-      startY: 60,
-      head: [['Assets', '']],
-      body: [
-        ['Cash', formatCurrency(data.cash)],
-        ['Bank', formatCurrency(data.bank)],
-        ['Due Amounts', formatCurrency(data.receivables)],
-        ['Stock Value', formatCurrency(data.stockValue)],
-        ['Office Assets', formatCurrency(data.officeAssetsValue)],
-      ],
-      foot: [
-        [{ content: 'Total Assets', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.totalAssets), styles: { fontStyle: 'bold' } }],
-      ],
-      theme: 'striped',
-      headStyles: { fillColor: '#306754', fontStyle: 'bold' },
-      footStyles: { fillColor: '#F5F5DC', textColor: '#000000', fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'right' } },
-    });
+            setCurrent(currentSnapshot);
+            setIsLoading(false);
+        }
 
-    const finalY = (doc as any).lastAutoTable.finalY || 100;
+        loadData();
+    }, [userId, asOfDate]);
 
-    // Liabilities & Equity
-    autoTable(doc, {
-      startY: finalY + 15,
-      head: [['Liabilities & Equity', '']],
-      body: [
-        ['Accounts Payable', formatCurrency(data.payables)],
-        [{ content: 'Total Liabilities', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables), styles: { fontStyle: 'bold' } }],
-        ['Owner\'s Equity', formatCurrency(data.equity)],
-      ],
-      foot: [
-         [{ content: 'Total Liabilities + Equity', styles: { fontStyle: 'bold' } }, { content: formatCurrency(data.payables + data.equity), styles: { fontStyle: 'bold' } }],
-      ],
-      theme: 'striped',
-      headStyles: { fillColor: '#306754', fontStyle: 'bold' },
-      footStyles: { fillColor: '#F5F5DC', textColor: '#000000', fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'right' } },
-    });
-    
-    const fileName = viewAsOfDate 
-      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.pdf`
-      : `balance-sheet-current.pdf`;
-    doc.save(fileName);
-  };
-
-  const handleDownloadXlsx = async () => {
-    if (!data) return;
-
-    const dataToExport = [
-      { 'Item': 'Cash', 'Amount': data.cash },
-      { 'Item': 'Bank', 'Amount': data.bank },
-      { 'Item': 'Due Amounts', 'Amount': data.receivables },
-      { 'Item': 'Stock Value', 'Amount': data.stockValue },
-      { 'Item': 'Office Assets', 'Amount': data.officeAssetsValue },
-      { 'Item': 'Total Assets', 'Amount': data.totalAssets },
-      { 'Item': '', 'Amount': '' },
-      { 'Item': 'Accounts Payable', 'Amount': data.payables },
-      { 'Item': 'Total Liabilities', 'Amount': data.payables },
-      { 'Item': '', 'Amount': '' },
-      { 'Item': 'Owner\'s Equity', 'Amount': data.equity },
-      { 'Item': 'Total Liabilities + Equity', 'Amount': data.payables + data.equity },
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Balance Sheet');
-
-    const fileName = viewAsOfDate 
-      ? `balance-sheet-${format(viewAsOfDate, 'yyyy-MM-dd')}.xlsx`
-      : `balance-sheet-current.xlsx`;
-    XLSX.writeFile(wb, fileName);
-  };
-
-  const renderSkeleton = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="space-y-2">
-            <Skeleton className="h-8 w-2/4" />
+    const renderSkeleton = () => (
+        <div className="space-y-4">
+            <Skeleton className="h-8 w-1/3" />
             <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-        </div>
-        <div className="space-y-2">
-            <Skeleton className="h-8 w-2/4" />
-            <Skeleton className="h-6 w-full" />
-        </div>
-      </div>
-      <Skeleton className="h-px w-full" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Skeleton className="h-8 w-1/4" />
-        <Skeleton className="h-8 w-1/4 justify-self-end" />
-      </div>
-    </div>
-  );
-
-  return (
-    <Card className="animate-in fade-in-50">
-      <CardHeader className="flex flex-row justify-between items-start">
-        <div>
-          <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
-          <CardDescription>
-            A financial snapshot of your business's assets, liabilities, and equity.
-            {viewAsOfDate && (
-              <span className="block mt-1 text-xs">As of {format(viewAsOfDate, "PPP")}</span>
-            )}
-            {authUser?.createdAt && (
-              <span className="block mt-1 text-xs">Started on {format(authUser.createdAt.toDate ? authUser.createdAt.toDate() : new Date(authUser.createdAt), 'PPP')}</span>
-            )}
-            {initialCapital && (
-              <>
-                <span className="block mt-1 text-xs">Opening Cash: {formatCurrency(initialCapital.cash)}</span>
-                <span className="block mt-1 text-xs">Opening Bank: {formatCurrency(initialCapital.bank)}</span>
-              </>
-            )}
-          </CardDescription>
-        </div>
-        <div className="flex gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                {viewAsOfDate ? format(viewAsOfDate, "PPP") : "View As Of Date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={viewAsOfDate}
-                onSelect={(date) => setViewAsOfDate(date)}
-                initialFocus
-              />
-              {viewAsOfDate && (
-                <div className="p-3 border-t">
-                  <Button variant="outline" className="w-full" onClick={() => setViewAsOfDate(undefined)}>
-                    View Current Balance
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-          <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
-                Download Reports
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Download Balance Sheet Report</DialogTitle>
-                <DialogDescription>
-                  Download the balance sheet for {viewAsOfDate ? format(viewAsOfDate, "PPP") : "current period"}.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                <Button variant="outline" onClick={handleDownloadPdf}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                <Button variant="outline" onClick={handleDownloadXlsx}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? renderSkeleton() : data && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Assets Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2 font-headline text-primary">Assets</h3>
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Cash</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.cash)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Bank</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.bank)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Due Amounts</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.receivables)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Stock Value</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.stockValue)}</TableCell>
-                    </TableRow>
-                     <TableRow>
-                      <TableCell>Office Assets</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.officeAssetsValue)}</TableCell>
-                    </TableRow>
-                    <TableRow className="font-bold bg-muted/50">
-                      <TableCell>Total Assets</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.totalAssets)}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Liabilities & Equity Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2 font-headline text-destructive">Liabilities & Equity</h3>
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Accounts Payable</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.payables)}</TableCell>
-                    </TableRow>
-                    <TableRow className="font-bold bg-muted/50">
-                      <TableCell>Total Liabilities</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.payables)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                        <TableCell colSpan={2}>&nbsp;</TableCell>
-                    </TableRow>
-                    <TableRow className="font-bold bg-primary/10">
-                      <TableCell>Owner's Equity</TableCell>
-                      <TableCell className="text-right">{formatCurrency(data.equity)}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
+            <Skeleton className="h-6 w-2/3" />
+            <Skeleton className="h-px w-full" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
             </div>
+        </div>
+    );
 
-            <Separator />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-lg font-bold">
-                <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
-                    <span>Total Assets</span>
-                    <span>{formatCurrency(data.totalAssets)}</span>
+    const effectiveDate = asOfDate ?? new Date();
+    const monthLabel = format(effectiveDate, 'MMMM yyyy');
+
+    return (
+        <Card className="max-w-5xl mx-auto animate-in fade-in-50">
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <CardTitle className="font-headline text-2xl">Balance Sheet</CardTitle>
+                    <CardDescription>
+                        Snapshot of your cash, bank, dues, payables and stock as of a specific date.
+                        <span className="block mt-1 text-xs">
+                            Opening balances are taken as the closing balances of the previous month.
+                        </span>
+                    </CardDescription>
                 </div>
-                 <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg">
-                    <span>Total Liabilities + Equity</span>
-                    <span>{formatCurrency(data.payables + data.equity)}</span>
+                <div className="flex items-center gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="justify-start">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {asOfDate ? format(asOfDate, 'PPP') : 'As of Today'}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar
+                                mode="single"
+                                selected={asOfDate}
+                                onSelect={setAsOfDate}
+                                initialFocus
+                            />
+                            {asOfDate && (
+                                <div className="p-3 border-t">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={() => setAsOfDate(undefined)}
+                                    >
+                                        View Today
+                                    </Button>
+                                </div>
+                            )}
+                        </PopoverContent>
+                    </Popover>
                 </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+            </CardHeader>
+            <CardContent>
+                {isLoading || !current ? (
+                    renderSkeleton()
+                ) : (
+                    <div className="space-y-6">
+                        <div className="text-sm text-muted-foreground">
+                            Showing balances for{' '}
+                            <span className="font-medium">
+                                {format(effectiveDate, 'PPP')}
+                            </span>{' '}
+                            (month: {monthLabel})
+                        </div>
+
+                        {/* Current balances for key accounts */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2 font-headline text-primary">
+                                    Assets & Dues
+                                </h3>
+                                <Table>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell>Cash</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.cash)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>Bank</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.bank)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>Customer Dues (Receivables)</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.receivables)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>Stock Value</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.stockValue)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>Office Assets</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.officeAssetsValue)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow className="font-semibold bg-muted/50">
+                                            <TableCell>Total Assets</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.totalAssets)}
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2 font-headline text-destructive">
+                                    Liabilities & Equity
+                                </h3>
+                                <Table>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell>Payables</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.payables)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow className="font-semibold bg-muted/50">
+                                            <TableCell>Total Liabilities</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.payables)}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell colSpan={2}>&nbsp;</TableCell>
+                                        </TableRow>
+                                        <TableRow className="font-semibold bg-primary/10">
+                                            <TableCell>Owner&apos;s Equity / Net Worth</TableCell>
+                                            <TableCell className="text-right">
+                                                {formatCurrency(current.equity)}
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
 }
+

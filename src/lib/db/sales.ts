@@ -243,7 +243,6 @@ export async function addSale(
       revalidatePath('/dashboard');
       revalidatePath('/items');
       revalidatePath('/receivables');
-      revalidatePath('/balance-sheet');
       if (data.customerId) {
           revalidatePath(`/customers/${data.customerId}`);
       }
@@ -322,7 +321,6 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
         revalidatePath('/items');
         revalidatePath('/dashboard');
         revalidatePath('/receivables');
-        revalidatePath('/balance-sheet');
         revalidatePath('/customers'); // Revalidate all customers for simplicity
 
         return { success: true };
