@@ -11,6 +11,10 @@ export interface ReportAnalysis {
     totalExpenses: number;
     totalDonations: number;
   };
+  salesBreakdown: {
+    paid: number;
+    due: number;
+  };
   cashFlow: {
     sales: { cash: number; bank: number };
     duePayments: { cash: number; bank: number };
@@ -77,6 +81,25 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     .reduce((sum, t) => sum + (t.recognizedProfit || 0), 0);
 
   const totalSales = salesData.reduce((sum, sale) => sum + sale.total, 0);
+
+  // Calculate paid vs due sales breakdown
+  const salesBreakdown = salesData.reduce(
+    (acc, sale) => {
+      if (sale.paymentMethod === 'Cash' || sale.paymentMethod === 'Bank' || sale.paymentMethod === 'Paid by Credit') {
+        // Fully paid sales
+        acc.paid += sale.total;
+      } else if (sale.paymentMethod === 'Split' && sale.amountPaid && sale.total > 0) {
+        // Split payment: amountPaid is paid, rest is due
+        acc.paid += sale.amountPaid;
+        acc.due += sale.total - sale.amountPaid;
+      } else if (sale.paymentMethod === 'Due') {
+        // Fully due sales
+        acc.due += sale.total;
+      }
+      return acc;
+    },
+    { paid: 0, due: 0 }
+  );
 
   // Cash/bank breakdown for sales based on payment method
   const salesCashBank = salesData.reduce(
@@ -171,6 +194,7 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
 
   return {
     monthlyActivity,
+    salesBreakdown,
     cashFlow,
     netResult,
   };

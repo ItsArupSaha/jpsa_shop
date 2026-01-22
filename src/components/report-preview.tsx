@@ -33,7 +33,7 @@ const formatCurrencyForPdf = (amount: number) => {
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {
   const { authUser } = useAuth();
-  const { monthlyActivity, cashFlow, netResult } = reportData;
+  const { monthlyActivity, salesBreakdown, cashFlow, netResult } = reportData;
 
   const handleDownloadPdf = () => {
     if (!authUser) return;
@@ -86,6 +86,22 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Sales Breakdown Table
+    const salesBreakdownBody = [
+      ['Paid Sale', formatCurrencyForPdf(salesBreakdown.paid)],
+      ['Due Sale', formatCurrencyForPdf(salesBreakdown.due)],
+    ];
+
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Sales Breakdown', 'Amount']],
+      body: salesBreakdownBody,
+      theme: 'striped',
+      headStyles: { fillColor: '#306754' },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
 
     // Cash Flow Summary Table
     const cashFlowBody = [
@@ -167,6 +183,18 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
             <div className="space-y-3">
               <h3 className="text-lg font-semibold font-headline">Cash Flow Overview</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-primary/5">
+                  <p className="text-xs text-muted-foreground mb-1">Sales Overview</p>
+                  <div className="flex justify-between text-sm">
+                    <span>Paid Sale</span>
+                    <span className="font-semibold">{formatCurrency(salesBreakdown.paid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Due Sale</span>
+                    <span className="font-semibold">{formatCurrency(salesBreakdown.due)}</span>
+                  </div>
+                </div>
+
                 <div className="p-3 rounded-lg bg-primary/5">
                   <p className="text-xs text-muted-foreground mb-1">Sales</p>
                   <div className="flex justify-between text-sm">
