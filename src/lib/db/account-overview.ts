@@ -2,11 +2,12 @@
 
 import { Timestamp, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getCustomersWithDueBalance } from './customers';
+import { getCustomers } from './customers';
 import { getExpenses } from './expenses';
 import { getItems } from './items';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
+import { getSalesReturns } from './sales-returns';
 
 // This file provides generic account overview helpers that were
 // previously only used for the balance sheet feature.
@@ -18,16 +19,17 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
 
     const cutoffTimestamp = asOfDate ? Timestamp.fromDate(asOfDate) : undefined;
 
-    const [allItems, allSales, allExpenses, allTransactionsData, allPurchases, capitalData, customersWithDue, transfersData, donationsData] = await Promise.all([
+    const [allItems, allSales, allExpenses, allTransactionsData, allPurchases, capitalData, allCustomers, transfersData, donationsData, allReturns] = await Promise.all([
         getItems(userId),
         getSales(userId),
         getExpenses(userId),
         getDocs(collection(db, 'users', userId, 'transactions')),
         getPurchases(userId),
         getDocs(collection(db, 'users', userId, 'capital')),
-        getCustomersWithDueBalance(userId),
+        getCustomers(userId),
         getDocs(collection(db, 'users', userId, 'transfers')),
         getDocs(collection(db, 'users', userId, 'donations')),
+        getSalesReturns(userId),
     ]);
 
     const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
@@ -36,10 +38,16 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
     const allTransfers = transfersData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
 
     const isBeforeOrOnCutoff = (date: any): boolean => {
-        if (!asOfDate || !cutoffTimestamp) return true;
+        if (!asOfDate) return true;
         if (!date) return false;
+
+        // Ensure cutoff is End of Day
+        const cutoff = new Date(asOfDate);
+        cutoff.setHours(23, 59, 59, 999);
+        const cutoffTs = Timestamp.fromDate(cutoff);
+
         const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
-        return dateTimestamp.toMillis() <= cutoffTimestamp.toMillis();
+        return dateTimestamp.toMillis() <= cutoffTs.toMillis();
     };
 
     const filteredCapital = allCapital.filter((capital: any) =>
@@ -51,6 +59,7 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
     const filteredTransfers = allTransfers.filter((transfer: any) => isBeforeOrOnCutoff(transfer.date));
     const filteredPurchases = allPurchases.filter((purchase: any) => isBeforeOrOnCutoff(purchase.date));
     const filteredTransactions = allTransactions.filter((t: any) => isBeforeOrOnCutoff(t.dueDate));
+    const filteredReturns = allReturns.filter((ret: any) => isBeforeOrOnCutoff(ret.date));
 
     const paidTransactionsUpToCutoff = filteredTransactions.filter((t: any) => t.status === 'Paid');
 
@@ -158,7 +167,37 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
         .filter((i: any) => i.categoryName === 'Office Asset')
         .reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
 
-    const receivables = customersWithDue.reduce((sum: number, customer: any) => sum + customer.dueBalance, 0);
+    // Calculate historical receivables
+    // Start with all customers' opening balances
+    let receivables = allCustomers.reduce((sum: number, customer: any) => sum + (customer.openingBalance || 0), 0);
+
+    // Add Sales Dues and Credit Usage
+    filteredSales.forEach((sale: any) => {
+        // Applying credit increases the balance (consuming negative balance)
+        receivables += (sale.creditApplied || 0);
+
+        if (sale.paymentMethod === 'Due') {
+            receivables += sale.total;
+        } else if (sale.paymentMethod === 'Split') {
+            const due = sale.total - (sale.amountPaid || 0);
+            receivables += due;
+        }
+    });
+
+    // Subtract Payments
+    paidTransactionsUpToCutoff.forEach((t: any) => {
+        if (t.type === 'Receivable') {
+            const description = t.description || '';
+            if (description.startsWith('Payment from customer')) {
+                receivables -= t.amount;
+            }
+        }
+    });
+
+    // Subtract Sales Returns
+    filteredReturns.forEach((ret: any) => {
+        receivables -= ret.totalReturnValue;
+    });
 
     const pendingPayables = filteredTransactions.filter((t: any) => t.type === 'Payable' && t.status === 'Pending');
     const payables = pendingPayables.reduce((sum: number, t: any) => sum + t.amount, 0);
