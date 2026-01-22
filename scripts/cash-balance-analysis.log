@@ -1,0 +1,95 @@
+================================================================================
+CASH BALANCE DISCREPANCY ANALYSIS
+================================================================================
+
+User ID: bj6cUuUb67ZfiFNYjZg9WNMfuca2
+Date Range: December 1-31, 2025
+Opening Cash Balance: 34891 TK
+
+
+--------------------------------------------------------------------------------
+1. DECEMBER SALES (Cash only)
+--------------------------------------------------------------------------------
+  [12/15/2025] Sale ID: Gzx7SP1owQ3M0VDJlPXy, Method: Cash, Total: 160, Cash: 160
+
+  TOTAL CASH SALES: 160 TK
+  EXPECTED: 160 TK
+  DIFFERENCE: 0 TK OK
+
+--------------------------------------------------------------------------------
+2. DECEMBER DUE PAYMENTS (Cash only)
+--------------------------------------------------------------------------------
+  [12/8/2025] ID: 8q7BuT4JMq4a4liBWzrm, Amount: 400, Desc: Payment from customer...
+  [12/10/2025] ID: YJcMS0KFJgnPXJZnWvGy, Amount: 3600, Desc: Payment from customer...
+  [12/8/2025] ID: iLic3tRKcqAJlTPloxxm, Amount: 43770, Desc: Payment from customer...
+
+  TOTAL DUE PAYMENTS (Cash): 47770 TK
+  EXPECTED: 47770 TK
+  DIFFERENCE: 0 TK OK
+
+--------------------------------------------------------------------------------
+3. DECEMBER DONATIONS (Cash only)
+--------------------------------------------------------------------------------
+  [12/8/2025] Donor: Tanmaya Caitanya Candra Dasa, Amount: 2000
+
+  TOTAL DONATIONS (Cash): 2000 TK
+  EXPECTED: 2000 TK
+  DIFFERENCE: 0 TK OK
+
+--------------------------------------------------------------------------------
+4. DECEMBER EXPENSES (Cash only)
+--------------------------------------------------------------------------------
+  [12/30/2025] Category: undefined, Amount: 15000, Method: Cash
+  [12/30/2025] Category: undefined, Amount: 2800, Method: Cash
+  [12/31/2025] Category: undefined, Amount: 1800, Method: Cash
+  [12/30/2025] Category: undefined, Amount: 30, Method: Cash
+
+  TOTAL EXPENSES (Cash): 19630 TK
+  EXPECTED: 19630 TK
+  DIFFERENCE: 0 TK OK
+
+--------------------------------------------------------------------------------
+5. DECEMBER TRANSFERS (affecting Cash)
+--------------------------------------------------------------------------------
+
+  NET TRANSFER IMPACT ON CASH: 0 TK
+
+--------------------------------------------------------------------------------
+6. DECEMBER CAPITAL (Cash only)
+--------------------------------------------------------------------------------
+
+  TOTAL CAPITAL (Cash): 0 TK
+
+================================================================================
+7. SEARCHING FOR 1800 TK AMOUNTS (the discrepancy amount)
+================================================================================
+  FOUND in EXPENSES: ID=BZLFj4QLKEGBgUhhwrY7, Date=12/31/2025, Amount=1800, Category=undefined, Method=Cash
+  FOUND in EXPENSES: ID=BnG7SF1Z1c1G3JfZ23uT, Date=8/20/2025, Amount=1800, Category=undefined, Method=Cash
+  FOUND in TRANSACTIONS: ID=7AqSKxzUCha1Ivq5WEET, Date=8/20/2025, Amount=1800, Type=Receivable, Status=Paid, Desc=Payment from customer
+
+================================================================================
+FINAL CALCULATION
+================================================================================
+
+  Opening Cash Balance:     34891 TK
+  + Cash Sales:             160 TK
+  + Due Payments (Cash):    47770 TK
+  + Donations (Cash):       2000 TK
+  - Expenses (Cash):        19630 TK
+  + Transfers Impact:       0 TK
+  + Capital (Cash):         0 TK
+  -----------------------------------------
+  CALCULATED CLOSING:       65191 TK
+  EXPECTED CLOSING:         65191 TK
+  APP SHOWS:                66991 TK
+  DISCREPANCY:              0 TK
+
+================================================================================
+8. ALL RECEIVABLE TRANSACTIONS IN DECEMBER (for detailed review)
+================================================================================
+  [12/8/2025] Status: Paid, Amount: 400, Method: Cash
+    Description: Payment from customer
+  [12/10/2025] Status: Paid, Amount: 3600, Method: Cash
+    Description: Payment from customer
+  [12/8/2025] Status: Paid, Amount: 43770, Method: Cash
+    Description: Payment from customer
