@@ -51,7 +51,14 @@ export default function BalanceSheet({ userId }: BalanceSheetProps) {
 
         async function loadData() {
             setIsLoading(true);
-            const targetDate = asOfDate ?? new Date();
+
+            let targetDate = asOfDate ?? new Date();
+
+            // If a specific date is selected, set it to the end of that day to include all transactions
+            if (asOfDate) {
+                targetDate = new Date(asOfDate);
+                targetDate.setHours(23, 59, 59, 999);
+            }
 
             const currentSnapshot = await getAccountOverview(userId, targetDate);
 
