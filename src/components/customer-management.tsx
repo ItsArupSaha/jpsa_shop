@@ -57,7 +57,7 @@ const customerSchema = z.object({
 type CustomerFormValues = z.infer<typeof customerSchema>;
 
 interface CustomerManagementProps {
-    userId: string;
+  userId: string;
 }
 
 export default function CustomerManagement({ userId }: CustomerManagementProps) {
@@ -85,27 +85,27 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
   }, [userId]);
 
   const loadInitialCustomers = React.useCallback(async () => {
-      setIsInitialLoading(true);
-      try {
-        const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ userId, pageLimit: 5 });
-        setCustomers(refreshedCustomers);
-        setHasMore(refreshedHasMore);
-      } catch (error) {
-        console.error("Failed to load customers:", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Could not load customer data. Please try again later.",
-        });
-      } finally {
-        setIsInitialLoading(false);
-      }
+    setIsInitialLoading(true);
+    try {
+      const { customers: refreshedCustomers, hasMore: refreshedHasMore } = await getCustomersPaginated({ userId, pageLimit: 5 });
+      setCustomers(refreshedCustomers);
+      setHasMore(refreshedHasMore);
+    } catch (error) {
+      console.error("Failed to load customers:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not load customer data. Please try again later.",
+      });
+    } finally {
+      setIsInitialLoading(false);
+    }
   }, [userId, toast]);
 
   React.useEffect(() => {
-    if(userId) {
-        loadInitialCustomers();
-        loadAllCustomers(); // Load all customers for search
+    if (userId) {
+      loadInitialCustomers();
+      loadAllCustomers(); // Load all customers for search
     }
   }, [userId, loadInitialCustomers, loadAllCustomers]);
 
@@ -118,9 +118,9 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     }
 
     setIsSearching(true);
-    
+
     const searchTerms = query.toLowerCase().trim().split(' ').filter(term => term.length > 0);
-    
+
     if (searchTerms.length === 0) {
       loadInitialCustomers();
       return;
@@ -129,7 +129,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     // Filter customers based on search terms
     const searchResults = allCustomers.filter(customer => {
       const customerName = customer.name.toLowerCase();
-      
+
       // Check if customer name contains all search terms
       return searchTerms.every(term => customerName.includes(term));
     });
@@ -138,35 +138,35 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     const sortedResults = searchResults.sort((a, b) => {
       const aName = a.name.toLowerCase();
       const bName = b.name.toLowerCase();
-      
+
       // Names starting with the FIRST search term get highest priority
       const aStartsWithFirstTerm = aName.startsWith(searchTerms[0]);
       const bStartsWithFirstTerm = bName.startsWith(searchTerms[0]);
-      
+
       if (aStartsWithFirstTerm && !bStartsWithFirstTerm) return -1;
       if (!aStartsWithFirstTerm && bStartsWithFirstTerm) return 1;
-      
+
       // Then prioritize names starting with ANY search term
       const aStartsWithAnyTerm = searchTerms.some(term => aName.startsWith(term));
       const bStartsWithAnyTerm = searchTerms.some(term => bName.startsWith(term));
-      
+
       if (aStartsWithAnyTerm && !bStartsWithAnyTerm) return -1;
       if (!aStartsWithAnyTerm && bStartsWithAnyTerm) return 1;
-      
+
       // Then prioritize names that contain the first term at the beginning of words
       const aHasFirstTermAtWordStart = aName.includes(` ${searchTerms[0]}`) || aName.startsWith(searchTerms[0]);
       const bHasFirstTermAtWordStart = bName.includes(` ${searchTerms[0]}`) || bName.startsWith(searchTerms[0]);
-      
+
       if (aHasFirstTermAtWordStart && !bHasFirstTermAtWordStart) return -1;
       if (!aHasFirstTermAtWordStart && bHasFirstTermAtWordStart) return 1;
-      
+
       // Finally sort alphabetically
       return aName.localeCompare(bName);
     });
 
     // Limit to top 10 results for performance
     const limitedResults = sortedResults.slice(0, 10);
-    
+
     setCustomers(limitedResults);
     setHasMore(sortedResults.length > 10);
     setIsSearching(false);
@@ -192,7 +192,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
 
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
-    
+
     if (searchQuery.trim()) {
       // For search results, load more from all customers
       const searchTerms = searchQuery.toLowerCase().trim().split(' ').filter(term => term.length > 0);
@@ -200,10 +200,10 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         const customerName = customer.name.toLowerCase();
         return searchTerms.every(term => customerName.includes(term));
       });
-      
+
       const currentCount = customers.length;
       const nextBatch = searchResults.slice(currentCount, currentCount + 5);
-      
+
       if (nextBatch.length > 0) {
         setCustomers(prev => [...prev, ...nextBatch]);
         setHasMore(currentCount + nextBatch.length < searchResults.length);
@@ -215,18 +215,18 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
       setIsLoadingMore(true);
       const lastCustomerId = customers[customers.length - 1]?.id;
       try {
-          const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 5, lastVisibleId: lastCustomerId });
-          setCustomers(prev => [...prev, ...newCustomers]);
-          setHasMore(newHasMore);
+        const { customers: newCustomers, hasMore: newHasMore } = await getCustomersPaginated({ userId, pageLimit: 5, lastVisibleId: lastCustomerId });
+        setCustomers(prev => [...prev, ...newCustomers]);
+        setHasMore(newHasMore);
       } catch (error) {
-          console.error("Failed to load more customers:", error);
-          toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Could not load more customers.",
-          });
+        console.error("Failed to load more customers:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load more customers.",
+        });
       } finally {
-          setIsLoadingMore(false);
+        setIsLoadingMore(false);
       }
     }
   };
@@ -253,56 +253,56 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     form.reset({ name: '', phone: '', whatsapp: '', address: '', openingBalance: 0 });
     setIsDialogOpen(true);
   };
-  
+
   const handleDelete = (id: string) => {
     startTransition(async () => {
-        try {
-            await deleteCustomer(userId, id);
-            // Refresh both search results and all customers
-            if (searchQuery.trim()) {
-              performSearch(searchQuery);
-            } else {
-              await loadInitialCustomers();
-            }
-            await loadAllCustomers();
-            toast({ title: "Customer Deleted", description: "The customer has been removed." });
-        } catch(e) {
-             toast({ variant: "destructive", title: "Error", description: "Could not delete customer." });
+      try {
+        await deleteCustomer(userId, id);
+        // Refresh both search results and all customers
+        if (searchQuery.trim()) {
+          performSearch(searchQuery);
+        } else {
+          await loadInitialCustomers();
         }
+        await loadAllCustomers();
+        toast({ title: "Customer Deleted", description: "The customer has been removed." });
+      } catch (e) {
+        toast({ variant: "destructive", title: "Error", description: "Could not delete customer." });
+      }
     });
   }
 
   const onSubmit = (data: CustomerFormValues) => {
     startTransition(async () => {
-        try {
-            if (editingCustomer) {
-                await updateCustomer(userId, editingCustomer.id, data);
-                toast({ title: "Customer Updated", description: "The customer details have been saved." });
-            } else {
-                await addCustomer(userId, data);
-                toast({ title: "Customer Added", description: "The new customer has been added." });
-            }
-            // Refresh both search results and all customers
-            if (searchQuery.trim()) {
-              performSearch(searchQuery);
-            } else {
-              await loadInitialCustomers();
-            }
-            await loadAllCustomers();
-            setIsDialogOpen(false);
-            setEditingCustomer(null);
-        } catch(e) {
-            toast({ variant: "destructive", title: "Error", description: "Could not save customer." });
+      try {
+        if (editingCustomer) {
+          await updateCustomer(userId, editingCustomer.id, data);
+          toast({ title: "Customer Updated", description: "The customer details have been saved." });
+        } else {
+          await addCustomer(userId, data);
+          toast({ title: "Customer Added", description: "The new customer has been added." });
         }
+        // Refresh both search results and all customers
+        if (searchQuery.trim()) {
+          performSearch(searchQuery);
+        } else {
+          await loadInitialCustomers();
+        }
+        await loadAllCustomers();
+        setIsDialogOpen(false);
+        setEditingCustomer(null);
+      } catch (e) {
+        toast({ variant: "destructive", title: "Error", description: "Could not save customer." });
+      }
     });
   };
 
   const handleDownloadPdf = () => {
-    if (!customers.length || !authUser) return;
-    
+    if (!allCustomers.length || !authUser) return;
+
     const doc = new jsPDF();
     const dateString = format(new Date(), 'PPP');
-    
+
     // Left side header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
@@ -315,11 +315,11 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     // Right side header
     let yPos = 20;
     if (authUser.bkashNumber) {
-        doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-        yPos += 6;
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
     }
     if (authUser.bankInfo) {
-        doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
     }
 
     // Report Title
@@ -331,20 +331,20 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     doc.setTextColor(100);
     doc.text(`As of ${dateString}`, 105, 51, { align: 'center' });
     doc.setTextColor(0);
-    
+
     autoTable(doc, {
       startY: 60,
       head: [['Name', 'Phone', 'Address', 'Due Balance']],
-      body: customers.map(c => [c.name, c.phone, c.address, `BDT ${(c.dueBalance || 0).toFixed(2)}`]),
+      body: allCustomers.map(c => [c.name, c.phone, c.address, `BDT ${(c.dueBalance || 0).toFixed(2)}`]),
     });
-    
+
     doc.save(`customer-list-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleDownloadXlsx = () => {
-    if (!customers.length) return;
-    
-    const dataToExport = customers.map(c => ({
+    if (!allCustomers.length) return;
+
+    const dataToExport = allCustomers.map(c => ({
       Name: c.name,
       Phone: c.phone,
       WhatsApp: c.whatsapp || '',
@@ -353,13 +353,13 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    
+
     const columnWidths = Object.keys(dataToExport[0]).map(key => {
-        const maxLength = Math.max(
-            ...dataToExport.map(row => String(row[key as keyof typeof row]).length),
-            key.length
-        );
-        return { wch: maxLength + 2 };
+      const maxLength = Math.max(
+        ...dataToExport.map(row => String(row[key as keyof typeof row]).length),
+        key.length
+      );
+      return { wch: maxLength + 2 };
     });
     worksheet['!cols'] = columnWidths;
 
@@ -429,7 +429,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
             </div>
           </div>
         )}
-        
+
         <div className="border rounded-md">
           <Table>
             <TableHeader>
@@ -462,12 +462,12 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
                     </TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell>{customer.address}</TableCell>
-                                            <TableCell className="text-right">৳{(customer.dueBalance || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">৳{(customer.dueBalance || 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                       <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} disabled={isPending}>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)} disabled={isPending}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </TableCell>
@@ -486,7 +486,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         {showLoadMore && (
           <div className="flex justify-center mt-4">
             <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Loading...</> : 'Load More'}
+              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
             </Button>
           </div>
         )}
