@@ -218,11 +218,135 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
     };
 }
 
+
 export async function getAccountBalances(userId: string) {
     const overview = await getAccountOverview(userId);
     return {
         cash: overview.cash,
         bank: overview.bank,
     };
+}
+
+export async function getCustomersWithDueBalanceAsOfDate(userId: string, asOfDate: Date) {
+    if (!db || !userId) return [];
+
+    const cutoffTimestamp = Timestamp.fromDate(asOfDate);
+    // Ensure cutoff is End of Day
+    const cutoffDate = asOfDate;
+    cutoffDate.setHours(23, 59, 59, 999);
+    const cutoffTs = Timestamp.fromDate(cutoffDate);
+
+    const [allSales, allTransactionsData, allCustomers, allReturns] = await Promise.all([
+        getSales(userId),
+        getDocs(collection(db, 'users', userId, 'transactions')),
+        getCustomers(userId),
+        getSalesReturns(userId),
+    ]);
+
+    const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
+
+    const isBeforeOrOnCutoff = (date: any): boolean => {
+        if (!date) return false;
+        const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
+        return dateTimestamp.toMillis() <= cutoffTs.toMillis();
+    };
+
+    const filteredSales = allSales.filter((sale: any) => isBeforeOrOnCutoff(sale.date));
+    const filteredTransactions = allTransactions.filter((t: any) => isBeforeOrOnCutoff(t.dueDate));
+    const filteredReturns = allReturns.filter((ret: any) => isBeforeOrOnCutoff(ret.date));
+
+    // Calculate balance for each customer
+    const customersWithDue = allCustomers.map(customer => {
+        let balance = customer.openingBalance || 0;
+
+        // Add Sales logic
+        filteredSales.filter((s: any) => s.customerId === customer.id).forEach((sale: any) => {
+            balance += (sale.creditApplied || 0);
+
+            if (sale.paymentMethod === 'Due') {
+                balance += sale.total;
+            } else if (sale.paymentMethod === 'Split') {
+                const due = sale.total - (sale.amountPaid || 0);
+                balance += due;
+            }
+        });
+
+        // Subtract Payments logic
+        filteredTransactions.filter((t: any) => t.customerId === customer.id).forEach((t: any) => {
+            if (t.type === 'Receivable') {
+                // Check if it's a payment or manually added receivable
+                // In account-overview.ts logic for "Receivables" total:
+                // "Subtract Payments" section checks: 
+                // if (t.type === 'Receivable') {
+                //   const description = t.description || '';
+                //   if (description.startsWith('Payment from customer')) {
+                //       receivables -= t.amount;
+                //   }
+                // } 
+                // Wait, account-overview.ts logic seems to only subtract "Payment from customer".
+                // But what about manual receivables? 
+                // If I manually ADD a receivable, it increases the balance.
+                // Let's check account-overview.ts again.
+
+                const description = t.description || '';
+                if (description.startsWith('Payment from customer')) {
+                    balance -= t.amount;
+                } else {
+                    // It is a manually added receivable (e.g. "Due from Sale #" or manual entry)
+                    // Does account-overview.ts logic ACCOUNT for manual receivables?
+                    // Let's re-read account-overview.ts step 59 carefully.
+                    /*
+                       // Add Sales Dues and Credit Usage
+                       filteredSales.forEach(...) 
+                       
+                       // Subtract Payments
+                       paidTransactionsUpToCutoff.forEach((t: any) => {
+                           if (t.type === 'Receivable') {
+                               const description = t.description || '';
+                               if (description.startsWith('Payment from customer')) {
+                                   receivables -= t.amount;
+                               }
+                           }
+                       });
+                    */
+                    // It SEEMS account-overview.ts IGNORES manual receivables that come from Sales (description "Due from ...") because those are already counted in "Add Sales Dues".
+                    // BUT what about purely manual receivables created via "Add Transaction"?
+                    // If I go to Receivables page and click "Add Receivable"? 
+                    // Wait, `addTransaction` in `transactions.ts` sets `status: 'Pending'`.
+                    // `account-overview.ts` calculates `receivables` variable. 
+                    // Does it include manually added pending receivables?
+                    // Looking at `account-overview.ts`:
+                    // It iterates `filteredSales` and adds dues.
+                    // It iterates `paidTransactionsUpToCutoff` and subtracts payments.
+                    // It does NOT seem to iterate `pendingTransactions` to add them!
+                    // This might be a bug in `account-overview.ts` OR manual receivables are rare/not supported in the same way.
+                    // However, `getCustomersWithDueBalance` in `customers.ts` relies on `d.data().dueBalance` stored in Firestore.
+                    // `addTransaction` updates `customer.dueBalance`? No, `addPayment` updates it. `addSale` updates it.
+                    // Does `addTransaction` update it?
+                    // Checking `transactions.ts`: `addTransaction` ... `revalidatePath`. It does NOT update `customer.dueBalance` automatically for manual transactions?
+                    // WAIT. `addTransaction` implementation in `transactions.ts` (Step 64):
+                    // It effectively just adds a doc. It does NOT update customer balance!
+                    // This means manual Receivables do NOT affect the `customer.dueBalance` field in Firestore?
+                    // If so, then `account-overview.ts` logic is consistent with "Only Sales create Dues".
+                    // BUT `addPayment` reduces `dueBalance`.
+                    // User's request: "Pending Due Receivable".
+                    // If manual receivables don't update balance, maybe they aren't used often or I missed something.
+                    // I will stick to `account-overview.ts` logic as requested by user ("you can use that same implementation here").
+                }
+            }
+        });
+
+        // Subtract Returns logic
+        filteredReturns.filter((r: any) => r.customerId === customer.id).forEach((ret: any) => {
+            balance -= ret.totalReturnValue;
+        });
+
+        return {
+            ...customer,
+            dueBalance: balance
+        };
+    }).filter(c => c.dueBalance > 0.01); // Filter out zero/negative balances, use small epsilon
+
+    return customersWithDue;
 }
 

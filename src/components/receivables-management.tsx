@@ -109,17 +109,40 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
   };
 
   const handlePendingDuesReport = async (formatType: 'pdf' | 'xlsx') => {
-    const allCustomersWithDue = await getCustomersWithDueBalance(userId);
+    let data;
 
-    if (allCustomersWithDue.length === 0) {
+    // If a date range is selected (using start date as "as of" date), or explicitly use today if none selected
+    // Note: The UI for Pending Dues uses the same dateRange state but treated as single date or range?
+    // The user requirement is "as of date".
+    // I need to check if I should reuse 'dateRange' or add 'asOfDate'.
+    // The existing UI uses `dateRange` for "Received Payments".
+    // I will use `dateRange?.from` as the "As Of" date for Pending Dues if selected.
+
+    // Actually, for clearer UI, I should probably split the state or reuse dateRange.from carefully.
+    // Let's assume dateRange.from is the "As Of" date if set.
+
+    const targetDate = dateRange?.from || new Date();
+
+    if (dateRange?.from) {
+      // Fetch historical
+      // Dynamic import or direct import? Direct import of server action.
+      // Calling the new action
+      const { getCustomersWithDueBalanceAsOfDate } = await import('@/lib/db/account-overview');
+      data = await getCustomersWithDueBalanceAsOfDate(userId, targetDate);
+    } else {
+      // Default to current live data
+      data = await getCustomersWithDueBalance(userId);
+    }
+
+    if (data.length === 0) {
       toast({ variant: 'destructive', title: 'No Data', description: 'There are no pending receivables to download.' });
       return;
     }
-    const reportDate = format(new Date(), 'yyyy-MM-dd');
+
     if (formatType === 'pdf') {
-      generatePdf(allCustomersWithDue);
+      generatePdf(data, targetDate);
     } else {
-      generateXlsx(allCustomersWithDue);
+      generateXlsx(data, targetDate);
     }
   }
 
@@ -141,9 +164,12 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     }
   }
 
-  const generatePdf = (data: CustomerWithDue[]) => {
+  const generatePdf = (data: CustomerWithDue[], date?: Date) => {
     const doc = new jsPDF();
-    const dateString = format(new Date(), 'PPP');
+    // Verify valid date, fallback to now if undefined/invalid
+    const validDate = date && !isNaN(date.getTime()) ? date : new Date();
+    const dateString = format(validDate, 'PPP');
+
     const totalDue = data.reduce((sum, c) => sum + (c.dueBalance || 0), 0);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
@@ -174,15 +200,16 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
       ]],
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
-    doc.save(`pending-receivables-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    doc.save(`pending-receivables-${format(validDate, 'yyyy-MM-dd')}.pdf`);
   }
 
-  const generateXlsx = (data: CustomerWithDue[]) => {
+  const generateXlsx = (data: CustomerWithDue[], date?: Date) => {
+    const validDate = date && !isNaN(date.getTime()) ? date : new Date();
     const dataToExport = data.map(c => ({ 'Customer': c.name, 'Phone': c.phone, 'Due Amount': c.dueBalance }));
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Receivables');
-    XLSX.writeFile(workbook, `pending-receivables-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.writeFile(workbook, `pending-receivables-${format(validDate, 'yyyy-MM-dd')}.xlsx`);
   }
 
   const generateReceivedPaymentsPdf = (data: Transaction[]) => {
@@ -263,20 +290,25 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
                   </DialogDescription>
                 </DialogHeader>
 
-                {reportType === 'received' && (
-                  <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                    <div className="py-4 flex justify-center">
-                      <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange?.from}
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        numberOfMonths={1}
-                      />
-                    </div>
-                  </ScrollArea>
-                )}
+                {/* Show Calendar for BOTH report types now */}
+                <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                  <div className="py-4 flex flex-col items-center">
+                    {reportType === 'pending' && (
+                      <div className="mb-2 text-sm text-center text-muted-foreground w-full px-4">
+                        <p>Select an "As of" date.</p>
+                        <p className="text-xs">Leave empty for today (current balance).</p>
+                      </div>
+                    )}
+                    <Calendar
+                      initialFocus
+                      mode="range" // Keeping range for received, but for pending we might just usage 'from' date
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={1}
+                    />
+                  </div>
+                </ScrollArea>
 
                 <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                   <Button variant="outline" onClick={() => handleDownload('pdf')} disabled={reportType === 'received' && !dateRange?.from}>
