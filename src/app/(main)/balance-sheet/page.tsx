@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Book } from 'lucide-react';
 
 export default function BalanceSheetPage() {
-    const { user } = useAuth();
+    const { user } = useAuth(); 
 
     if (!user) {
         return (
