@@ -54,6 +54,8 @@ const purchaseItemSchema = z.object({
 const purchaseFormSchema = z.object({
   supplier: z.string().min(1, 'Supplier is required'),
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required.'),
+  discountType: z.enum(['amount', 'percentage']).default('amount'),
+  discountValue: z.coerce.number().min(0, 'Discount must be non-negative').optional(),
   paymentMethod: z.enum(['Cash', 'Bank', 'Due', 'Split'], { required_error: 'Payment method is required.'}),
   amountPaid: z.coerce.number().optional(),
   splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
@@ -136,6 +138,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     defaultValues: {
       supplier: '',
       items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 }],
+      discountType: 'amount',
+      discountValue: 0,
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
@@ -159,6 +163,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const watchItems = form.watch('items');
   const watchPaymentMethod = form.watch('paymentMethod');
   const watchAmountPaid = form.watch('amountPaid');
+  const watchDiscountType = form.watch('discountType');
+  const watchDiscountValue = form.watch('discountValue');
 
   const totalAmount = watchItems.reduce((acc, item) => {
     const cost = item.cost || 0;
@@ -166,17 +172,26 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     return acc + (cost * quantity);
   }, 0);
 
+  const discountValueParams = Number(watchDiscountValue) || 0;
+  const discountAmount = watchDiscountType === 'percentage' 
+    ? (totalAmount * discountValueParams) / 100 
+    : discountValueParams;
+    
+  const finalAmount = totalAmount - discountAmount;
+
   let dueAmount = 0;
   if (watchPaymentMethod === 'Due') {
-    dueAmount = totalAmount;
+    dueAmount = finalAmount;
   } else if (watchPaymentMethod === 'Split') {
-    dueAmount = totalAmount - (watchAmountPaid || 0);
+    dueAmount = finalAmount - (watchAmountPaid || 0);
   }
 
   const handleAddNew = () => {
     form.reset({
       supplier: '',
       items: [{ itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 }],
+      discountType: 'amount',
+      discountValue: 0,
       paymentMethod: 'Due',
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
@@ -193,10 +208,21 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
+      // Calculate true geometric discount 
+      const calculatedTotal = data.items.reduce((acc, item) => acc + (item.cost * item.quantity), 0);
+      const calculatedDiscount = data.discountType === 'percentage' 
+          ? (calculatedTotal * (data.discountValue || 0)) / 100 
+          : (data.discountValue || 0);
+
       const purchaseData = {
         ...data,
+        discountAmount: calculatedDiscount,
         dueDate: data.dueDate.toISOString()
       };
+      // @ts-ignore - Exclude UI-only fields
+      delete purchaseData.discountType;
+      delete purchaseData.discountValue;
+
       const result = await addPurchase(userId, purchaseData);
       if (result?.success) {
         toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
@@ -285,14 +311,20 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
 
     autoTable(doc, {
       startY: 60,
-      head: [['Date', 'Purchase ID', 'Supplier', 'Items', 'Total']],
-      body: filteredPurchases.map(p => [
-        format(new Date(p.date), 'yyyy-MM-dd'),
-        p.purchaseId,
-        p.supplier,
-        p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
-        `৳${p.totalAmount.toFixed(2)}`
-      ]),
+      head: [['Date', 'Purchase ID', 'Supplier', 'Items', 'Total', 'Discount', 'Net']],
+      body: filteredPurchases.map(p => {
+        const discount = p.discountAmount || 0;
+        const net = p.totalAmount - discount;
+        return [
+          format(new Date(p.date), 'yyyy-MM-dd'),
+          p.purchaseId,
+          p.supplier,
+          p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
+          `৳${p.totalAmount.toFixed(2)}`,
+          `৳${discount.toFixed(2)}`,
+          `৳${net.toFixed(2)}`
+        ];
+      }),
     });
     doc.save(`purchases-report-${format(dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
@@ -305,18 +337,24 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       return;
     }
     const dataToExport = filteredPurchases.flatMap(p => 
-      p.items.map(i => ({
-        'Date': format(new Date(p.date), 'yyyy-MM-dd'),
-        'Purchase ID': p.purchaseId,
-        'Supplier': p.supplier,
-        'Item Name': i.itemName,
-        'Category': i.categoryName,
-        'Author': i.author || '',
-        'Quantity': i.quantity,
-        'Unit Cost': i.cost,
-        'Total Cost': i.quantity * i.cost,
-        'Grand Total': p.totalAmount,
-      }))
+      p.items.map(i => {
+        const discount = p.discountAmount || 0;
+        const net = p.totalAmount - discount;
+        return {
+          'Date': format(new Date(p.date), 'yyyy-MM-dd'),
+          'Purchase ID': p.purchaseId,
+          'Supplier': p.supplier,
+          'Item Name': i.itemName,
+          'Category': i.categoryName,
+          'Author': i.author || '',
+          'Quantity': i.quantity,
+          'Unit Cost': i.cost,
+          'Total Cost': i.quantity * i.cost,
+          'Grand Total': p.totalAmount,
+          'Discount': discount,
+          'Net Total': net,
+        }
+      })
     );
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -401,6 +439,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                   <TableHead>Items</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Discount</TableHead>
+                  <TableHead className="text-right">Net</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -412,6 +452,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                       <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     </TableRow>
                   ))
@@ -425,10 +467,12 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     </TableCell>
                     <TableCell>{purchase.paymentMethod}</TableCell>
                     <TableCell className="text-right font-medium">৳{purchase.totalAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{purchase.discountAmount ? `৳${purchase.discountAmount.toFixed(2)}` : '-'}</TableCell>
+                    <TableCell className="text-right font-bold">৳{(purchase.totalAmount - (purchase.discountAmount || 0)).toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -581,6 +625,42 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                           control={form.control}
+                          name="discountType"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Discount Type</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                      <FormControl>
+                                      <SelectTrigger>
+                                          <SelectValue placeholder="Type" />
+                                      </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                      <SelectItem value="amount">Amount (৳)</SelectItem>
+                                      <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="discountValue"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Discount {watchDiscountType === 'percentage' ? '(%)' : '(৳)'}</FormLabel>
+                                  <FormControl>
+                                      <Input type="number" step="0.01" placeholder="0" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                          control={form.control}
                           name="paymentMethod"
                           render={({ field }) => (
                             <FormItem className="space-y-2">
@@ -679,6 +759,18 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                           <span>Total Amount</span>
                           <span>৳{totalAmount.toFixed(2)}</span>
                       </div>
+                      { discountAmount > 0 && (
+                          <div className="flex justify-between font-medium text-green-600">
+                              <span>Discount</span>
+                              <span>-৳{discountAmount.toFixed(2)}</span>
+                          </div>
+                      )}
+                      { discountAmount > 0 && (
+                          <div className="flex justify-between font-bold text-base">
+                              <span>Net Payable</span>
+                              <span>৳{finalAmount.toFixed(2)}</span>
+                          </div>
+                      )}
                       { (watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
                           <div className="flex justify-between font-semibold text-destructive">
                               <span>Due Amount</span>
@@ -687,7 +779,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
                       )}
                   </div>
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending || totalAmount <= 0 || !form.formState.isValid}>
+                    <Button type="submit" disabled={isPending || finalAmount < 0 || totalAmount <= 0 || !form.formState.isValid}>
                       {isPending ? "Saving..." : "Confirm Purchase"}
                     </Button>
                   </DialogFooter>

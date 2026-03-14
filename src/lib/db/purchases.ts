@@ -84,6 +84,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           for (const item of data.items) {
               totalAmount += item.cost * item.quantity;
           }
+          const discountAmount = data.discountAmount || 0;
 
           const newPurchaseRef = doc(purchasesCollection);
           const purchaseData = {
@@ -92,6 +93,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               date: Timestamp.fromDate(purchaseDate),
               dueDate: Timestamp.fromDate(new Date(data.dueDate)),
               totalAmount: totalAmount,
+              discountAmount: discountAmount,
           };
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
@@ -102,8 +104,23 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
               if (!bookSnapshot.empty) {
                   const bookDoc = bookSnapshot.docs[0];
-                  const currentStock = bookDoc.data().stock || 0;
-                  transaction.update(bookDoc.ref, { stock: currentStock + item.quantity });
+                  const bookData = bookDoc.data();
+                  const currentStock = bookData.stock || 0;
+                  const currentTotalValue = currentStock * (bookData.productionPrice || 0);
+                  const newTotalValue = item.cost * item.quantity;
+                  const newStock = currentStock + item.quantity;
+                  const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
+                  
+                  // Optionally keep the higher selling price or recalculate standard markup
+                  const newSellingPrice = item.sellingPrice && item.sellingPrice > 0 
+                                            ? item.sellingPrice 
+                                            : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
+                  
+                  transaction.update(bookDoc.ref, { 
+                      stock: newStock,
+                      productionPrice: newProductionPrice,
+                      sellingPrice: newSellingPrice
+                  });
               } else {
                   const newItemRef = doc(itemsCollection);
                   const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
@@ -124,53 +141,57 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           // Get expense counter for generating expense IDs
           let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
 
-          if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
-              lastExpenseNumber += 1;
-              const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
-              const expenseData = {
-                  expenseId,
-                  description: `Payment for Purchase ${purchaseId}`,
-                  amount: totalAmount,
-                  date: Timestamp.fromDate(new Date()),
-                  paymentMethod: data.paymentMethod,
-              };
-              transaction.set(doc(expensesCollection), expenseData);
-          } else if (data.paymentMethod === 'Split') {
-              const amountPaid = data.amountPaid || 0;
-              const payableAmount = totalAmount - amountPaid;
+          const finalAmount = totalAmount - discountAmount;
 
-              if (amountPaid > 0) {
+          if (finalAmount > 0) {
+              if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
                   lastExpenseNumber += 1;
                   const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
                   const expenseData = {
                       expenseId,
-                      description: `Partial payment for Purchase ${purchaseId}`,
-                      amount: amountPaid,
+                      description: `Payment for Purchase ${purchaseId}`,
+                      amount: finalAmount,
                       date: Timestamp.fromDate(new Date()),
-                      paymentMethod: data.splitPaymentMethod,
+                      paymentMethod: data.paymentMethod,
                   };
                   transaction.set(doc(expensesCollection), expenseData);
-              }
+              } else if (data.paymentMethod === 'Split') {
+                  const amountPaid = data.amountPaid || 0;
+                  const payableAmount = finalAmount - amountPaid;
 
-              if (payableAmount > 0) {
+                  if (amountPaid > 0) {
+                      lastExpenseNumber += 1;
+                      const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
+                      const expenseData = {
+                          expenseId,
+                          description: `Partial payment for Purchase ${purchaseId}`,
+                          amount: amountPaid,
+                          date: Timestamp.fromDate(new Date()),
+                          paymentMethod: data.splitPaymentMethod,
+                      };
+                      transaction.set(doc(expensesCollection), expenseData);
+                  }
+
+                  if (payableAmount > 0) {
+                      const payableData = {
+                          description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
+                          amount: payableAmount,
+                          dueDate: Timestamp.fromDate(new Date(data.dueDate)),
+                          status: 'Pending' as const,
+                          type: 'Payable' as const,
+                      };
+                      transaction.set(doc(transactionsCollection), payableData);
+                  }
+              } else if (data.paymentMethod === 'Due') {
                   const payableData = {
-                      description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
-                      amount: payableAmount,
+                      description: `Purchase ${purchaseId} from ${data.supplier}`,
+                      amount: finalAmount,
                       dueDate: Timestamp.fromDate(new Date(data.dueDate)),
                       status: 'Pending' as const,
                       type: 'Payable' as const,
                   };
                   transaction.set(doc(transactionsCollection), payableData);
               }
-          } else if (data.paymentMethod === 'Due') {
-              const payableData = {
-                  description: `Purchase ${purchaseId} from ${data.supplier}`,
-                  amount: totalAmount,
-                  dueDate: Timestamp.fromDate(new Date(data.dueDate)),
-                  status: 'Pending' as const,
-                  type: 'Payable' as const,
-              };
-              transaction.set(doc(transactionsCollection), payableData);
           }
           
           // Update metadata with new expense counter if it changed

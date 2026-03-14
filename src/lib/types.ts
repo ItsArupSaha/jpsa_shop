@@ -113,6 +113,7 @@ export type Purchase = {
     supplier: string;
     items: PurchaseItem[];
     totalAmount: number;
+    discountAmount?: number;
     paymentMethod: 'Cash' | 'Bank' | 'Due' | 'Split' | 'N/A';
     amountPaid?: number;
     splitPaymentMethod?: 'Cash' | 'Bank';
