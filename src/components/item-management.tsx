@@ -99,7 +99,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5 });
+        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 10 });
         setItems(newItems);
         setHasMore(newHasMore);
         
@@ -129,7 +129,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     setIsLoadingMore(true);
     const lastItemId = items[items.length - 1]?.id;
     try {
-        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 5, lastVisibleId: lastItemId });
+        const { items: newItems, hasMore: newHasMore } = await getItemsPaginated({ userId, pageLimit: 10, lastVisibleId: lastItemId });
         setItems(prev => [...prev, ...newItems]);
         setHasMore(newHasMore);
     } catch (error) {

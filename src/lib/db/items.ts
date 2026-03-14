@@ -29,7 +29,7 @@ export async function getItems(userId: string): Promise<Item[]> {
   } as Item));
 }
 
-export async function getItemsPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ items: Item[], hasMore: boolean }> {
+export async function getItemsPaginated({ userId, pageLimit = 10, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ items: Item[], hasMore: boolean }> {
   if (!db || !userId) return { items: [], hasMore: false };
 
   const itemsCollection = collection(db, 'users', userId, 'items');
