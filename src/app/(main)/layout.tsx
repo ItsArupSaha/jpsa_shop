@@ -11,6 +11,7 @@ import {
   Home,
   LogIn,
   LogOut,
+  Package,
   RotateCcw,
   Scale,
   ShoppingBag,
@@ -40,6 +41,7 @@ import { useAuth } from '@/hooks/use-auth';
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/items', icon: Book, label: 'Items' },
+  { href: '/packages', icon: Package, label: 'Packages' },
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
   { href: '/sales-returns', icon: RotateCcw, label: 'Sales Returns' },

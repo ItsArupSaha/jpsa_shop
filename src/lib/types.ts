@@ -188,3 +188,17 @@ export type Metadata = {
   lastExpenseNumber: number;
   lastDonationNumber: number;
 }
+
+export type PackageItem = {
+    itemId: string;
+    quantity: number;
+};
+
+export type PackageTemplate = {
+    id: string;
+    name: string;
+    description: string;
+    items: PackageItem[];
+    createdAt: string; // ISO string
+};
+
