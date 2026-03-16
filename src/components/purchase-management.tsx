@@ -320,9 +320,9 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
           p.purchaseId,
           p.supplier,
           p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
-          `৳${p.totalAmount.toFixed(2)}`,
-          `৳${discount.toFixed(2)}`,
-          `৳${net.toFixed(2)}`
+          `TK ${p.totalAmount.toFixed(2)}`,
+          `TK ${discount.toFixed(2)}`,
+          `TK ${net.toFixed(2)}`
         ];
       }),
     });

@@ -352,7 +352,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         getCustomerName(sale.customerId),
         sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', '),
         sale.paymentMethod,
-        `BDT ${sale.total.toFixed(2)}`
+        `TK ${sale.total.toFixed(2)}`
       ]),
     });
 
