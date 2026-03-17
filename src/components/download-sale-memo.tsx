@@ -67,21 +67,21 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     ]);
     
     const footContent = [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `TK ${sale.subtotal.toFixed(2)}`],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-TK ${(sale.subtotal - sale.total).toFixed(2)}`],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `TK ${sale.total.toFixed(2)}`],
+        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `TK ${sale.subtotal.toFixed(2)}`, styles: { textColor: [100, 100, 100] } }],
+        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-TK ${(sale.subtotal - sale.total).toFixed(2)}`, styles: { textColor: [34, 197, 94] } }],
+        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
     ];
 
     if (sale.paymentMethod === 'Split') {
         const dueAmount = sale.total - (sale.amountPaid || 0);
         footContent.push(
-            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const } }, `TK ${sale.amountPaid?.toFixed(2)}`],
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `TK ${dueAmount.toFixed(2)}`]
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
         );
     }
      if (sale.paymentMethod === 'Due') {
         footContent.push(
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `TK ${sale.total.toFixed(2)}`]
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
         );
     }
 

@@ -66,26 +66,26 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
     const tableData = sale.items.map(item => [
       getItemTitle(item.itemId),
       item.quantity,
-      `$${item.price.toFixed(2)}`,
-      `$${(item.quantity * item.price).toFixed(2)}`
+      `TK ${item.price.toFixed(2)}`,
+      `TK ${(item.quantity * item.price).toFixed(2)}`
     ]);
 
     const footContent = [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right' } }, `$${sale.subtotal.toFixed(2)}`],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right' } }, `-$${(sale.subtotal - sale.total).toFixed(2)}`],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12 } }, `$${sale.total.toFixed(2)}`],
+        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `TK ${sale.subtotal.toFixed(2)}`, styles: { textColor: [100, 100, 100] } }],
+        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-TK ${(sale.subtotal - sale.total).toFixed(2)}`, styles: { textColor: [34, 197, 94] } }],
+        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
     ];
 
     if (sale.paymentMethod === 'Split') {
         const dueAmount = sale.total - (sale.amountPaid || 0);
         footContent.push(
-            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.amountPaid?.toFixed(2)}`],
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${dueAmount.toFixed(2)}`]
+            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
         );
     }
      if (sale.paymentMethod === 'Due') {
         footContent.push(
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const } }, `$${sale.total.toFixed(2)}`]
+            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
         );
     }
 
@@ -145,7 +145,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                             <TableRow key={index}>
                                 <TableCell className="font-medium">{getItemTitle(item.itemId)}</TableCell>
                                 <TableCell className="text-center">{item.quantity}</TableCell>
-                                <TableCell className="text-right">${(item.quantity * item.price).toFixed(2)}</TableCell>
+                                <TableCell className="text-right">TK {(item.quantity * item.price).toFixed(2)}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -156,32 +156,32 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                 <div className="space-y-2 text-sm pr-4">
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span>${sale.subtotal.toFixed(2)}</span>
+                        <span>TK {sale.subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
+                    <div className="flex justify-between text-green-600">
                         <span>Discount</span>
-                        <span>-${(sale.subtotal - sale.total).toFixed(2)}</span>
+                        <span>-TK {(sale.subtotal - sale.total).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between font-bold text-base border-t pt-2">
                         <span>Grand Total</span>
-                        <span>${sale.total.toFixed(2)}</span>
+                        <span>TK {sale.total.toFixed(2)}</span>
                     </div>
                     {sale.paymentMethod === 'Split' && (
                         <>
-                            <div className="flex justify-between text-primary">
+                            <div className="flex justify-between text-blue-600">
                                 <span>Amount Paid</span>
-                                <span>${sale.amountPaid?.toFixed(2)}</span>
+                                <span>TK {sale.amountPaid?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-destructive">
                                 <span>Amount Due</span>
-                                <span>${dueAmount.toFixed(2)}</span>
+                                <span>TK {dueAmount.toFixed(2)}</span>
                             </div>
                         </>
                     )}
                     {sale.paymentMethod === 'Due' && (
                         <div className="flex justify-between text-destructive">
                             <span>Amount Due</span>
-                            <span>${sale.total.toFixed(2)}</span>
+                            <span>TK {sale.total.toFixed(2)}</span>
                         </div>
                     )}
                 </div>
