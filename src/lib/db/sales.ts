@@ -21,10 +21,10 @@ import { docToSale } from './utils';
 
 // --- Sales Actions ---
 export async function getSales(userId: string): Promise<Sale[]> {
-    if (!db || !userId) return [];
-    const salesCollection = collection(db, 'users', userId, 'sales');
-    const snapshot = await getDocs(query(salesCollection, orderBy('date', 'desc')));
-    return snapshot.docs.map(docToSale);
+  if (!db || !userId) return [];
+  const salesCollection = collection(db, 'users', userId, 'sales');
+  const snapshot = await getDocs(query(salesCollection, orderBy('date', 'desc')));
+  return snapshot.docs.map(docToSale);
 }
 
 export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ sales: Sale[], hasMore: boolean }> {
@@ -32,24 +32,24 @@ export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }
 
   const salesCollection = collection(db, 'users', userId, 'sales');
   let q = query(
-      salesCollection,
-      orderBy('date', 'desc'),
-      limit(pageLimit)
+    salesCollection,
+    orderBy('date', 'desc'),
+    limit(pageLimit)
   );
 
   if (lastVisibleId) {
-      const lastVisibleDoc = await getDoc(doc(salesCollection, lastVisibleId));
-      if (lastVisibleDoc.exists()) {
-          q = query(q, startAfter(lastVisibleDoc));
-      }
+    const lastVisibleDoc = await getDoc(doc(salesCollection, lastVisibleId));
+    if (lastVisibleDoc.exists()) {
+      q = query(q, startAfter(lastVisibleDoc));
+    }
   }
 
   const snapshot = await getDocs(q);
   const sales = snapshot.docs.map(docToSale);
-  
+
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   let hasMore = false;
-  if(lastDoc) {
+  if (lastDoc) {
     const nextQuery = query(salesCollection, orderBy('date', 'desc'), startAfter(lastDoc), limit(1));
     const nextSnapshot = await getDocs(nextQuery);
     hasMore = !nextSnapshot.empty;
@@ -58,274 +58,272 @@ export async function getSalesPaginated({ userId, pageLimit = 5, lastVisibleId }
   return { sales, hasMore };
 }
 
-
 export async function getSalesForCustomer(userId: string, customerId: string): Promise<Sale[]> {
-    if (!db || !userId) return [];
-    const salesCollection = collection(db, 'users', userId, 'sales');
-    const q = query(salesCollection, where('customerId', '==', customerId));
-    const snapshot = await getDocs(q);
-    const sales = snapshot.docs.map(docToSale);
-    // Sort in application code to avoid needing a composite index
-    return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  if (!db || !userId) return [];
+  const salesCollection = collection(db, 'users', userId, 'sales');
+  const snapshot = await getDocs(
+    query(salesCollection, where('customerId', '==', customerId), orderBy('date', 'desc'))
+  );
+  return snapshot.docs.map(docToSale);
 }
 
 export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
-    if (!db || !userId) return [];
-    const salesCollection = collection(db, 'users', userId, 'sales');
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
-    const q = query(
-        salesCollection,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        orderBy('date', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToSale);
+  if (!db || !userId) return [];
+  const salesCollection = collection(db, 'users', userId, 'sales');
+  const startDate = new Date(year, month, 1);
+  const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const q = query(
+    salesCollection,
+    where('date', '>=', Timestamp.fromDate(startDate)),
+    where('date', '<=', Timestamp.fromDate(endDate)),
+    orderBy('date', 'desc')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docToSale);
 }
 
 export async function addSale(
-    userId: string,
-    data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & { creditApplied?: number }
-  ): Promise<{ success: boolean; error?: string; sale?: Sale }> {
-    if (!db || !userId) return { success: false, error: "Database not configured." };
-  
-    try {
-      const result = await runTransaction(db, async (transaction) => {
-        const userRef = doc(db!, 'users', userId);
-        const metadataRef = doc(userRef, 'metadata', 'counters');
-        const itemsCollection = collection(userRef, 'items');
-        const customersCollection = collection(userRef, 'customers');
-        const salesCollection = collection(userRef, 'sales');
-        const transactionsCollection = collection(userRef, 'transactions');
+  userId: string,
+  data: Omit<Sale, 'id' | 'saleId' | 'subtotal' | 'total'> & { creditApplied?: number }
+): Promise<{ success: boolean; error?: string; sale?: Sale }> {
+  if (!db || !userId) return { success: false, error: "Database not configured." };
 
-        const saleDate = new Date(data.date) || new Date();
-        const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
-        const customerRef = doc(customersCollection, data.customerId);
-        
-        const [metadataDoc, ...itemDocs] = await Promise.all([
-            transaction.get(metadataRef),
-            ...itemRefs.map(ref => transaction.get(ref)),
-        ]);
-        const customerDoc = await transaction.get(customerRef);
+  try {
+    const result = await runTransaction(db, async (transaction) => {
+      const userRef = doc(db!, 'users', userId);
+      const metadataRef = doc(userRef, 'metadata', 'counters');
+      const itemsCollection = collection(userRef, 'items');
+      const customersCollection = collection(userRef, 'customers');
+      const salesCollection = collection(userRef, 'sales');
+      const transactionsCollection = collection(userRef, 'transactions');
 
-        if (!customerDoc.exists()) {
-            throw new Error(`Customer with id ${data.customerId} does not exist!`);
-        }
+      const saleDate = new Date(data.date) || new Date();
+      const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
+      const customerRef = doc(customersCollection, data.customerId);
 
-        const lastSaleNumber = (metadataDoc.data() as Metadata)?.lastSaleNumber || 0;
-        const newSaleNumber = lastSaleNumber + 1;
-        const saleId = `SALE-${String(newSaleNumber).padStart(4, '0')}`;
-        
-        let calculatedSubtotal = 0;
-        let totalProductionCost = 0;
-        const itemsWithPrices: SaleItem[] = [];
-  
-        for (let i = 0; i < data.items.length; i++) {
-          const itemDoc = itemDocs[i];
-          const saleItem = data.items[i];
-  
-          if (!itemDoc.exists()) {
-            throw new Error(`Item with id ${saleItem.itemId} does not exist!`);
-          }
-          const itemData = itemDoc.data() as Item;
-          if (itemData.stock < saleItem.quantity) {
-            throw new Error(`Not enough stock for ${itemData.title}. Available: ${itemData.stock}, Requested: ${saleItem.quantity}`);
-          }
-          
-          const price = itemData.sellingPrice;
-          calculatedSubtotal += price * saleItem.quantity;
-          totalProductionCost += itemData.productionPrice * saleItem.quantity;
-          itemsWithPrices.push({ ...saleItem, price });
-        }
-  
-        let discountAmount = 0;
-        if (data.discountType === 'percentage') {
-          discountAmount = calculatedSubtotal * (data.discountValue / 100);
-        } else if (data.discountType === 'amount') {
-          discountAmount = data.discountValue;
-        }
-        discountAmount = Math.min(calculatedSubtotal, discountAmount);
-        
-        const totalAfterDiscount = calculatedSubtotal - discountAmount;
-        const totalSaleProfit = totalAfterDiscount - totalProductionCost;
-        
-        const creditApplied = data.creditApplied || 0;
-        const finalTotal = totalAfterDiscount - creditApplied;
+      const [metadataDoc, ...itemDocs] = await Promise.all([
+        transaction.get(metadataRef),
+        ...itemRefs.map(ref => transaction.get(ref)),
+      ]);
+      const customerDoc = await transaction.get(customerRef);
 
-        const newSaleRef = doc(salesCollection);
-        
-        // Clean up data: only include amountPaid and splitPaymentMethod for Split payments
-        const cleanedData: any = { ...data };
-        if (data.paymentMethod !== 'Split') {
-            // Remove amountPaid and splitPaymentMethod for non-Split payments
-            delete cleanedData.amountPaid;
-            delete cleanedData.splitPaymentMethod;
-        }
-        
-        const saleDataToSave: Omit<Sale, 'id'> & { date: Timestamp, creditApplied?: number } = {
-          ...cleanedData,
-          saleId,
-          items: itemsWithPrices,
-          subtotal: calculatedSubtotal,
-          total: totalAfterDiscount,
-          date: Timestamp.fromDate(saleDate) as any,
-          creditApplied: creditApplied,
-          paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
-        };
-        transaction.set(newSaleRef, saleDataToSave);
-        transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
-  
-        for (let i = 0; i < itemDocs.length; i++) {
-          const saleItem = data.items[i];
-          const newStock = itemDocs[i].data()!.stock - saleItem.quantity;
-          transaction.update(itemRefs[i], { stock: newStock });
-        }
-
-        const currentDue = customerDoc.data()?.dueBalance || 0;
-        let finalDue = currentDue;
-
-        if (creditApplied > 0) {
-            finalDue += creditApplied;
-        }
-  
-        if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
-          let dueAmount = finalTotal;
-          let realizedProfit = 0;
-
-          if (data.paymentMethod === 'Split' && data.amountPaid && data.amountPaid > 0) {
-              dueAmount = finalTotal - data.amountPaid;
-              
-              if (finalTotal > 0) {
-                realizedProfit = totalSaleProfit * (data.amountPaid / finalTotal);
-              }
-
-              // Note: We do NOT create a paid transaction for the partial payment here
-              // because the sale record itself already tracks the immediate payment (amountPaid).
-              // Creating a transaction here would cause double-counting in the balance sheet.
-              // The sale record is the source of truth for immediate payments.
-          }
-
-          if (dueAmount > 0) {
-              finalDue += dueAmount;
-              const remainingProfit = totalSaleProfit - realizedProfit;
-
-              const receivableData = {
-                description: `Due from ${saleId}`,
-                amount: dueAmount,
-                dueDate: Timestamp.fromDate(new Date()),
-                status: 'Pending' as const,
-                type: 'Receivable' as const,
-                customerId: data.customerId,
-                saleId: saleId,
-                totalSaleProfit: totalSaleProfit,
-                remainingProfit: remainingProfit,
-              };
-              transaction.set(doc(transactionsCollection), receivableData);
-          }
-        }
-        
-        if (finalDue !== currentDue) {
-            transaction.update(customerRef, { dueBalance: finalDue });
-        }
-  
-        const saleForClient: Sale = {
-          id: newSaleRef.id,
-          ...saleDataToSave,
-          total: totalAfterDiscount,
-          date: saleDate.toISOString(),
-        };
-  
-        return { success: true, sale: saleForClient };
-      });
-
-      revalidatePath('/sales');
-      revalidatePath('/dashboard');
-      revalidatePath('/items');
-      revalidatePath('/receivables');
-      if (data.customerId) {
-          revalidatePath(`/customers/${data.customerId}`);
+      if (!customerDoc.exists()) {
+        throw new Error(`Customer with id ${data.customerId} does not exist!`);
       }
-      return result;
 
-    } catch (e) {
-      console.error("Sale creation failed: ", e);
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
+      const lastSaleNumber = (metadataDoc.data() as Metadata)?.lastSaleNumber || 0;
+      const newSaleNumber = lastSaleNumber + 1;
+      const saleId = `SALE-${String(newSaleNumber).padStart(4, '0')}`;
+
+      let calculatedSubtotal = 0;
+      let totalProductionCost = 0;
+      const itemsWithPrices: SaleItem[] = [];
+
+      for (let i = 0; i < data.items.length; i++) {
+        const itemDoc = itemDocs[i];
+        const saleItem = data.items[i];
+
+        if (!itemDoc.exists()) {
+          throw new Error(`Item with id ${saleItem.itemId} does not exist!`);
+        }
+        const itemData = itemDoc.data() as Item;
+        if (itemData.stock < saleItem.quantity) {
+          throw new Error(`Not enough stock for ${itemData.title}. Available: ${itemData.stock}, Requested: ${saleItem.quantity}`);
+        }
+
+        const price = itemData.sellingPrice;
+        calculatedSubtotal += price * saleItem.quantity;
+        totalProductionCost += itemData.productionPrice * saleItem.quantity;
+        itemsWithPrices.push({ ...saleItem, price });
+      }
+
+      let discountAmount = 0;
+      if (data.discountType === 'percentage') {
+        discountAmount = calculatedSubtotal * (data.discountValue / 100);
+      } else if (data.discountType === 'amount') {
+        discountAmount = data.discountValue;
+      }
+      discountAmount = Math.min(calculatedSubtotal, discountAmount);
+
+      const totalAfterDiscount = calculatedSubtotal - discountAmount;
+      const totalSaleProfit = totalAfterDiscount - totalProductionCost;
+
+      const creditApplied = data.creditApplied || 0;
+      const finalTotal = totalAfterDiscount - creditApplied;
+
+      const newSaleRef = doc(salesCollection);
+
+      // Clean up data: only include amountPaid and splitPaymentMethod for Split payments
+      const cleanedData: any = { ...data };
+      if (data.paymentMethod !== 'Split') {
+        // Remove amountPaid and splitPaymentMethod for non-Split payments
+        delete cleanedData.amountPaid;
+        delete cleanedData.splitPaymentMethod;
+      }
+
+      const saleDataToSave: Omit<Sale, 'id'> & { date: Timestamp, creditApplied?: number } = {
+        ...cleanedData,
+        saleId,
+        items: itemsWithPrices,
+        subtotal: calculatedSubtotal,
+        total: totalAfterDiscount,
+        date: Timestamp.fromDate(saleDate) as any,
+        creditApplied: creditApplied,
+        paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
+      };
+      transaction.set(newSaleRef, saleDataToSave);
+      transaction.set(metadataRef, { lastSaleNumber: newSaleNumber }, { merge: true });
+
+      for (let i = 0; i < itemDocs.length; i++) {
+        const saleItem = data.items[i];
+        const newStock = itemDocs[i].data()!.stock - saleItem.quantity;
+        transaction.update(itemRefs[i], { stock: newStock });
+      }
+
+      const currentDue = customerDoc.data()?.dueBalance || 0;
+      let finalDue = currentDue;
+
+      if (creditApplied > 0) {
+        finalDue += creditApplied;
+      }
+
+      if (data.paymentMethod === 'Due' || data.paymentMethod === 'Split') {
+        let dueAmount = finalTotal;
+        let realizedProfit = 0;
+
+        if (data.paymentMethod === 'Split' && data.amountPaid && data.amountPaid > 0) {
+          dueAmount = finalTotal - data.amountPaid;
+
+          if (finalTotal > 0) {
+            realizedProfit = totalSaleProfit * (data.amountPaid / finalTotal);
+          }
+
+          // Note: We do NOT create a paid transaction for the partial payment here
+          // because the sale record itself already tracks the immediate payment (amountPaid).
+          // Creating a transaction here would cause double-counting in the balance sheet.
+          // The sale record is the source of truth for immediate payments.
+        }
+
+        if (dueAmount > 0) {
+          finalDue += dueAmount;
+          const remainingProfit = totalSaleProfit - realizedProfit;
+
+          const receivableData = {
+            description: `Due from ${saleId}`,
+            amount: dueAmount,
+            dueDate: Timestamp.fromDate(new Date()),
+            status: 'Pending' as const,
+            type: 'Receivable' as const,
+            customerId: data.customerId,
+            saleId: saleId,
+            totalSaleProfit: totalSaleProfit,
+            remainingProfit: remainingProfit,
+          };
+          transaction.set(doc(transactionsCollection), receivableData);
+        }
+      }
+
+      if (finalDue !== currentDue) {
+        transaction.update(customerRef, { dueBalance: finalDue });
+      }
+
+      const saleForClient: Sale = {
+        id: newSaleRef.id,
+        ...saleDataToSave,
+        total: totalAfterDiscount,
+        date: saleDate.toISOString(),
+      };
+
+      return { success: true, sale: saleForClient };
+    });
+
+    revalidatePath('/sales');
+    revalidatePath('/dashboard');
+    revalidatePath('/items');
+    revalidatePath('/receivables');
+    if (data.customerId) {
+      revalidatePath(`/customers/${data.customerId}`);
     }
+    return result;
+
+  } catch (e) {
+    console.error("Sale creation failed: ", e);
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function deleteSale(userId: string, saleId: string): Promise<{ success: boolean; error?: string }> {
-    if (!db || !userId) return { success: false, error: "Database not configured." };
+  if (!db || !userId) return { success: false, error: "Database not configured." };
 
-    try {
-        const saleRef = doc(db, 'users', userId, 'sales', saleId);
-        
-        await runTransaction(db, async (transaction) => {
-            const userRef = doc(db!, 'users', userId);
-            
-            // --- READ PHASE ---
-            const saleDoc = await transaction.get(saleRef);
-            if (!saleDoc.exists()) {
-                throw new Error("Sale not found.");
-            }
-            const saleToDelete = docToSale(saleDoc);
-            
-            const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
-            const customerDoc = await transaction.get(customerRef);
-            if (!customerDoc.exists()) {
-                // This case should be rare, but we handle it.
-                console.warn(`Customer ${saleToDelete.customerId} not found during sale deletion.`);
-            }
+  try {
+    const saleRef = doc(db, 'users', userId, 'sales', saleId);
 
-            const itemRefs = saleToDelete.items.map(item => doc(userRef, 'items', item.itemId));
-            const itemDocs = await Promise.all(itemRefs.map(ref => transaction.get(ref)));
+    await runTransaction(db, async (transaction) => {
+      const userRef = doc(db!, 'users', userId);
 
-            const transactionsCollection = collection(userRef, 'transactions');
-            const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
-            const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
-            
+      // --- READ PHASE ---
+      const saleDoc = await transaction.get(saleRef);
+      if (!saleDoc.exists()) {
+        throw new Error("Sale not found.");
+      }
+      const saleToDelete = docToSale(saleDoc);
 
-            // --- WRITE PHASE ---
+      const customerRef = doc(userRef, 'customers', saleToDelete.customerId);
+      const customerDoc = await transaction.get(customerRef);
+      if (!customerDoc.exists()) {
+        // This case should be rare, but we handle it.
+        console.warn(`Customer ${saleToDelete.customerId} not found during sale deletion.`);
+      }
 
-            // 1. Restore item stock
-            for (let i = 0; i < itemDocs.length; i++) {
-                const itemDoc = itemDocs[i];
-                if (itemDoc.exists()) {
-                    const newStock = itemDoc.data().stock + saleToDelete.items[i].quantity;
-                    transaction.update(itemDoc.ref, { stock: newStock });
-                }
-            }
+      const itemRefs = saleToDelete.items.map(item => doc(userRef, 'items', item.itemId));
+      const itemDocs = await Promise.all(itemRefs.map(ref => transaction.get(ref)));
 
-            // 2. Adjust customer balance
-            if (customerDoc.exists()) {
-                let amountToReverse = 0;
-                if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
-                     amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
-                }
-                const creditReversal = saleToDelete.creditApplied || 0;
-                const currentDue = customerDoc.data().dueBalance || 0;
-                const newDueBalance = currentDue - amountToReverse + creditReversal;
-                transaction.update(customerRef, { dueBalance: newDueBalance });
-            }
+      const transactionsCollection = collection(userRef, 'transactions');
+      const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
+      const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
 
-            // 3. Delete related transactions
-            relatedTransactionDocs.forEach(doc => {
-                transaction.delete(doc.ref);
-            });
 
-            // 4. Delete the sale document
-            transaction.delete(saleRef);
-        });
+      // --- WRITE PHASE ---
 
-        revalidatePath('/sales');
-        revalidatePath('/items');
-        revalidatePath('/dashboard');
-        revalidatePath('/receivables');
-        revalidatePath('/customers'); // Revalidate all customers for simplicity
+      // 1. Restore item stock
+      for (let i = 0; i < itemDocs.length; i++) {
+        const itemDoc = itemDocs[i];
+        if (itemDoc.exists()) {
+          const newStock = itemDoc.data().stock + saleToDelete.items[i].quantity;
+          transaction.update(itemDoc.ref, { stock: newStock });
+        }
+      }
 
-        return { success: true };
-    } catch (e) {
-      console.error("Sale deletion failed: ", e);
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
-    }
+      // 2. Adjust customer balance
+      if (customerDoc.exists()) {
+        let amountToReverse = 0;
+        if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
+          amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
+        }
+        const creditReversal = saleToDelete.creditApplied || 0;
+        const currentDue = customerDoc.data().dueBalance || 0;
+        const newDueBalance = currentDue - amountToReverse + creditReversal;
+        transaction.update(customerRef, { dueBalance: newDueBalance });
+      }
+
+      // 3. Delete related transactions
+      relatedTransactionDocs.forEach(doc => {
+        transaction.delete(doc.ref);
+      });
+
+      // 4. Delete the sale document
+      transaction.delete(saleRef);
+    });
+
+    revalidatePath('/sales');
+    revalidatePath('/items');
+    revalidatePath('/dashboard');
+    revalidatePath('/receivables');
+    revalidatePath('/customers'); // Revalidate all customers for simplicity
+
+    return { success: true };
+  } catch (e) {
+    console.error("Sale deletion failed: ", e);
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }

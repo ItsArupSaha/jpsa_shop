@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
-import { getCustomerById, getTransactionsForCustomer } from '@/lib/actions';
-import type { Transaction } from '@/lib/types';
+import { getCustomerById, getTransactionsForCustomer, getSalesForCustomer, getItems } from '@/lib/actions';
+import type { Transaction, Sale, Item } from '@/lib/types';
 import { format } from 'date-fns';
-import { Book, DollarSign, MapPin, Phone, User } from 'lucide-react';
+import { Book, DollarSign, MapPin, Phone, User, ShoppingCart, ArrowDownToLine } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface CustomerDetailPageProps {
@@ -18,7 +18,8 @@ interface CustomerDetailPageProps {
 export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const { user } = useAuth();
   const [customerData, setCustomerData] = useState<any>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     const loadData = async () => {
       try {
         const { id } = await params;
-        
+
         if (!user) {
           setError('User not authenticated');
           setLoading(false);
@@ -34,7 +35,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         }
 
         console.log('Customer Detail Page Debug:', { customerId: id, userId: user.uid });
-        
+
         // Get customer data
         const customer = await getCustomerById(user.uid, id);
         console.log('Customer Data:', customer);
@@ -46,11 +47,24 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         }
 
         // Get transactions for this customer (this query doesn't require complex indexes)
+        // Ensure we catch all payment records and older sales
         const customerTransactions = await getTransactionsForCustomer(user.uid, id, 'Receivable');
-        console.log('Customer Transactions:', customerTransactions);
+        const customerSales = await getSalesForCustomer(user.uid, id);
+
+        // Fetch items so we can display the titles for the sale rows
+        const allItems = await getItems(user.uid);
+
+        // Combine them into a single timeline Activity array
+        const combinedActivities = [
+          ...customerTransactions
+            .filter(t => !t.description?.startsWith('Due from SALE'))
+            .map(t => ({ ...t, activityType: 'transaction', sortDate: new Date(t.dueDate).getTime() })),
+          ...customerSales.map(s => ({ ...s, activityType: 'sale', sortDate: new Date(s.date).getTime() }))
+        ].sort((a, b) => b.sortDate - a.sortDate);
 
         setCustomerData(customer);
-        setTransactions(customerTransactions);
+        setActivities(combinedActivities);
+        setItems(allItems);
         setLoading(false);
       } catch (err) {
         console.error('Error loading customer data:', err);
@@ -102,7 +116,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                 <User className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Phone className="h-4 w-4" />
@@ -114,7 +128,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                     </>
                   )}
                 </div>
-                
+
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
                   <span>{customer.address}</span>
@@ -125,13 +139,12 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
             <div className="text-right">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Current Balance</p>
-                <p className={`font-bold text-3xl ${
-                  customer.dueBalance > 0 
-                    ? 'text-destructive' 
-                    : customer.dueBalance < 0 
-                    ? 'text-green-600' 
-                    : 'text-primary'
-                }`}>
+                <p className={`font-bold text-3xl ${customer.dueBalance > 0
+                    ? 'text-destructive'
+                    : customer.dueBalance < 0
+                      ? 'text-green-600'
+                      : 'text-primary'
+                  }`}>
                   ${customer.dueBalance.toFixed(2)}
                 </p>
                 <div className="flex gap-2">
@@ -168,46 +181,73 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           </div>
         </CardHeader>
         <CardContent>
-          {transactions.length > 0 ? (
-            <div className="border rounded-md">
+          {activities.length > 0 ? (
+            <div className="border rounded-md max-h-[600px] overflow-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Activity</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead>Status / Method</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
-                        {format(new Date(transaction.dueDate), 'PPP')}
-                      </TableCell>
-                      <TableCell className="max-w-[300px]">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{transaction.description}</span>
-                          {transaction.paymentMethod && (
-                            <Badge variant="outline" className="text-xs">
-                              {transaction.paymentMethod}
+                  {activities.map((activity, index) => {
+                    const isSale = activity.activityType === 'sale';
+
+                    return (
+                      <TableRow key={activity.id || index}>
+                        <TableCell className="whitespace-nowrap">
+                          {format(new Date(isSale ? activity.date : activity.dueDate), 'PPP')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 font-medium">
+                            {isSale ? (
+                              <><ShoppingCart className="h-4 w-4 text-primary" /> Sale</>
+                            ) : (
+                              <><ArrowDownToLine className="h-4 w-4 text-green-600" /> Payment/Due</>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[300px]">
+                          {isSale ? (
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground font-mono">{activity.saleId}</span>
+                              <div className="text-sm">
+                                {activity.items.map((i: any) => {
+                                  const itemTitle = items.find(it => it.id === i.itemId)?.title || 'Unknown Item';
+                                  return (
+                                    <div key={i.itemId} className="truncate">
+                                      {i.quantity}x {itemTitle}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="truncate block">{activity.description}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isSale ? (
+                            <Badge variant="outline">{activity.paymentMethod}</Badge>
+                          ) : (
+                            <Badge
+                              variant={activity.status === 'Paid' ? 'default' : activity.status === 'Pending' ? 'destructive' : 'secondary'}
+                              className={activity.status === 'Paid' ? 'bg-green-600' : ''}
+                            >
+                              {activity.status}
                             </Badge>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={transaction.status === 'Paid' ? 'default' : 'secondary'}
-                          className={transaction.status === 'Paid' ? 'bg-green-600' : ''}
-                        >
-                          {transaction.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${transaction.amount.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          TK {isSale ? activity.total.toFixed(2) : activity.amount.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
