@@ -127,13 +127,13 @@ export async function addSale(
           throw new Error(`Item with id ${saleItem.itemId} does not exist!`);
         }
         const itemData = itemDoc.data() as Item;
-        if (itemData.stock < saleItem.quantity) {
+        if (Number(itemData.stock) < Number(saleItem.quantity)) {
           throw new Error(`Not enough stock for ${itemData.title}. Available: ${itemData.stock}, Requested: ${saleItem.quantity}`);
         }
 
-        const price = itemData.sellingPrice;
-        calculatedSubtotal += price * saleItem.quantity;
-        totalProductionCost += itemData.productionPrice * saleItem.quantity;
+        const price = Number(itemData.sellingPrice);
+        calculatedSubtotal += price * Number(saleItem.quantity);
+        totalProductionCost += Number(itemData.productionPrice) * Number(saleItem.quantity);
         itemsWithPrices.push({ ...saleItem, price });
       }
 
@@ -176,7 +176,7 @@ export async function addSale(
 
       for (let i = 0; i < itemDocs.length; i++) {
         const saleItem = data.items[i];
-        const newStock = itemDocs[i].data()!.stock - saleItem.quantity;
+        const newStock = Number(itemDocs[i].data()!.stock) - Number(saleItem.quantity);
         transaction.update(itemRefs[i], { stock: newStock });
       }
 
@@ -289,7 +289,7 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
       for (let i = 0; i < itemDocs.length; i++) {
         const itemDoc = itemDocs[i];
         if (itemDoc.exists()) {
-          const newStock = itemDoc.data().stock + saleToDelete.items[i].quantity;
+          const newStock = Number(itemDoc.data().stock) + Number(saleToDelete.items[i].quantity);
           transaction.update(itemDoc.ref, { stock: newStock });
         }
       }

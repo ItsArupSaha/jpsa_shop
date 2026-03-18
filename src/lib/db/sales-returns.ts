@@ -97,7 +97,7 @@ export async function addSalesReturn(
           if (!itemDoc.exists()) throw new Error(`Item with id ${returnItem.itemId} does not exist!`);
           
           const itemData = itemDoc.data() as Item;
-          const newStock = itemData.stock + returnItem.quantity;
+          const newStock = Number(itemData.stock) + Number(returnItem.quantity);
           transaction.update(itemRefs[i], { stock: newStock });
           
           totalReturnValue += returnItem.price * returnItem.quantity;

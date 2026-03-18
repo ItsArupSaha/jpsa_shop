@@ -105,10 +105,10 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               if (!bookSnapshot.empty) {
                   const bookDoc = bookSnapshot.docs[0];
                   const bookData = bookDoc.data();
-                  const currentStock = bookData.stock || 0;
-                  const currentTotalValue = currentStock * (bookData.productionPrice || 0);
-                  const newTotalValue = item.cost * item.quantity;
-                  const newStock = currentStock + item.quantity;
+                  const currentStock = Number(bookData.stock) || 0;
+                  const currentTotalValue = currentStock * (Number(bookData.productionPrice) || 0);
+                  const newTotalValue = Number(item.cost) * Number(item.quantity);
+                  const newStock = currentStock + Number(item.quantity);
                   const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
                   
                   // Optionally keep the higher selling price or recalculate standard markup
