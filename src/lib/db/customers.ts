@@ -111,8 +111,7 @@ export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'd
 export async function updateCustomer(userId: string, id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
   if (!db || !userId) return;
   const customerRef = doc(db, 'users', userId, 'customers', id);
-  const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
-  await updateDoc(customerRef, dataWithDue);
+  await updateDoc(customerRef, data);
   revalidatePath('/customers');
   revalidatePath('/receivables');
   revalidatePath(`/customers/${id}`);
