@@ -345,12 +345,13 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     autoTable(doc, {
       startY: 60,
-      head: [['Date', 'Sale ID', 'Customer', 'Items', 'Payment', 'Total']],
+      head: [['Date', 'Sale ID', 'Customer', 'Items', 'Discount', 'Payment', 'Total']],
       body: filteredSales.map(sale => [
         format(new Date(sale.date), 'yyyy-MM-dd'),
         sale.saleId,
         getCustomerName(sale.customerId),
         sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', '),
+        sale.discountType === 'percentage' ? `${sale.discountValue}%` : `TK ${sale.discountValue.toFixed(2)}`,
         sale.paymentMethod,
         `TK ${sale.total.toFixed(2)}`
       ]),
@@ -373,6 +374,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       'Sale ID': sale.saleId,
       'Customer': getCustomerName(sale.customerId),
       'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
+      'Discount': sale.discountType === 'percentage' ? `${sale.discountValue}%` : sale.discountValue,
       'Payment Method': sale.paymentMethod,
       'Total': sale.total,
     }));

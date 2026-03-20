@@ -46,12 +46,12 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.text(String(customer?.name || ''), 14, infoY + 5);
     doc.text(String(customer?.address || ''), 14, infoY + 10);
     doc.text(String(customer?.phone || ''), 14, infoY + 15);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text('Invoice #:', 140, infoY);
     doc.text('Date:', 140, infoY + 5);
     doc.text('Payment:', 140, infoY + 10);
-    
+
     doc.setFont('helvetica', 'normal');
     doc.text(String(sale?.saleId || ''), 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
@@ -62,27 +62,27 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     const tableData = sale.items.map(item => [
       getItemTitle(item.itemId),
       item.quantity,
-                    `TK ${item.price.toFixed(2)}`,
+      `TK ${item.price.toFixed(2)}`,
       `TK ${(item.quantity * item.price).toFixed(2)}`
     ]);
-    
+
     const footContent = [
-        [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `TK ${sale.subtotal.toFixed(2)}`, styles: { textColor: [100, 100, 100] } }],
-        [{ content: 'Discount', colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-TK ${(sale.subtotal - sale.total).toFixed(2)}`, styles: { textColor: [34, 197, 94] } }],
-        [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
+      [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `TK ${sale.subtotal.toFixed(2)}`, styles: { textColor: [100, 100, 100] } }],
+      [{ content: `Discount${sale.discountType === 'percentage' ? ` (${sale.discountValue}%)` : ''}`, colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-TK ${(sale.subtotal - sale.total).toFixed(2)}`, styles: { textColor: [34, 197, 94] } }],
+      [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
     ];
 
     if (sale.paymentMethod === 'Split') {
-        const dueAmount = sale.total - (sale.amountPaid || 0);
-        footContent.push(
-            [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
-        );
+      const dueAmount = sale.total - (sale.amountPaid || 0);
+      footContent.push(
+        [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
+        [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+      );
     }
-     if (sale.paymentMethod === 'Due') {
-        footContent.push(
-            [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
-        );
+    if (sale.paymentMethod === 'Due') {
+      footContent.push(
+        [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+      );
     }
 
     autoTable(doc, {
@@ -91,7 +91,7 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [48, 103, 84] }, // #306754
-      footStyles: { fillColor: [255, 255, 255], textColor: [0,0,0], fontStyle: 'bold' },
+      footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold' },
       foot: footContent as any,
     });
 
@@ -100,12 +100,12 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.setFontSize(10);
     doc.text('Thank you for your business!', 105, finalY + 20, { align: 'center' });
 
-    doc.save(`memo-${sale.saleId}.pdf`);
+    doc.save(`memo-${sale.saleId}-${customer?.name || 'Customer'}.pdf`);
   };
 
   return (
     <Button onClick={generatePdf} variant="ghost" size="icon" title="Download Memo">
-        <Download className="h-4 w-4" />
+      <Download className="h-4 w-4" />
     </Button>
   );
 }
