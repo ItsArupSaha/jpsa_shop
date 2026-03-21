@@ -47,9 +47,13 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         doc.setFont('helvetica', 'bold');
         doc.text('BILL TO', 14, infoY);
         doc.setFont('helvetica', 'normal');
-        doc.text(customer.name, 14, infoY + 5);
-        doc.text(customer.address, 14, infoY + 10);
-        doc.text(customer.phone, 14, infoY + 15);
+        const nameLines = doc.splitTextToSize(customer.name || '', 110);
+        doc.text(nameLines, 14, infoY + 5);
+        const addressY = infoY + 5 + (nameLines.length * 5);
+        const addressLines = doc.splitTextToSize(customer.address || '', 110);
+        doc.text(addressLines, 14, addressY);
+        const phoneY = addressY + (addressLines.length * 5);
+        doc.text(customer.phone || '', 14, phoneY);
 
         doc.setFont('helvetica', 'bold');
         doc.text('Invoice #:', 140, infoY);
@@ -90,7 +94,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         }
 
         autoTable(doc, {
-            startY: infoY + 25,
+            startY: Math.max(infoY + 25, phoneY + 10),
             head: [['Description', 'Qty', 'Unit Price', 'Total']],
             body: tableData,
             theme: 'striped',

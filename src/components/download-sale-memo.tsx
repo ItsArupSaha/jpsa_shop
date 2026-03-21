@@ -43,9 +43,13 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.setFont('helvetica', 'bold');
     doc.text('BILL TO', 14, infoY);
     doc.setFont('helvetica', 'normal');
-    doc.text(String(customer?.name || ''), 14, infoY + 5);
-    doc.text(String(customer?.address || ''), 14, infoY + 10);
-    doc.text(String(customer?.phone || ''), 14, infoY + 15);
+    const nameLines = doc.splitTextToSize(String(customer?.name || ''), 110);
+    doc.text(nameLines, 14, infoY + 5);
+    const addressY = infoY + 5 + (nameLines.length * 5);
+    const addressLines = doc.splitTextToSize(String(customer?.address || ''), 110);
+    doc.text(addressLines, 14, addressY);
+    const phoneY = addressY + (addressLines.length * 5);
+    doc.text(String(customer?.phone || ''), 14, phoneY);
 
     doc.setFont('helvetica', 'bold');
     doc.text('Invoice #:', 140, infoY);
@@ -86,7 +90,7 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     }
 
     autoTable(doc, {
-      startY: infoY + 25,
+      startY: Math.max(infoY + 25, phoneY + 10),
       head: [['Description', 'Qty', 'Unit Price', 'Total']],
       body: tableData,
       theme: 'striped',
