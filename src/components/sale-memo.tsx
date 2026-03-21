@@ -106,7 +106,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         // Footer
         let finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.getHeight() - 30;
         doc.setFontSize(10);
-        doc.text('Thank you for your business!', 105, finalY + 20, { align: 'center' });
+        doc.text('Thank you. Relish the nectar of Srila Gurumaharaja.', 105, finalY + 20, { align: 'center' });
 
         doc.save(`memo-${sale.saleId}-${customer.name}.pdf`);
     };
