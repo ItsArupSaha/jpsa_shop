@@ -268,7 +268,10 @@ export async function payPayable(userId: string, data: { transactionId: string, 
       const transactionsCollection = collection(userRef, 'transactions');
 
       const payableRef = doc(transactionsCollection, data.transactionId);
+
+      // FIREBASE RULE: All reads must happen before any writes
       const payableDoc = await transaction.get(payableRef);
+      const metadataDoc = await transaction.get(metadataRef);
 
       if (!payableDoc.exists()) {
         throw new Error("Payable transaction not found.");
@@ -286,7 +289,19 @@ export async function payPayable(userId: string, data: { transactionId: string, 
         throw new Error("Payment amount cannot exceed the payable amount.");
       }
 
-      // 1. Update the payable to decrease amount or set to Paid
+      // 1. Add an Expense config (no writes yet)
+      let lastExpenseNumber = 0;
+      if (metadataDoc.exists()) {
+        lastExpenseNumber = (metadataDoc.data() as any).lastExpenseNumber || 0;
+      }
+      const newExpenseNumber = lastExpenseNumber + 1;
+      const expenseId = `EXP-${String(newExpenseNumber).padStart(4, '0')}`;
+      const newExpenseRef = doc(expensesCollection);
+      const paymentTransactionRef = doc(transactionsCollection);
+
+      // --- WRITES START HERE ---
+
+      // 2. Update the payable to decrease amount or set to Paid
       if (amountToPay < currentAmount) {
         transaction.update(payableRef, {
           amount: currentAmount - amountToPay,
@@ -294,19 +309,11 @@ export async function payPayable(userId: string, data: { transactionId: string, 
       } else {
         transaction.update(payableRef, {
           status: 'Paid',
+          isHiddenFromHistory: true, // Prevents duplicate showing in Paid History since we emit a trace
         });
       }
 
-      // 2. Add an Expense
-      const metadataDoc = await transaction.get(metadataRef);
-      let lastExpenseNumber = 0;
-      if (metadataDoc.exists()) {
-        lastExpenseNumber = (metadataDoc.data() as any).lastExpenseNumber || 0;
-      }
-      const newExpenseNumber = lastExpenseNumber + 1;
-      const expenseId = `EXP-${String(newExpenseNumber).padStart(4, '0')}`;
-
-      const newExpenseRef = doc(expensesCollection);
+      // 3. Write expenses and config
       transaction.set(newExpenseRef, {
         expenseId,
         description: `Paid Payable: ${payableData.description}`,
@@ -316,8 +323,7 @@ export async function payPayable(userId: string, data: { transactionId: string, 
       });
       transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
 
-      // 3. Create a Paid trace transaction for the exact payment
-      const paymentTransactionRef = doc(transactionsCollection);
+      // 4. Create a Paid trace transaction for the exact payment
       transaction.set(paymentTransactionRef, {
         description: `Payment for: ${payableData.description}`,
         amount: data.amount,
@@ -354,7 +360,10 @@ export async function refundCustomerOverpayment(userId: string, data: { customer
       const transactionsCollection = collection(userRef, 'transactions');
 
       const customerRef = doc(customersCollection, data.customerId);
+
+      // FIREBASE RULE: All reads must happen before any writes
       const customerDoc = await transaction.get(customerRef);
+      const metadataDoc = await transaction.get(metadataRef);
 
       if (!customerDoc.exists()) {
         throw new Error("Customer not found.");
@@ -372,20 +381,23 @@ export async function refundCustomerOverpayment(userId: string, data: { customer
         throw new Error("Refund amount exceeds the overpaid balance.");
       }
 
-      // 1. Update customer's dueBalance back towards 0
-      const newDue = currentDue + amountToRefund;
-      transaction.update(customerRef, { dueBalance: newDue });
-
-      // 2. Add an Expense
-      const metadataDoc = await transaction.get(metadataRef);
+      // 1. Prepare expense config
       let lastExpenseNumber = 0;
       if (metadataDoc.exists()) {
         lastExpenseNumber = (metadataDoc.data() as any).lastExpenseNumber || 0;
       }
       const newExpenseNumber = lastExpenseNumber + 1;
       const expenseId = `EXP-${String(newExpenseNumber).padStart(4, '0')}`;
-
       const newExpenseRef = doc(expensesCollection);
+      const paymentTransactionRef = doc(transactionsCollection);
+
+      // --- WRITES START HERE ---
+
+      // 2. Update customer's dueBalance back towards 0
+      const newDue = currentDue + amountToRefund;
+      transaction.update(customerRef, { dueBalance: newDue });
+
+      // 3. Write Expenses
       transaction.set(newExpenseRef, {
         expenseId,
         description: `Customer Refund: ${customerDoc.data().name}`,
@@ -395,8 +407,7 @@ export async function refundCustomerOverpayment(userId: string, data: { customer
       });
       transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
 
-      // 3. Optional: Add a Paid Payable transaction as a log
-      const paymentTransactionRef = doc(transactionsCollection);
+      // 4. Optional: Add a Paid Payable transaction as a log
       transaction.set(paymentTransactionRef, {
         description: `Refund to customer: ${customerDoc.data().name}`,
         amount: data.amount,
@@ -543,8 +554,12 @@ export async function getPaidPayables(userId: string): Promise<Transaction[]> {
   );
   const snapshot = await getDocs(q);
   const transactions = snapshot.docs.map(docToTransaction);
+
+  // Filter out duplicates (original transactions that were fully paid using the new system)
+  const visibleTransactions = transactions.filter((t: any) => !t.isHiddenFromHistory);
+
   // Sort in application code to avoid needing a composite index
-  return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+  return visibleTransactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
 /**
@@ -571,7 +586,8 @@ export async function getPaidPayablesForDateRange(userId: string, fromDate: Date
   // Filter by date range in application code to avoid composite index requirement
   const filteredTransactions = allTransactions.filter(transaction => {
     const transactionDate = new Date(transaction.dueDate);
-    return transactionDate >= fromDate && transactionDate <= finalToDate;
+    const isVisible = !(transaction as any).isHiddenFromHistory;
+    return transactionDate >= fromDate && transactionDate <= finalToDate && isVisible;
   });
 
   return filteredTransactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
