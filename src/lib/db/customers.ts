@@ -22,10 +22,10 @@ import { docToCustomer } from './utils';
 
 // --- Customers Actions ---
 export async function getCustomers(userId: string): Promise<Customer[]> {
-  if (!db || !userId) return [];
-  const customersCollection = collection(db, 'users', userId, 'customers');
-  const snapshot = await getDocs(query(customersCollection, orderBy('name')));
-  return snapshot.docs.map(docToCustomer);
+    if (!db || !userId) return [];
+    const customersCollection = collection(db, 'users', userId, 'customers');
+    const snapshot = await getDocs(query(customersCollection, orderBy('name')));
+    return snapshot.docs.map(docToCustomer);
 }
 
 export async function getCustomersPaginated({ userId, pageLimit = 5, lastVisibleId }: { userId: string, pageLimit?: number, lastVisibleId?: string }): Promise<{ customers: Customer[], hasMore: boolean }> {
@@ -78,49 +78,59 @@ export async function getCustomersWithDueBalance(userId: string): Promise<Custom
     const customersCollection = collection(db, 'users', userId, 'customers');
     const q = query(customersCollection, where('dueBalance', '>', 0), orderBy('dueBalance', 'desc'));
     const snapshot = await getDocs(q);
-    
+
+    return snapshot.docs.map(d => ({ ...docToCustomer(d), dueBalance: d.data().dueBalance } as CustomerWithDue));
+}
+
+export async function getCustomersWithNegativeBalance(userId: string): Promise<CustomerWithDue[]> {
+    if (!db || !userId) return [];
+
+    const customersCollection = collection(db, 'users', userId, 'customers');
+    const q = query(customersCollection, where('dueBalance', '<', 0), orderBy('dueBalance', 'asc'));
+    const snapshot = await getDocs(q);
+
     return snapshot.docs.map(d => ({ ...docToCustomer(d), dueBalance: d.data().dueBalance } as CustomerWithDue));
 }
 
 export async function getCustomersWithDueBalancePaginated({ userId, pageLimit = 5, lastVisible }: { userId: string, pageLimit?: number, lastVisible?: { id: string, dueBalance: number } }): Promise<{ customersWithDue: CustomerWithDue[], hasMore: boolean }> {
-  if (!db || !userId) return { customersWithDue: [], hasMore: false };
+    if (!db || !userId) return { customersWithDue: [], hasMore: false };
 
-  const allCustomersWithDue = await getCustomersWithDueBalance(userId);
-  
-  let startIndex = 0;
-  if (lastVisible) {
-      startIndex = allCustomersWithDue.findIndex(c => c.id === lastVisible.id) + 1;
-  }
+    const allCustomersWithDue = await getCustomersWithDueBalance(userId);
 
-  const paginatedCustomers = allCustomersWithDue.slice(startIndex, startIndex + pageLimit);
-  const hasMore = startIndex + pageLimit < allCustomersWithDue.length;
+    let startIndex = 0;
+    if (lastVisible) {
+        startIndex = allCustomersWithDue.findIndex(c => c.id === lastVisible.id) + 1;
+    }
 
-  return { customersWithDue: paginatedCustomers, hasMore };
+    const paginatedCustomers = allCustomersWithDue.slice(startIndex, startIndex + pageLimit);
+    const hasMore = startIndex + pageLimit < allCustomersWithDue.length;
+
+    return { customersWithDue: paginatedCustomers, hasMore };
 }
 
 
 export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
-  if (!db || !userId) return;
-  const customersCollection = collection(db, 'users', userId, 'customers');
-  const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
-  const newDocRef = await addDoc(customersCollection, dataWithDue);
-  revalidatePath('/customers');
-  return { id: newDocRef.id, ...dataWithDue };
+    if (!db || !userId) return;
+    const customersCollection = collection(db, 'users', userId, 'customers');
+    const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
+    const newDocRef = await addDoc(customersCollection, dataWithDue);
+    revalidatePath('/customers');
+    return { id: newDocRef.id, ...dataWithDue };
 }
 
 export async function updateCustomer(userId: string, id: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
-  if (!db || !userId) return;
-  const customerRef = doc(db, 'users', userId, 'customers', id);
-  await updateDoc(customerRef, data);
-  revalidatePath('/customers');
-  revalidatePath('/receivables');
-  revalidatePath(`/customers/${id}`);
+    if (!db || !userId) return;
+    const customerRef = doc(db, 'users', userId, 'customers', id);
+    await updateDoc(customerRef, data);
+    revalidatePath('/customers');
+    revalidatePath('/receivables');
+    revalidatePath(`/customers/${id}`);
 }
 
 export async function deleteCustomer(userId: string, id: string) {
-  if (!db || !userId) return;
-  const customerRef = doc(db, 'users', userId, 'customers', id);
-  await deleteDoc(customerRef);
-  revalidatePath('/customers');
-  revalidatePath('/receivables');
+    if (!db || !userId) return;
+    const customerRef = doc(db, 'users', userId, 'customers', id);
+    await deleteDoc(customerRef);
+    revalidatePath('/customers');
+    revalidatePath('/receivables');
 }
