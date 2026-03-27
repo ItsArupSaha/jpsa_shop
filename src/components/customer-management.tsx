@@ -292,7 +292,8 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         setIsDialogOpen(false);
         setEditingCustomer(null);
       } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: "Could not save customer." });
+        const message = e instanceof Error ? e.message : "Could not save customer.";
+        toast({ variant: "destructive", title: "Duplicate Customer", description: message });
       }
     });
   };

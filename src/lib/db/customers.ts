@@ -112,6 +112,25 @@ export async function getCustomersWithDueBalancePaginated({ userId, pageLimit = 
 export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'dueBalance'>) {
     if (!db || !userId) return;
     const customersCollection = collection(db, 'users', userId, 'customers');
+
+    // --- Duplicate check by phone number ---
+    const phoneQuery = query(customersCollection, where('phone', '==', data.phone));
+    const phoneSnapshot = await getDocs(phoneQuery);
+    if (!phoneSnapshot.empty) {
+        const existing = phoneSnapshot.docs[0].data();
+        throw new Error(`A customer with phone number "${data.phone}" already exists: ${existing.name}`);
+    }
+
+    // --- Duplicate check by WhatsApp number (if provided) ---
+    if (data.whatsapp && data.whatsapp.trim() !== '') {
+        const waQuery = query(customersCollection, where('whatsapp', '==', data.whatsapp));
+        const waSnapshot = await getDocs(waQuery);
+        if (!waSnapshot.empty) {
+            const existing = waSnapshot.docs[0].data();
+            throw new Error(`A customer with WhatsApp number "${data.whatsapp}" already exists: ${existing.name}`);
+        }
+    }
+
     const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
     const newDocRef = await addDoc(customersCollection, dataWithDue);
     revalidatePath('/customers');
