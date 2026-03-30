@@ -140,6 +140,20 @@ export async function getTransactionsForCustomer(
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
+export async function getSaleTransaction(userId: string, saleId: string): Promise<Transaction | null> {
+  if (!db || !userId) return null;
+  const transactionsCollection = collection(db, 'users', userId, 'transactions');
+  const q = query(
+    transactionsCollection,
+    where('saleId', '==', saleId),
+    where('type', '==', 'Receivable'),
+    limit(1)
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  return docToTransaction(snapshot.docs[0]);
+}
+
 export async function addTransaction(userId: string, data: Omit<Transaction, 'id' | 'dueDate' | 'status'> & { dueDate: Date }): Promise<Transaction> {
   if (!db || !userId) throw new Error("Database not connected");
   const transactionsCollection = collection(db, 'users', userId, 'transactions');

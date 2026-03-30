@@ -11,6 +11,9 @@ import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui
 import { Separator } from './ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
+import { getSaleTransaction } from '@/lib/actions';
+import React from 'react';
+
 interface SaleMemoProps {
     sale: Sale;
     customer: Customer;
@@ -20,9 +23,49 @@ interface SaleMemoProps {
 }
 
 export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoProps) {
+    const [currentDue, setCurrentDue] = React.useState<number | null>(null);
+    const [status, setStatus] = React.useState<string | null>(null);
+
     const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
 
-    const generatePdf = () => {
+    React.useEffect(() => {
+        const fetchStatus = async () => {
+            if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') return;
+            try {
+                const transaction = await getSaleTransaction(user.uid, sale.saleId);
+                if (transaction) {
+                    setCurrentDue(transaction.status === 'Paid' ? 0 : transaction.amount);
+                    setStatus(transaction.status);
+                }
+            } catch (e) {
+                console.error("Failed to fetch sale status", e);
+            }
+        };
+        fetchStatus();
+    }, [sale.saleId, sale.paymentMethod, user.uid]);
+
+    const generatePdf = async () => {
+        let currentPaymentMethod: string = sale.paymentMethod;
+        let displayDue = 0;
+
+        if (sale.paymentMethod === 'Due') {
+            displayDue = sale.total;
+        } else if (sale.paymentMethod === 'Split') {
+            displayDue = sale.total - (sale.amountPaid || 0);
+        }
+
+        if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
+            const transaction = await getSaleTransaction(user.uid, sale.saleId);
+            if (transaction) {
+                if (transaction.status === 'Paid') {
+                    currentPaymentMethod = 'Paid';
+                    displayDue = 0;
+                } else {
+                    displayDue = transaction.amount;
+                }
+            }
+        }
+
         const doc = new jsPDF();
         const companyName = user.companyName || 'Bookstore';
         const address = user.address || '';
@@ -58,12 +101,12 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         doc.setFont('helvetica', 'bold');
         doc.text('Invoice #:', 140, infoY);
         doc.text('Date:', 140, infoY + 5);
-        doc.text('Payment:', 140, infoY + 10);
+        doc.text('Status:', 140, infoY + 10);
 
         doc.setFont('helvetica', 'normal');
         doc.text(sale.saleId, 165, infoY);
         doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
-        doc.text(sale.paymentMethod, 165, infoY + 10);
+        doc.text(currentPaymentMethod, 165, infoY + 10);
 
 
         // Table
@@ -80,16 +123,13 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
             [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
         ];
 
-        if (sale.paymentMethod === 'Split') {
-            const dueAmount = sale.total - (sale.amountPaid || 0);
+        if (displayDue > 0) {
             footContent.push(
-                [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
-                [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+                [{ content: 'Remaining Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${displayDue.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
             );
-        }
-        if (sale.paymentMethod === 'Due') {
+        } else if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
             footContent.push(
-                [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+                [{ content: 'Status', colSpan: 3, styles: { halign: 'right' as const, textColor: [34, 197, 94] } }, { content: `PAID`, styles: { textColor: [34, 197, 94] } }]
             );
         }
 
@@ -111,7 +151,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         doc.save(`memo-${sale.saleId}-${customer.name}.pdf`);
     };
 
-    const dueAmount = sale.total - (sale.amountPaid || 0);
+    const displayDueAmount = status === 'Paid' ? 0 : (currentDue !== null ? currentDue : (sale.total - (sale.amountPaid || 0)));
 
     return (
         <>
@@ -133,6 +173,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                         <div className="text-right">
                             <p><span className="font-semibold">Invoice #:</span> {sale.saleId}</p>
                             <p><span className="font-semibold">Date:</span> {format(new Date(sale.date), 'PPP')}</p>
+                            <p><span className="font-semibold">Status:</span> <span className={status === 'Paid' ? 'text-green-600 font-bold' : ''}>{status === 'Paid' ? 'PAID' : sale.paymentMethod}</span></p>
                         </div>
                     </div>
 
@@ -170,22 +211,11 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                             <span>Grand Total</span>
                             <span>TK {sale.total.toFixed(2)}</span>
                         </div>
-                        {sale.paymentMethod === 'Split' && (
-                            <>
-                                <div className="flex justify-between text-blue-600">
-                                    <span>Amount Paid</span>
-                                    <span>TK {sale.amountPaid?.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-destructive">
-                                    <span>Amount Due</span>
-                                    <span>TK {dueAmount.toFixed(2)}</span>
-                                </div>
-                            </>
-                        )}
-                        {sale.paymentMethod === 'Due' && (
-                            <div className="flex justify-between text-destructive">
-                                <span>Amount Due</span>
-                                <span>TK {sale.total.toFixed(2)}</span>
+
+                        {(sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') && (
+                            <div className="flex justify-between font-bold pt-2">
+                                <span className={status === 'Paid' ? 'text-green-600' : 'text-destructive'}>Remaining Due</span>
+                                <span className={status === 'Paid' ? 'text-green-600' : 'text-destructive'}>TK {displayDueAmount.toFixed(2)}</span>
                             </div>
                         )}
                     </div>

@@ -8,6 +8,8 @@ import autoTable from 'jspdf-autotable';
 import { Download } from 'lucide-react';
 import { Button } from './ui/button';
 
+import { getSaleTransaction } from '@/lib/actions';
+
 interface DownloadSaleMemoProps {
   sale: Sale;
   customer: Customer;
@@ -18,7 +20,35 @@ interface DownloadSaleMemoProps {
 export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMemoProps) {
   const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
 
-  const generatePdf = () => {
+  const generatePdf = async () => {
+    let currentPaymentMethod: string = sale.paymentMethod;
+    let currentAmountDue = 0;
+
+    // Default currentAmountDue based on initial sale state
+    if (sale.paymentMethod === 'Due') {
+      currentAmountDue = sale.total;
+    } else if (sale.paymentMethod === 'Split') {
+      currentAmountDue = sale.total - (sale.amountPaid || 0);
+    }
+
+    // Fetch the absolute latest status from the transactions system
+    if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
+      try {
+        const transaction = await getSaleTransaction(user.uid, sale.saleId);
+        if (transaction) {
+          if (transaction.status === 'Paid') {
+            currentPaymentMethod = 'Paid';
+            currentAmountDue = 0;
+          } else {
+            // Partially paid or still pending - amount in transaction is the REMAINING due
+            currentAmountDue = transaction.amount;
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching latest sale status:", error);
+      }
+    }
+
     const doc = new jsPDF();
     const companyName = user.companyName || 'Bookstore';
     const address = user.address || '';
@@ -54,12 +84,12 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.setFont('helvetica', 'bold');
     doc.text('Invoice #:', 140, infoY);
     doc.text('Date:', 140, infoY + 5);
-    doc.text('Payment:', 140, infoY + 10);
+    doc.text('Status:', 140, infoY + 10);
 
     doc.setFont('helvetica', 'normal');
     doc.text(String(sale?.saleId || ''), 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
-    doc.text(sale.paymentMethod, 165, infoY + 10);
+    doc.text(currentPaymentMethod, 165, infoY + 10);
 
 
     // Table
@@ -76,16 +106,13 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
       [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
     ];
 
-    if (sale.paymentMethod === 'Split') {
-      const dueAmount = sale.total - (sale.amountPaid || 0);
+    if (currentAmountDue > 0) {
       footContent.push(
-        [{ content: 'Amount Paid', colSpan: 3, styles: { halign: 'right' as const, textColor: [0, 102, 204] } }, { content: `TK ${sale.amountPaid?.toFixed(2)}`, styles: { textColor: [0, 102, 204] } }],
-        [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${dueAmount.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+        [{ content: 'Remaining Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${currentAmountDue.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
       );
-    }
-    if (sale.paymentMethod === 'Due') {
+    } else if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
       footContent.push(
-        [{ content: 'Amount Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
+        [{ content: 'Status', colSpan: 3, styles: { halign: 'right' as const, textColor: [34, 197, 94] } }, { content: `PAID`, styles: { textColor: [34, 197, 94] } }]
       );
     }
 

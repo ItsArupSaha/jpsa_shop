@@ -1,12 +1,12 @@
 
 'use client';
 
-import { addSale, deleteSale, getCustomers, getItems, getSales, getSalesPaginated } from '@/lib/actions';
+import { addSale, deleteSale, getCustomers, getItems, getSales, getSalesPaginated, searchSales } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { CalendarIcon, Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarIcon, Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Search, Trash2, X } from 'lucide-react';
 import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import * as XLSX from 'xlsx';
@@ -89,6 +89,9 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [searchResults, setSearchResults] = React.useState<Sale[]>([]);
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
@@ -143,6 +146,27 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     }
   };
 
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchTerm.trim()) return;
+
+    setIsSearching(true);
+    try {
+      const results = await searchSales(userId, searchTerm.trim());
+      setSearchResults(results);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Search Error', description: 'Failed to search sales.' });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setSearchResults([]);
+  };
+
+  const displaySales = searchTerm.trim() !== '' ? searchResults : sales;
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -413,6 +437,29 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               <Button onClick={handleAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Record New Sale
               </Button>
+              <div className="flex gap-2 w-full max-w-sm">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search Memo # or Name..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={handleClearSearch}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button variant="secondary" onClick={() => handleSearch()} disabled={isSearching}>
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
+                </Button>
+              </div>
               <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
@@ -474,7 +521,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isInitialLoading ? (
+                {isInitialLoading || isSearching ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={`skeleton-${i}`}>
                       <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
@@ -486,7 +533,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : sales.length > 0 ? sales.map((sale) => {
+                ) : displaySales.length > 0 ? displaySales.map((sale) => {
                   const customer = customers.find(c => c.id === sale.customerId);
                   return (
                     <TableRow key={sale.id}>
@@ -529,7 +576,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
               </TableBody>
             </Table>
           </div>
-          {hasMore && (
+          {hasMore && !searchTerm && (
             <div className="flex justify-center mt-4">
               <Button onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}

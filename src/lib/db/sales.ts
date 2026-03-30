@@ -327,3 +327,29 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
     return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+export async function searchSales(userId: string, searchTerm: string): Promise<Sale[]> {
+  if (!db || !userId || !searchTerm) return [];
+
+  const searchLower = searchTerm.toLowerCase();
+
+  // 1. Fetch matching customers first
+  const customersCollection = collection(db, 'users', userId, 'customers');
+  const customersSnapshot = await getDocs(customersCollection);
+  const matchingCustomerIds = customersSnapshot.docs
+    .filter(doc => doc.data().name.toLowerCase().includes(searchLower))
+    .map(doc => doc.id);
+
+  // 2. Fetch all sales to perform fuzzy in-memory filtering
+  // Ordering by date desc so the most recent ones are checked first (though we filter all anyway)
+  const salesCollection = collection(db, 'users', userId, 'sales');
+  const salesSnapshot = await getDocs(query(salesCollection, orderBy('date', 'desc')));
+  const allSales = salesSnapshot.docs.map(docToSale);
+
+  // 3. Filter based on saleId OR customerId match
+  return allSales.filter(sale => {
+    const matchesSaleId = sale.saleId.toLowerCase().includes(searchLower);
+    const matchesCustomer = matchingCustomerIds.includes(sale.customerId);
+    return matchesSaleId || matchesCustomer;
+  });
+}
