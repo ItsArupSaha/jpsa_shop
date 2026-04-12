@@ -19,12 +19,12 @@ export async function calculateClosingStock(userId: string, closingStockDate: Da
     const calculatedData = allItems.map((item: any) => {
         const quantitySoldAfter = salesAfterDate.reduce((total: number, sale: any) => {
             const saleItem = sale.items.find((i: any) => i.itemId === item.id);
-            return total + (saleItem ? saleItem.quantity : 0);
+            return total + (saleItem ? Number(saleItem.quantity) || 0 : 0);
         }, 0);
         
         return {
             ...item,
-            closingStock: item.stock + quantitySoldAfter
+            closingStock: (Number(item.stock) || 0) + quantitySoldAfter
         }
     });
 
