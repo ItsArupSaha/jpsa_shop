@@ -1,7 +1,7 @@
 
 'use client';
 
-import { addSale, deleteSale, getCustomers, getItems, getSales, getSalesPaginated, searchSales } from '@/lib/actions';
+import { addSale, deleteSale, getCustomers, getItems, getSaleTransaction, getSales, getSalesPaginated, getTransactionsForCustomer, searchSales } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -23,7 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Customer, Item, Sale } from '@/lib/types';
+import type { Customer, Item, Sale, Transaction } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import type { DateRange } from 'react-day-picker';
 import { DownloadSaleMemo } from './download-sale-memo';
@@ -75,6 +75,75 @@ interface SalesManagementProps {
   userId: string;
 }
 
+type SaleStatus = {
+  label: string;
+  variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  dueAmount?: number;
+};
+
+function getOriginalDueAmount(sale: Sale) {
+  if (sale.paymentMethod === 'Due') {
+    return sale.total;
+  }
+
+  if (sale.paymentMethod === 'Split') {
+    return Math.max(0, sale.total - (sale.amountPaid || 0));
+  }
+
+  return 0;
+}
+
+function getImmediateSaleStatus(sale: Sale): SaleStatus {
+  switch (sale.paymentMethod) {
+    case 'Cash':
+      return { label: 'Cash', variant: 'default' };
+    case 'Bank':
+      return { label: 'Bank', variant: 'default' };
+    case 'Paid by Credit':
+      return { label: 'Credit', variant: 'default' };
+    case 'Due':
+      return { label: 'Due', variant: 'destructive', dueAmount: sale.total };
+    case 'Split':
+      return {
+        label: 'Partial Due',
+        variant: 'secondary',
+        dueAmount: Math.max(0, sale.total - (sale.amountPaid || 0)),
+      };
+    default:
+      return { label: sale.paymentMethod, variant: 'outline' };
+  }
+}
+
+function getResolvedSaleStatus(sale: Sale, transaction: Transaction | null): SaleStatus {
+  if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
+    return getImmediateSaleStatus(sale);
+  }
+
+  const originalDueAmount = getOriginalDueAmount(sale);
+
+  if (!transaction) {
+    return getImmediateSaleStatus(sale);
+  }
+
+  if (transaction.status === 'Paid' || transaction.amount <= 0) {
+    return { label: 'Paid', variant: 'default' };
+  }
+
+  if (sale.paymentMethod === 'Split' || transaction.amount < originalDueAmount) {
+    return {
+      label: 'Partial Due',
+      variant: 'secondary',
+      dueAmount: transaction.amount,
+    };
+  }
+
+  return {
+    label: 'Due',
+    variant: 'destructive',
+    dueAmount: transaction.amount,
+  };
+}
+
 export default function SalesManagement({ userId }: SalesManagementProps) {
   const { authUser } = useAuth();
   const [sales, setSales] = React.useState<Sale[]>([]);
@@ -92,6 +161,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<Sale[]>([]);
+  const [saleStatuses, setSaleStatuses] = React.useState<Record<string, SaleStatus>>({});
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
@@ -167,6 +237,48 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   };
 
   const displaySales = searchTerm.trim() !== '' ? searchResults : sales;
+
+  React.useEffect(() => {
+    let isCancelled = false;
+
+    async function loadSaleStatuses() {
+      const nextStatuses: Record<string, SaleStatus> = {};
+
+      await Promise.all(
+        displaySales.map(async (sale) => {
+          if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
+            nextStatuses[sale.id] = getImmediateSaleStatus(sale);
+            return;
+          }
+
+          try {
+            const transaction = await getSaleTransaction(userId, sale.saleId);
+            nextStatuses[sale.id] = getResolvedSaleStatus(sale, transaction);
+          } catch (error) {
+            console.error(`Failed to resolve live status for ${sale.saleId}:`, error);
+            nextStatuses[sale.id] = getImmediateSaleStatus(sale);
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setSaleStatuses(nextStatuses);
+      }
+    }
+
+    if (displaySales.length === 0) {
+      setSaleStatuses({});
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    loadSaleStatuses();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [displaySales, userId]);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -326,6 +438,169 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     });
   }
 
+  const resolveStatusesForSales = async (salesToResolve: Sale[]) => {
+    const nextStatuses: Record<string, SaleStatus> = {};
+
+    await Promise.all(
+      salesToResolve.map(async (sale) => {
+        if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
+          nextStatuses[sale.id] = getImmediateSaleStatus(sale);
+          return;
+        }
+
+        try {
+          const transaction = await getSaleTransaction(userId, sale.saleId);
+          nextStatuses[sale.id] = getResolvedSaleStatus(sale, transaction);
+        } catch (error) {
+          console.error(`Failed to resolve export status for ${sale.saleId}:`, error);
+          nextStatuses[sale.id] = getImmediateSaleStatus(sale);
+        }
+      })
+    );
+
+    return nextStatuses;
+  };
+
+  const resolveExportBreakdownForSales = async (salesToResolve: Sale[], reportEndDate: Date) => {
+    const breakdownBySaleId: Record<
+      string,
+      {
+        statusLabel: string;
+        paidAmount: number;
+        dueAmount: number;
+      }
+    > = {};
+
+    const allSales = await getSales(userId);
+    const customerIds = Array.from(new Set(salesToResolve.map((sale) => sale.customerId)));
+
+    const customerTransactionsMap = new Map(
+      await Promise.all(
+        customerIds.map(async (customerId) => {
+          const transactions = await getTransactionsForCustomer(userId, customerId, 'Receivable');
+          return [customerId, transactions] as const;
+        })
+      )
+    );
+
+    const formatMoney = (amount: number) => amount.toFixed(2);
+
+    const buildSplitLabel = (cashAmount: number, bankAmount: number, dueAmount: number) => {
+      const parts: string[] = [];
+      if (cashAmount > 0) {
+        parts.push(`${formatMoney(cashAmount)} Cash`);
+      }
+      if (bankAmount > 0) {
+        parts.push(`${formatMoney(bankAmount)} Bank`);
+      }
+      if (dueAmount > 0) {
+        parts.push(`${formatMoney(dueAmount)} Due`);
+      }
+      return `Split\n${parts.join('\n')}`;
+    };
+
+    for (const customerId of customerIds) {
+      const customerSales = allSales
+        .filter((sale) => sale.customerId === customerId && new Date(sale.date) <= reportEndDate)
+        .filter((sale) => sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split')
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const ledger = customerSales.map((sale) => ({
+        saleId: sale.id,
+        originalDueAmount: getOriginalDueAmount(sale),
+        remainingDueAmount: getOriginalDueAmount(sale),
+        cashPaidAmount: sale.paymentMethod === 'Split' && sale.splitPaymentMethod === 'Cash' ? sale.amountPaid || 0 : 0,
+        bankPaidAmount: sale.paymentMethod === 'Split' && sale.splitPaymentMethod === 'Bank' ? sale.amountPaid || 0 : 0,
+      }));
+
+      const customerPayments = (customerTransactionsMap.get(customerId) || [])
+        .filter((transaction) => transaction.status === 'Paid')
+        .filter((transaction) => transaction.description?.startsWith('Payment from customer'))
+        .filter((transaction) => new Date(transaction.dueDate) <= reportEndDate)
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+      for (const payment of customerPayments) {
+        let amountToAllocate = payment.amount;
+
+        for (const saleLedger of ledger) {
+          if (amountToAllocate <= 0) break;
+          if (saleLedger.remainingDueAmount <= 0) continue;
+
+          const allocatedAmount = Math.min(amountToAllocate, saleLedger.remainingDueAmount);
+          saleLedger.remainingDueAmount -= allocatedAmount;
+
+          if (payment.paymentMethod === 'Bank') {
+            saleLedger.bankPaidAmount += allocatedAmount;
+          } else {
+            saleLedger.cashPaidAmount += allocatedAmount;
+          }
+
+          amountToAllocate -= allocatedAmount;
+        }
+      }
+
+      for (const sale of salesToResolve.filter((entry) => entry.customerId === customerId)) {
+        const total = sale.total;
+
+        if (sale.paymentMethod === 'Cash') {
+          breakdownBySaleId[sale.id] = { statusLabel: 'Cash', paidAmount: total, dueAmount: 0 };
+          continue;
+        }
+
+        if (sale.paymentMethod === 'Bank') {
+          breakdownBySaleId[sale.id] = { statusLabel: 'Bank', paidAmount: total, dueAmount: 0 };
+          continue;
+        }
+
+        if (sale.paymentMethod === 'Paid by Credit') {
+          breakdownBySaleId[sale.id] = { statusLabel: 'Credit', paidAmount: total, dueAmount: 0 };
+          continue;
+        }
+
+        const saleLedger = ledger.find((entry) => entry.saleId === sale.id);
+
+        if (!saleLedger) {
+          breakdownBySaleId[sale.id] = {
+            statusLabel: sale.paymentMethod === 'Split'
+              ? buildSplitLabel(
+                  sale.splitPaymentMethod === 'Cash' ? sale.amountPaid || 0 : 0,
+                  sale.splitPaymentMethod === 'Bank' ? sale.amountPaid || 0 : 0,
+                  getOriginalDueAmount(sale)
+                )
+              : 'Due',
+            paidAmount: sale.paymentMethod === 'Split' ? sale.amountPaid || 0 : 0,
+            dueAmount: getOriginalDueAmount(sale),
+          };
+          continue;
+        }
+
+        const paidAmount = saleLedger.cashPaidAmount + saleLedger.bankPaidAmount;
+        const dueAmount = saleLedger.remainingDueAmount;
+
+        let statusLabel = 'Due';
+        if (dueAmount <= 0) {
+          if (saleLedger.cashPaidAmount > 0 && saleLedger.bankPaidAmount === 0) {
+            statusLabel = 'Cash';
+          } else if (saleLedger.bankPaidAmount > 0 && saleLedger.cashPaidAmount === 0) {
+            statusLabel = 'Bank';
+          } else {
+            statusLabel = buildSplitLabel(saleLedger.cashPaidAmount, saleLedger.bankPaidAmount, 0);
+          }
+        } else if (sale.paymentMethod === 'Split') {
+          statusLabel = buildSplitLabel(saleLedger.cashPaidAmount, saleLedger.bankPaidAmount, dueAmount);
+        }
+
+        breakdownBySaleId[sale.id] = {
+          statusLabel,
+          paidAmount,
+          dueAmount,
+        };
+      }
+    }
+
+    return breakdownBySaleId;
+  };
+
   const handleDownloadPdf = async () => {
     const filteredSales = await getFilteredSales();
     if (!filteredSales || !authUser) return;
@@ -334,6 +609,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
       return;
     }
+
+    const exportBreakdown = await resolveExportBreakdownForSales(filteredSales, dateRange!.to || dateRange!.from!);
 
     const doc = new jsPDF();
     const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
@@ -369,14 +646,16 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
     autoTable(doc, {
       startY: 60,
-      head: [['Date', 'Sale ID', 'Customer', 'Items', 'Discount', 'Payment', 'Total']],
+      head: [['Date', 'Sale ID', 'Customer', 'Items', 'Discount', 'Status', 'Paid Amount', 'Due Amount', 'Total']],
       body: filteredSales.map(sale => [
         format(new Date(sale.date), 'yyyy-MM-dd'),
         sale.saleId,
         getCustomerName(sale.customerId),
         sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', '),
         sale.discountType === 'percentage' ? `${sale.discountValue}%` : `TK ${sale.discountValue.toFixed(2)}`,
-        sale.paymentMethod,
+        exportBreakdown[sale.id]?.statusLabel || sale.paymentMethod,
+        `TK ${(exportBreakdown[sale.id]?.paidAmount ?? sale.total).toFixed(2)}`,
+        `TK ${(exportBreakdown[sale.id]?.dueAmount ?? 0).toFixed(2)}`,
         `TK ${sale.total.toFixed(2)}`
       ]),
     });
@@ -393,13 +672,17 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       return;
     }
 
+    const exportBreakdown = await resolveExportBreakdownForSales(filteredSales, dateRange!.to || dateRange!.from!);
+
     const dataToExport = filteredSales.map(sale => ({
       'Date': format(new Date(sale.date), 'yyyy-MM-dd'),
       'Sale ID': sale.saleId,
       'Customer': getCustomerName(sale.customerId),
       'Items': sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join('; '),
       'Discount': sale.discountType === 'percentage' ? `${sale.discountValue}%` : sale.discountValue,
-      'Payment Method': sale.paymentMethod,
+      'Status': exportBreakdown[sale.id]?.statusLabel || sale.paymentMethod,
+      'Paid Amount': exportBreakdown[sale.id]?.paidAmount ?? sale.total,
+      'Due Amount': exportBreakdown[sale.id]?.dueAmount ?? 0,
       'Total': sale.total,
     }));
 
@@ -515,7 +798,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                   <TableHead>Sale ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Items</TableHead>
-                  <TableHead>Payment</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -556,7 +839,18 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>{sale.paymentMethod}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge variant={saleStatuses[sale.id]?.variant || 'outline'}>
+                            {saleStatuses[sale.id]?.label || sale.paymentMethod}
+                          </Badge>
+                          {saleStatuses[sale.id]?.dueAmount !== undefined && saleStatuses[sale.id].dueAmount! > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              Due: ৳{saleStatuses[sale.id].dueAmount!.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
                         {customer && authUser && (
