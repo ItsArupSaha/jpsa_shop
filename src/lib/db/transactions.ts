@@ -79,7 +79,7 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
   if (!db || !userId) return [];
   const transactionsCollection = collection(db, 'users', userId, 'transactions');
 
-  const finalToDate = toDate || fromDate;
+  const finalToDate = new Date(toDate || fromDate);
   finalToDate.setHours(23, 59, 59, 999);
 
   // First get all paid receivables, then filter by date in application code
@@ -95,7 +95,8 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
   // Filter by date range in application code to avoid composite index requirement
   const filteredTransactions = allTransactions.filter(transaction => {
     const transactionDate = new Date(transaction.dueDate);
-    return transactionDate >= fromDate && transactionDate <= finalToDate;
+    const isVisible = !(transaction as any).isHiddenFromHistory;
+    return isVisible && transactionDate >= fromDate && transactionDate <= finalToDate;
   });
 
   const transactions = await Promise.all(filteredTransactions.map(async (transaction) => {
@@ -241,10 +242,11 @@ export async function addPayment(userId: string, data: { customerId: string, amo
             remainingProfit: remainingProfit - profitToRecognize,
           });
         } else {
-          // Fully paying off this receivable
+          // Fully paying off this receivable — hide from history to avoid duplicates with the payment trace
           transaction.update(receivableRef, {
             status: 'Paid',
             remainingProfit: 0,
+            isHiddenFromHistory: true,
           });
         }
         amountToSettle -= paymentForThisReceivable;
