@@ -438,28 +438,6 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     });
   }
 
-  const resolveStatusesForSales = async (salesToResolve: Sale[]) => {
-    const nextStatuses: Record<string, SaleStatus> = {};
-
-    await Promise.all(
-      salesToResolve.map(async (sale) => {
-        if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
-          nextStatuses[sale.id] = getImmediateSaleStatus(sale);
-          return;
-        }
-
-        try {
-          const transaction = await getSaleTransaction(userId, sale.saleId);
-          nextStatuses[sale.id] = getResolvedSaleStatus(sale, transaction);
-        } catch (error) {
-          console.error(`Failed to resolve export status for ${sale.saleId}:`, error);
-          nextStatuses[sale.id] = getImmediateSaleStatus(sale);
-        }
-      })
-    );
-
-    return nextStatuses;
-  };
 
   const resolveExportBreakdownForSales = async (salesToResolve: Sale[], reportEndDate: Date) => {
     const breakdownBySaleId: Record<
@@ -706,6 +684,106 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     XLSX.writeFile(workbook, `sales-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
+  const getItemsSoldSummary = (filteredSales: Sale[]) => {
+    const summary: Record<string, { title: string; qty: number; revenue: number }> = {};
+    for (const sale of filteredSales) {
+      for (const saleItem of sale.items) {
+        const title = getItemTitle(saleItem.itemId);
+        if (!summary[saleItem.itemId]) {
+          summary[saleItem.itemId] = { title, qty: 0, revenue: 0 };
+        }
+        summary[saleItem.itemId].qty += saleItem.quantity;
+        summary[saleItem.itemId].revenue += saleItem.quantity * saleItem.price;
+      }
+    }
+    return Object.values(summary).sort((a, b) => a.title.localeCompare(b.title));
+  };
+
+  const handleDownloadItemsPdf = async () => {
+    const filteredSales = await getFilteredSales();
+    if (!filteredSales || !authUser) return;
+
+    if (filteredSales.length === 0) {
+      toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
+      return;
+    }
+
+    const summaryRows = getItemsSoldSummary(filteredSales);
+    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
+    const totalQty = summaryRows.reduce((acc, r) => acc + r.qty, 0);
+    const totalRevenue = summaryRows.reduce((acc, r) => acc + r.revenue, 0);
+
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(authUser.companyName || 'Bookstore', 14, 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(authUser.address || '', 14, 26);
+    doc.text(authUser.phone || '', 14, 32);
+
+    let yPos = 20;
+    if (authUser.bkashNumber) {
+      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
+      yPos += 6;
+    }
+    if (authUser.bankInfo) {
+      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Items Sold Summary', 105, 45, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`For the period: ${dateString}`, 105, 51, { align: 'center' });
+    doc.setTextColor(0);
+
+    autoTable(doc, {
+      startY: 60,
+      head: [['#', 'Item / Book Title', 'Qty Sold', 'Total Revenue']],
+      body: summaryRows.map((row, i) => [
+        i + 1,
+        row.title,
+        row.qty,
+        `BDT ${row.revenue.toFixed(2)}`,
+      ]),
+      foot: [['', 'TOTAL', totalQty, `BDT ${totalRevenue.toFixed(2)}`]],
+      footStyles: { fontStyle: 'bold' },
+    });
+
+    doc.save(`items-sold-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
+  };
+
+  const handleDownloadItemsXlsx = async () => {
+    const filteredSales = await getFilteredSales();
+    if (!filteredSales) return;
+
+    if (filteredSales.length === 0) {
+      toast({ title: 'No Sales Found', description: 'There are no sales in the selected date range.' });
+      return;
+    }
+
+    const summaryRows = getItemsSoldSummary(filteredSales);
+
+    const dataToExport = summaryRows.map((row, i) => ({
+      '#': i + 1,
+      'Item / Book Title': row.title,
+      'Qty Sold': row.qty,
+      'Total Revenue (BDT)': row.revenue,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const columnWidths = [{ wch: 5 }, { wch: 40 }, { wch: 12 }, { wch: 22 }];
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Items Sold');
+    XLSX.writeFile(workbook, `items-sold-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
+  };
+
 
   return (
     <>
@@ -780,9 +858,23 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
                       </p>
                     </div>
                   </ScrollArea>
-                  <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                    <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                    <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
+                  <DialogFooter className="pt-4 border-t">
+                    <div className="flex flex-col gap-4 w-full">
+                      <div>
+                        <p className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Sales Report</p>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from} className="flex-1"><FileText className="mr-2 h-4 w-4" /> PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from} className="flex-1"><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Items Sold Summary</p>
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={handleDownloadItemsPdf} disabled={!dateRange?.from} className="flex-1"><FileText className="mr-2 h-4 w-4" /> PDF</Button>
+                          <Button variant="outline" onClick={handleDownloadItemsXlsx} disabled={!dateRange?.from} className="flex-1"><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel</Button>
+                        </div>
+                      </div>
+                    </div>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
