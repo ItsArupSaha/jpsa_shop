@@ -95,8 +95,10 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
   // Filter by date range in application code to avoid composite index requirement
   const filteredTransactions = allTransactions.filter(transaction => {
     const transactionDate = new Date(transaction.dueDate);
-    const isVisible = !(transaction as any).isHiddenFromHistory;
-    return isVisible && transactionDate >= fromDate && transactionDate <= finalToDate;
+    // Exclude: explicitly hidden records AND original sale receivables (have saleId but no paymentMethod).
+    // Old records may lack isHiddenFromHistory even though they should be hidden — saleId is the reliable signal.
+    const isHidden = (transaction as any).isHiddenFromHistory || (transaction as any).saleId;
+    return !isHidden && transactionDate >= fromDate && transactionDate <= finalToDate;
   });
 
   const transactions = await Promise.all(filteredTransactions.map(async (transaction) => {
