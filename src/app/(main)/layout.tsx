@@ -12,6 +12,7 @@ import {
   LogIn,
   LogOut,
   Package,
+  Presentation,
   RotateCcw,
   Scale,
   ShoppingBag,
@@ -53,6 +54,7 @@ const navItems = [
   { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },
   { href: '/reports', icon: FileText, label: 'Reports' },
   { href: '/balance-sheet', icon: Scale, label: 'Balance Sheet' },
+  { href: '/authority-presentation', icon: Presentation, label: 'Authority presentation' },
 ];
 
 function ProfileButton() {
