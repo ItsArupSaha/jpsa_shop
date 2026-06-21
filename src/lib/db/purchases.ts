@@ -111,16 +111,21 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                   const newStock = currentStock + Number(item.quantity);
                   const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
                   
-                  // Optionally keep the higher selling price or recalculate standard markup
+                   // Optionally keep the higher selling price or recalculate standard markup
                   const newSellingPrice = item.sellingPrice && item.sellingPrice > 0 
                                             ? item.sellingPrice 
                                             : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
                   
-                  transaction.update(bookDoc.ref, { 
+                  const updateData: any = { 
                       stock: newStock,
                       productionPrice: newProductionPrice,
                       sellingPrice: newSellingPrice
-                  });
+                  };
+                  if (item.medicineGroup) updateData.medicineGroup = item.medicineGroup;
+                  if (item.company) updateData.company = item.company;
+                  if (item.expiryDate) updateData.expiryDate = item.expiryDate;
+
+                  transaction.update(bookDoc.ref, updateData);
               } else {
                   const newItemRef = doc(itemsCollection);
                   const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
@@ -134,6 +139,11 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                       productionPrice: item.cost,
                       sellingPrice: sellingPrice,
                   };
+
+                  if (item.medicineGroup) newItemData.medicineGroup = item.medicineGroup;
+                  if (item.company) newItemData.company = item.company;
+                  if (item.expiryDate) newItemData.expiryDate = item.expiryDate;
+
                   transaction.set(newItemRef, newItemData);
               }
           }

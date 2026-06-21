@@ -8,7 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { getDashboardStats } from '@/lib/db/dashboard';
+import { getItems } from '@/lib/actions';
 import { ArrowRightLeft, DollarSign, Settings, ShoppingCart } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
 type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
@@ -16,6 +18,7 @@ type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
 export default function DashboardPage() {
   const { user, authUser } = useAuth();
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
+  const [alertCount, setAlertCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -24,6 +27,14 @@ export default function DashboardPage() {
         setStats(data);
         setIsLoading(false);
       });
+      // Fetch expiring medicines count
+      getItems(user.uid).then(items => {
+        const now = new Date();
+        const oneMonthFromNow = new Date();
+        oneMonthFromNow.setDate(now.getDate() + 30);
+        const count = items.filter(item => item.expiryDate && new Date(item.expiryDate) <= oneMonthFromNow).length;
+        setAlertCount(count);
+      }).catch(err => console.error("Failed to fetch alert count for dashboard:", err));
     }
   }, [user]);
 
@@ -70,6 +81,24 @@ export default function DashboardPage() {
           </Button>
         </EditCompanyDetailsDialog>
       </div>
+
+      {alertCount > 0 && (
+        <div className="p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 rounded-lg flex items-start gap-3 animate-in slide-in-from-top duration-300">
+          <span className="text-xl">⚠️</span>
+          <div className="flex-1">
+            <h4 className="font-semibold text-amber-800 dark:text-amber-400">Medicine Expiry Warning</h4>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              There are {alertCount} medicine(s) expired or expiring within 30 days. Please check and return or replace them.
+            </p>
+            <Link 
+              href="/expiry-alerts" 
+              className="inline-block mt-1 text-sm text-amber-800 dark:text-amber-400 font-semibold underline hover:text-amber-900"
+            >
+              Go to Expiry Alerts page
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

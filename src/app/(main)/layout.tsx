@@ -17,11 +17,13 @@ import {
   Scale,
   ShoppingBag,
   ShoppingCart,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
+import { getItems } from '@/lib/actions';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -42,6 +44,7 @@ import { useAuth } from '@/hooks/use-auth';
 const navItems = [
   { href: '/dashboard', icon: Home, label: 'Dashboard' },
   { href: '/items', icon: Book, label: 'Items' },
+  { href: '/expiry-alerts', icon: AlertTriangle, label: 'Expiry Alerts' },
   { href: '/packages', icon: Package, label: 'Packages' },
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/sales', icon: ShoppingCart, label: 'Sales' },
@@ -98,8 +101,21 @@ function ProfileButton() {
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { authUser } = useAuth();
+  const { authUser, user } = useAuth();
+  const [alertCount, setAlertCount] = React.useState(0);
   const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard';
+
+  React.useEffect(() => {
+    if (user) {
+      getItems(user.uid).then(items => {
+        const now = new Date();
+        const oneMonthFromNow = new Date();
+        oneMonthFromNow.setDate(now.getDate() + 30);
+        const count = items.filter(item => item.expiryDate && new Date(item.expiryDate) <= oneMonthFromNow).length;
+        setAlertCount(count);
+      }).catch(err => console.error("Failed to fetch alert count for sidebar:", err));
+    }
+  }, [user, pathname]); // Re-fetch on path name change to update badges when editing/deleting
 
   return (
     <SidebarProvider>
@@ -111,7 +127,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <Book className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="flex flex-col">
-                <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Bookstore'}</h1>
+                <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Store'}</h1>
                 {authUser?.subtitle && <p className="text-xs text-muted-foreground">{authUser.subtitle}</p>}
               </div>
             </div>
@@ -125,9 +141,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     isActive={pathname.startsWith(item.href)}
                     tooltip={item.label}
                   >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
+                    <Link href={item.href} className="flex justify-between items-center w-full">
+                      <div className="flex items-center gap-2">
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </div>
+                      {item.href === '/expiry-alerts' && alertCount > 0 && (
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground animate-pulse">
+                          {alertCount}
+                        </span>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -49,6 +49,9 @@ export type Item = {
   categoryId: string;
   categoryName: string;
   author?: string; // Optional, only for books
+  medicineGroup?: string; // Optional, only for medicines
+  company?: string; // Optional, only for medicines
+  expiryDate?: string; // Optional, only for medicines (stored as YYYY-MM-DD string)
   productionPrice: number;
   sellingPrice: number;
   stock: number;
@@ -101,6 +104,9 @@ export type PurchaseItem = {
     categoryId: string;
     categoryName: string;
     author?: string;
+    medicineGroup?: string;
+    company?: string;
+    expiryDate?: string;
     quantity: number;
     cost: number;
     sellingPrice?: number;

@@ -1,44 +1,23 @@
-
 'use client';
 
-import { addExpense, deleteExpense, getExpenses, getExpensesPaginated, updateExpense } from '@/lib/actions';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { Download, Edit, FileSpreadsheet, FileText, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import * as React from 'react';
+import { format } from 'date-fns';
+import { Download, Edit, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { useForm } from 'react-hook-form';
-import * as XLSX from 'xlsx';
-import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { deleteExpense, getExpensesPaginated } from '@/lib/actions';
 import type { Expense } from '@/lib/types';
-import { cn } from "@/lib/utils";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { ScrollArea } from './ui/scroll-area';
 import { Skeleton } from './ui/skeleton';
-
-const expenseSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().min(1, 'Description is required'),
-  amount: z.coerce.number().min(0.01, 'Amount must be positive'),
-  date: z.date({ required_error: "An expense date is required." }),
-  paymentMethod: z.enum(['Cash', 'Bank'], { required_error: "A payment method is required." }),
-});
-
-type ExpenseFormValues = z.infer<typeof expenseSchema>;
+import { AddExpenseDialog } from './expenses/add-expense-dialog';
+import { downloadExpensesPdf, downloadExpensesXlsx } from './expenses/expenses-export-utils';
 
 interface ExpensesManagementProps {
   userId: string;
@@ -59,11 +38,16 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5 });
-    setExpenses(newExpenses);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, [userId]);
+    try {
+      const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5 });
+      setExpenses(newExpenses);
+      setHasMore(newHasMore);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load expenses.' });
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [userId, toast]);
 
   React.useEffect(() => {
     if (userId) {
@@ -71,439 +55,190 @@ export default function ExpensesManagement({ userId }: ExpensesManagementProps) 
     }
   }, [userId, loadInitialData]);
 
-
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastExpenseId = expenses[expenses.length - 1]?.id;
-    const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5, lastVisibleId: lastExpenseId });
-    setExpenses(prev => [...prev, ...newExpenses]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
+    try {
+      const { expenses: newExpenses, hasMore: newHasMore } = await getExpensesPaginated({ userId, pageLimit: 5, lastVisibleId: lastExpenseId });
+      setExpenses(prev => [...prev, ...newExpenses]);
+      setHasMore(newHasMore);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load more expenses.' });
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
-  const form = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      amount: 0,
-      date: new Date(),
-      paymentMethod: 'Cash',
-    },
-  });
-
   const handleAddNew = () => {
-    form.reset({ name: '', description: '', amount: 0, date: new Date(), paymentMethod: 'Cash' });
     setEditingExpense(null);
     setIsAddDialogOpen(true);
   };
 
   const handleEdit = (expense: Expense) => {
-    form.reset({
-      name: expense.name || '',
-      description: expense.description || '',
-      amount: expense.amount || 0,
-      date: new Date(expense.date),
-      paymentMethod: expense.paymentMethod || 'Cash',
-    });
     setEditingExpense(expense);
     setIsAddDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
     startTransition(async () => {
-      await deleteExpense(userId, id);
-      setExpenses(prev => prev.filter(e => e.id !== id));
-      toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
-    });
-  };
-
-  const onSubmit = (data: ExpenseFormValues) => {
-    startTransition(async () => {
-      if (editingExpense) {
-        const updatedExpense = await updateExpense(userId, editingExpense.id, data);
-        setExpenses(prev => prev.map(e => e.id === editingExpense.id ? updatedExpense : e));
-        toast({ title: 'Expense Updated', description: 'The expense has been updated successfully.' });
-      } else {
-        const newExpense = await addExpense(userId, data);
-        setExpenses(prev => [newExpense, ...prev]);
-        toast({ title: 'Expense Added', description: 'The new expense has been recorded.' });
+      try {
+        await deleteExpense(userId, id);
+        setExpenses(prev => prev.filter(e => e.id !== id));
+        toast({ title: 'Expense Deleted', description: 'The expense has been removed.' });
+      } catch (err) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete expense.' });
       }
-      setIsAddDialogOpen(false);
-      setEditingExpense(null);
     });
   };
 
-  const getFilteredExpenses = async () => {
-    if (!dateRange?.from) {
-      toast({
-        variant: "destructive",
-        title: "Please select a start date.",
-      });
-      return null;
+  const handleSuccess = (expense: Expense, isEdit: boolean) => {
+    if (isEdit) {
+      setExpenses(prev => prev.map(e => e.id === expense.id ? expense : e));
+    } else {
+      setExpenses(prev => [expense, ...prev]);
     }
-
-    const allExpenses = await getExpenses(userId);
-    const from = dateRange.from;
-    const to = dateRange.to || dateRange.from;
-    to.setHours(23, 59, 59, 999);
-
-    return allExpenses.filter(expense => {
-      const expenseDate = new Date(expense.date);
-      return expenseDate >= from && expenseDate <= to;
-    });
-  }
+    loadInitialData();
+  };
 
   const handleDownloadPdf = async () => {
-    const filteredExpenses = await getFilteredExpenses();
-    if (!filteredExpenses || !authUser) return;
-
-    if (filteredExpenses.length === 0) {
-      toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
-      return;
+    try {
+      const success = await downloadExpensesPdf(userId, dateRange, authUser);
+      if (!success) {
+        toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
+      }
+      setIsDownloadDialogOpen(false);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message || 'Failed to download PDF.' });
     }
-
-    const doc = new jsPDF();
-    const dateString = `${format(dateRange!.from!, 'PPP')} - ${format(dateRange!.to! || dateRange!.from!, 'PPP')}`;
-    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-    // Left side header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(authUser.companyName || 'Bookstore', 14, 20);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(authUser.address || '', 14, 26);
-    doc.text(authUser.phone || '', 14, 32);
-
-    // Right side header
-    let yPos = 20;
-    if (authUser.bkashNumber) {
-      doc.text(`Bkash: ${authUser.bkashNumber}`, 200, yPos, { align: 'right' });
-      yPos += 6;
-    }
-    if (authUser.bankInfo) {
-      doc.text(`Bank: ${authUser.bankInfo}`, 200, yPos, { align: 'right' });
-    }
-
-    // Report Title
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Expense Report', 105, 45, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100);
-    doc.text(`For the period: ${dateString}`, 105, 51, { align: 'center' });
-    doc.setTextColor(0);
-
-    autoTable(doc, {
-      startY: 60,
-      head: [['Date', 'Expense ID', 'Name', 'Description', 'Method', 'Amount']],
-      body: filteredExpenses.map(e => [
-        format(new Date(e.date), 'yyyy-MM-dd'),
-        e.expenseId || 'N/A',
-        e.name || '',
-        e.description || '',
-        e.paymentMethod || '',
-        `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(e.amount)}`
-      ]).filter(row => row.every(cell => cell !== undefined)),
-      foot: [
-        [
-          { content: 'Total', colSpan: 4, styles: { halign: 'right' } },
-          `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalExpenses)}`
-        ],
-      ],
-      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
-    });
-
-    doc.save(`expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleDownloadXlsx = async () => {
-    const filteredExpenses = await getFilteredExpenses();
-    if (!filteredExpenses) return;
-
-    if (filteredExpenses.length === 0) {
-      toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
-      return;
+    try {
+      const success = await downloadExpensesXlsx(userId, dateRange);
+      if (!success) {
+        toast({ title: 'No Expenses Found', description: 'There are no expenses in the selected date range.' });
+      }
+      setIsDownloadDialogOpen(false);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message || 'Failed to download Excel.' });
     }
-
-    const dataToExport = filteredExpenses.map(e => ({
-      'Date': format(new Date(e.date), 'yyyy-MM-dd'),
-      'Expense ID': e.expenseId || 'N/A',
-      'Name': e.name,
-      'Description': e.description,
-      'Method': e.paymentMethod,
-      'Amount': e.amount,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-    const columnWidths = Object.keys(dataToExport[0]).map(key => {
-      const maxLength = Math.max(
-        ...dataToExport.map(row => {
-          const value = row[key as keyof typeof row];
-          return typeof value === 'number' ? String(value).length : (value || '').length;
-        }),
-        key.length
-      );
-      return { wch: maxLength + 2 };
-    });
-    worksheet['!cols'] = columnWidths;
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
-    XLSX.writeFile(workbook, `expense-report-${format(dateRange!.from!, 'yyyy-MM-dd')}-to-${format(dateRange!.to! || dateRange!.from!, 'yyyy-MM-dd')}.xlsx`);
   };
 
-
   return (
-    <Card className="animate-in fade-in-50">
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="font-headline text-2xl">Track Expenses</CardTitle>
-            <CardDescription>Record and manage all bookstore expenses.</CardDescription>
+    <>
+      <Card className="animate-in fade-in-50">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="font-headline text-2xl">Track Expenses</CardTitle>
+              <CardDescription>Record and manage all bookstore expenses.</CardDescription>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <Button onClick={handleAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Expense
+              </Button>
+              <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Download className="mr-2 h-4 w-4" /> Download Report
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Download Expense Report</DialogTitle>
+                    <DialogDescription>Select a date range to download your expense data.</DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+                    <div className="py-4 flex flex-col items-center gap-4">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={dateRange?.from}
+                        selected={dateRange}
+                        onSelect={setDateRange}
+                        numberOfMonths={1}
+                      />
+                    </div>
+                  </ScrollArea>
+                  <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
+                    <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}>Download PDF</Button>
+                    <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}>Download Excel</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <Button onClick={handleAddNew}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Expense
-            </Button>
-            <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" /> Download Report
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Download Expense Report</DialogTitle>
-                  <DialogDescription>Select a date range to download your expense data.</DialogDescription>
-                </DialogHeader>
-                <ScrollArea className="max-h-[calc(100vh-20rem)] overflow-y-auto">
-                  <div className="py-4 flex flex-col items-center gap-4">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={dateRange?.from}
-                      selected={dateRange}
-                      onSelect={setDateRange}
-                      numberOfMonths={1}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>
-                            Selected: {format(dateRange.from, "LLL dd, y")} -{" "}
-                            {format(dateRange.to, "LLL dd, y")}
-                          </>
-                        ) : (
-                          <>Selected: {format(dateRange.from, "LLL dd, y")}</>
-                        )
-                      ) : (
-                        <span>Please pick a start and end date.</span>
-                      )}
-                    </p>
-                  </div>
-                </ScrollArea>
-                <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
-                  <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}><FileText className="mr-2 h-4 w-4" /> Download PDF</Button>
-                  <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}><FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Expense ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isInitialLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={`skeleton-${i}`}>
-                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : expenses.length > 0 ? expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="font-mono">{expense.expenseId || 'N/A'}</TableCell>
-                  <TableCell className="font-medium">{expense.name}</TableCell>
-                  <TableCell>{expense.description}</TableCell>
-                  <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
-                  <TableCell>{expense.paymentMethod}</TableCell>
-                  <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(expense)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )) : (
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
+                  <TableHead>Expense ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        {hasMore && (
-          <div className="flex justify-center mt-4">
-            <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
-            </Button>
+              </TableHeader>
+              <TableBody>
+                {isInitialLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`}>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-3/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-2/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-[100px] ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : expenses.length > 0 ? expenses.map((expense) => (
+                  <TableRow key={expense.id}>
+                    <TableCell className="font-mono">{expense.expenseId || 'N/A'}</TableCell>
+                    <TableCell className="font-medium">{expense.name}</TableCell>
+                    <TableCell>{expense.description}</TableCell>
+                    <TableCell>{format(new Date(expense.date), 'PPP')}</TableCell>
+                    <TableCell>{expense.paymentMethod}</TableCell>
+                    <TableCell className="text-right">৳{expense.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(expense)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(expense.id)} disabled={isPending}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">No expenses recorded.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </CardContent>
+          {hasMore && (
+            <div className="flex justify-center mt-4">
+              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="font-headline">{editingExpense ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
-            <DialogDescription>
-              {editingExpense ? 'Update the details for this expense.' : 'Enter the details for the new expense.'}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1">
-                <div className="space-y-4 py-4 px-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., John Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Office Supplies" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Amount</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.01" placeholder="50.00" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="paymentMethod"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel>Payment Method</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="flex gap-4"
-                          >
-                            <FormItem className="flex items-center space-x-2">
-                              <FormControl><RadioGroupItem value="Cash" /></FormControl>
-                              <FormLabel className="font-normal">Cash</FormLabel>
-                            </FormItem>
-                            <FormItem className="flex items-center space-x-2">
-                              <FormControl><RadioGroupItem value="Bank" /></FormControl>
-                              <FormLabel className="font-normal">Bank</FormLabel>
-                            </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Expense Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date < new Date("1900-01-01")
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-              <DialogFooter className="pt-4 border-t">
-                <Button type="submit" disabled={isPending}>{isPending ? "Saving..." : "Save Expense"}</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-    </Card>
+      <AddExpenseDialog
+        userId={userId}
+        isOpen={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        editingExpense={editingExpense}
+        onSuccess={handleSuccess}
+      />
+    </>
   );
 }
-

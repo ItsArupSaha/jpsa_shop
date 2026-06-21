@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -24,29 +22,17 @@ import { useToast } from '@/hooks/use-toast';
 import { getAccountBalances, getTransfersPaginated, recordTransfer } from '@/lib/actions';
 import type { Transfer } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Skeleton } from './ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-
-const transferSchema = z.object({
-    from: z.enum(['Cash', 'Bank'], { required_error: 'Please select a source.' }),
-    to: z.enum(['Cash', 'Bank'], { required_error: 'Please select a destination.' }),
-    amount: z.coerce.number().min(0.01, 'Amount must be positive'),
-    date: z.date({ required_error: "A transfer date is required." }),
-}).refine(data => data.from !== data.to, {
-    message: "Source and destination cannot be the same.",
-    path: ['to'],
-});
-
-type TransferFormValues = z.infer<typeof transferSchema>;
+import { transferSchema, type TransferFormValues } from './transfer/schema';
+import { TransferHistoryTable } from './transfer/transfer-history-table';
 
 interface CashBankTransferProps {
     userId: string;
@@ -278,48 +264,14 @@ export default function CashBankTransfer({ userId }: CashBankTransferProps) {
                     <CardTitle className="font-headline text-xl">Transfer History</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoadingTransfers ? (
-                                    Array.from({ length: 3 }).map((_, i) => (
-                                        <TableRow key={`skeleton-${i}`}>
-                                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                                            <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                                            <TableCell><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : transfers.length > 0 ? (
-                                    transfers.map((transfer) => (
-                                        <TableRow key={transfer.id}>
-                                            <TableCell>{format(new Date(transfer.date), 'PPP')}</TableCell>
-                                            <TableCell>{transfer.description}</TableCell>
-                                            <TableCell className="text-right font-medium">{formatCurrency(transfer.amount)}</TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={3} className="h-24 text-center">No transfers recorded yet.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    {hasMore && (
-                        <div className="flex justify-center mt-4">
-                            <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
-                                {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Load More
-                            </Button>
-                        </div>
-                    )}
+                    <TransferHistoryTable
+                        transfers={transfers}
+                        isLoadingTransfers={isLoadingTransfers}
+                        hasMore={hasMore}
+                        isLoadingMore={isLoadingMore}
+                        onLoadMore={handleLoadMore}
+                        formatCurrency={formatCurrency}
+                    />
                 </CardContent>
             </Card>
         </div>
