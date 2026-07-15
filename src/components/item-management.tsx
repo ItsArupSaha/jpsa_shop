@@ -60,8 +60,10 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   const [sortBy, setSortBy] = React.useState('title-asc');
   const [visibleCount, setVisibleCount] = React.useState(10);
 
-  const loadData = React.useCallback(async () => {
-    setIsInitialLoading(true);
+  const loadData = React.useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsInitialLoading(true);
+    }
     try {
       const allItemsData = await getItems(userId);
       setAllItems(allItemsData);
@@ -110,7 +112,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     startTransition(async () => {
       try {
         await deleteItem(userId, id);
-        await loadData();
+        await loadData(true);
         toast({ title: 'Item Deleted', description: 'The item has been removed from the inventory.' });
       } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the item.' });
@@ -122,7 +124,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     startTransition(async () => {
       try {
         await deleteCategory(userId, id);
-        await loadData();
+        await loadData(true);
         toast({ title: 'Category Deleted', description: 'The category has been removed.' });
       } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the category.' });
@@ -266,7 +268,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
             <Button onClick={handleAddNewItem} className="bg-primary hover:bg-primary/90">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
             </Button>
-            <AddExistingAssetDialog userId={userId} onAssetAdded={loadData}>
+            <AddExistingAssetDialog userId={userId} onAssetAdded={() => loadData(true)}>
               <Button variant="outline">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Existing Asset
               </Button>
@@ -453,7 +455,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         onOpenChange={setIsItemDialogOpen}
         editingItem={editingItem}
         categories={categories}
-        onSuccess={loadData}
+        onSuccess={() => loadData(true)}
         onAddCategoryClick={handleAddNewCategory}
       />
 
@@ -462,7 +464,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         isOpen={isCategoryDialogOpen}
         onOpenChange={setIsCategoryDialogOpen}
         editingCategory={editingCategory}
-        onSuccess={loadData}
+        onSuccess={() => loadData(true)}
       />
     </Card>
   );

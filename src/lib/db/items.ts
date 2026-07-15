@@ -13,7 +13,6 @@ import {
   startAfter,
   updateDoc
 } from 'firebase/firestore';
-import { revalidatePath } from 'next/cache';
 
 import { db } from '../firebase';
 import type { Item } from '../types';
@@ -67,7 +66,6 @@ export async function addItem(userId: string, data: Omit<Item, 'id'>) {
   if (!db || !userId) return;
   const itemsCollection = collection(db, 'users', userId, 'items');
   const newDocRef = await addDoc(itemsCollection, data);
-  revalidatePath('/items');
   return { id: newDocRef.id, ...data };
 }
 
@@ -75,12 +73,10 @@ export async function updateItem(userId: string, id: string, data: Omit<Item, 'i
   if (!db || !userId) return;
   const itemRef = doc(db, 'users', userId, 'items', id);
   await updateDoc(itemRef, data);
-  revalidatePath('/items');
 }
 
 export async function deleteItem(userId: string, id: string) {
   if (!db || !userId) return;
   const itemRef = doc(db, 'users', userId, 'items', id);
   await deleteDoc(itemRef);
-  revalidatePath('/items');
 }
