@@ -10,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories, getPurchasesPaginated } from '@/lib/actions';
-import type { Category, Purchase } from '@/lib/types';
+import { getCategories, getPurchasesPaginated, getItems } from '@/lib/actions';
+import type { Category, Purchase, Item } from '@/lib/types';
 import { AddOfficeAssetDialog } from './add-office-asset-dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { PurchasesTable } from './purchases/purchases-table';
@@ -27,6 +27,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const { authUser } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
+  const [items, setItems] = React.useState<Item[]>([]);
   const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -44,6 +45,8 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       setHasMore(newHasMore);
       const categoriesData = await getCategories(userId);
       setCategories(categoriesData);
+      const itemsData = await getItems(userId);
+      setItems(itemsData);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
     } finally {
@@ -164,6 +167,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         categories={categories}
+        items={items}
         onSuccess={loadInitialData}
         onAddCategoryClick={() => setIsCategoryDialogOpen(true)}
       />

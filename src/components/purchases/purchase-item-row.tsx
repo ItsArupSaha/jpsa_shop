@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Category } from '@/lib/types';
+import type { Category, Item } from '@/lib/types';
 
 interface PurchaseItemRowProps {
   index: number;
   categories: Category[];
+  items: Item[];
   onAddCategoryClick: () => void;
   onRemove: () => void;
   disabledRemove: boolean;
@@ -21,13 +22,51 @@ interface PurchaseItemRowProps {
 export function PurchaseItemRow({
   index,
   categories,
+  items,
   onAddCategoryClick,
   onRemove,
   disabledRemove,
 }: PurchaseItemRowProps) {
   const { control, watch, setValue } = useFormContext();
+  const watchCategoryId = watch(`items.${index}.categoryId`);
   const watchCategoryName = watch(`items.${index}.categoryName`);
   const isMedicine = watchCategoryName?.toLowerCase().includes('medicine');
+  const isBook = watchCategoryName?.toLowerCase().includes('book');
+
+  const [isNewItem, setIsNewItem] = React.useState(true);
+  const [selectedItemId, setSelectedItemId] = React.useState('__new__');
+
+  const categoryItems = React.useMemo(() => {
+    if (!watchCategoryId) return [];
+    return items.filter(item => item.categoryId === watchCategoryId);
+  }, [items, watchCategoryId]);
+
+  React.useEffect(() => {
+    setSelectedItemId('__new__');
+    setIsNewItem(true);
+  }, [watchCategoryId]);
+
+  const handleItemChange = (value: string) => {
+    setSelectedItemId(value);
+    if (value === '__new__') {
+      setIsNewItem(true);
+      setValue(`items.${index}.itemName`, '');
+      setValue(`items.${index}.author`, '');
+      setValue(`items.${index}.medicineGroup`, '');
+      setValue(`items.${index}.company`, '');
+      setValue(`items.${index}.sellingPrice`, 0);
+    } else {
+      setIsNewItem(false);
+      const item = categoryItems.find(i => i.id === value);
+      if (item) {
+        setValue(`items.${index}.itemName`, item.title);
+        setValue(`items.${index}.author`, item.author || '');
+        setValue(`items.${index}.medicineGroup`, item.medicineGroup || '');
+        setValue(`items.${index}.company`, item.company || '');
+        setValue(`items.${index}.sellingPrice`, item.sellingPrice || 0);
+      }
+    }
+  };
 
   return (
     <div className="flex gap-2 items-start p-3 border rounded-md relative">
@@ -35,17 +74,46 @@ export function PurchaseItemRow({
         "flex-1 grid grid-cols-1 gap-3",
         isMedicine ? "md:grid-cols-4" : "md:grid-cols-6"
       )}>
-        <FormField
-          control={control}
-          name={`items.${index}.itemName`}
-          render={({ field }) => (
-            <FormItem className="md:col-span-2">
-              <FormLabel className="text-xs">Item Name</FormLabel>
-              <FormControl><Input placeholder="e.g., Napa 500mg" {...field} /></FormControl>
-              <FormMessage />
+        <div className="md:col-span-2 space-y-2">
+          {categoryItems.length > 0 && (
+            <FormItem>
+              <FormLabel className="text-xs">Select Existing Item</FormLabel>
+              <Select onValueChange={handleItemChange} value={selectedItemId}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose an existing item" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="__new__">+ Add New Item</SelectItem>
+                  {categoryItems.map(item => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.title} {item.author ? `(by ${item.author})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormItem>
           )}
-        />
+          
+          <FormField
+            control={control}
+            name={`items.${index}.itemName`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">{isNewItem ? "Item Name (New)" : "Item Name"}</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="e.g., Napa 500mg" 
+                    disabled={!isNewItem} 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <div className="flex items-end gap-2">
           <FormField
             control={control}
@@ -69,7 +137,7 @@ export function PurchaseItemRow({
           />
           <Button type="button" variant="outline" size="icon" onClick={onAddCategoryClick}><Plus className="h-4 w-4" /></Button>
         </div>
-        {watchCategoryName === 'Book' && (
+        {isBook && (
           <FormField
             control={control}
             name={`items.${index}.author`}
@@ -134,7 +202,7 @@ export function PurchaseItemRow({
           control={control}
           name={`items.${index}.cost`}
           render={({ field }) => (
-            <FormItem className={(watchCategoryName !== 'Book' && !isMedicine) ? 'md:col-start-4' : ''}>
+            <FormItem className={(!isBook && !isMedicine) ? 'md:col-start-4' : ''}>
               <FormLabel className="text-xs">Unit Cost</FormLabel>
               <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
               <FormMessage />

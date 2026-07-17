@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { addPurchase } from '@/lib/actions';
-import type { Category } from '@/lib/types';
+import type { Category, Item } from '@/lib/types';
 
 import { purchaseFormSchema, type PurchaseFormValues } from './schema';
 import { PurchaseItemRow } from './purchase-item-row';
@@ -31,6 +31,7 @@ interface RecordPurchaseDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   categories: Category[];
+  items: Item[];
   onSuccess: () => void;
   onAddCategoryClick: () => void;
 }
@@ -40,6 +41,7 @@ export function RecordPurchaseDialog({
   isOpen,
   onOpenChange,
   categories,
+  items,
   onSuccess,
   onAddCategoryClick,
 }: RecordPurchaseDialogProps) {
@@ -146,6 +148,7 @@ export function RecordPurchaseDialog({
                       key={field.id}
                       index={index}
                       categories={categories}
+                      items={items}
                       onAddCategoryClick={onAddCategoryClick}
                       onRemove={() => remove(index)}
                       disabledRemove={fields.length === 1}

@@ -12,7 +12,7 @@ export const purchaseItemSchema = z.object({
   cost: z.coerce.number().min(0, 'Cost must be non-negative'),
   sellingPrice: z.coerce.number().optional(),
 }).refine(data => {
-    if (data.categoryName === 'Book') {
+    if (data.categoryName?.toLowerCase().includes('book')) {
         return !!data.author && data.author.length > 0;
     }
     return true;

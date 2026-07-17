@@ -121,12 +121,12 @@ export function AddItemDialog({
   }, [isOpen, editingItem, itemForm]);
 
   const selectedCategory = categories.find(cat => cat.id === itemForm.watch('categoryId'));
-  const showAuthorField = selectedCategory?.name === 'Book';
-  const isMedicineCategory = selectedCategory?.name.toLowerCase().includes('medicine');
+  const showAuthorField = selectedCategory?.name?.toLowerCase().includes('book') || false;
+  const isMedicineCategory = selectedCategory?.name?.toLowerCase().includes('medicine') || false;
 
   const onSubmit = (data: ItemFormValues) => {
     // Validate author field for books
-    if (selectedCategory?.name === 'Book' && (!data.author || data.author.trim().length === 0)) {
+    if (showAuthorField && (!data.author || data.author.trim().length === 0)) {
       toast({ variant: "destructive", title: "Error", description: "Author is required for books." });
       return;
     }
@@ -137,7 +137,7 @@ export function AddItemDialog({
           title: data.title,
           categoryId: data.categoryId,
           categoryName: selectedCategory?.name || '',
-          author: selectedCategory?.name === 'Book' ? data.author || undefined : undefined,
+          author: showAuthorField ? data.author || undefined : undefined,
           medicineGroup: isMedicineCategory ? data.medicineGroup || undefined : undefined,
           company: isMedicineCategory ? data.company || undefined : undefined,
           expiryDate: isMedicineCategory ? data.expiryDate || undefined : undefined,
