@@ -3,7 +3,7 @@
 import { addSale, getCustomers } from '@/lib/actions';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, Loader2, ShoppingCart } from 'lucide-react';
+import { CalendarIcon, Gift, Loader2, PlusCircle, ShoppingCart, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 
@@ -23,6 +23,7 @@ import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { saleFormSchema, type SaleFormValues } from './packages/schema';
 import { PackageSaleItemsSummary } from './packages/package-sale-items-summary';
+import { Badge } from '@/components/ui/badge';
 
 interface PackageSaleDialogProps {
   packageTemplate: PackageTemplate;
@@ -70,12 +71,35 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
       amountPaid: 0,
       splitPaymentMethod: 'Cash',
       creditApplied: 0,
+      gifts: packageTemplate.gifts || [],
     },
   });
+
+  React.useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        customerId: '',
+        date: new Date(),
+        items: packageTemplate.items.map(item => ({ itemId: item.itemId, quantity: item.quantity })),
+        discountType: 'none',
+        discountValue: 0,
+        paymentMethod: 'Cash',
+        amountPaid: 0,
+        splitPaymentMethod: 'Cash',
+        creditApplied: 0,
+        gifts: packageTemplate.gifts || [],
+      });
+    }
+  }, [isOpen, packageTemplate, form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'items',
+  });
+
+  const { fields: giftFields, append: appendGift, remove: removeGift } = useFieldArray({
+    control: form.control,
+    name: 'gifts' as any,
   });
 
   const watchItems = form.watch('items');
@@ -132,10 +156,13 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
     }
 
     startTransition(async () => {
+      const cleanedGifts = (data.gifts || []).map(g => typeof g === 'string' ? g.trim() : '').filter(Boolean);
       const saleData = {
         ...data,
         date: data.date.toISOString(),
-        items: currentItemsDetails.map(i => ({ itemId: i.itemId, quantity: i.quantity, price: i.price }))
+        items: currentItemsDetails.map(i => ({ itemId: i.itemId, quantity: i.quantity, price: i.price })),
+        packageName: packageTemplate.name,
+        gifts: cleanedGifts,
       };
       
       const result = await addSale(userId, saleData);
@@ -154,6 +181,19 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
     if (!newOpen) {
       setCompletedSale(null);
       form.reset();
+    } else {
+      form.reset({
+        customerId: '',
+        date: new Date(),
+        items: prefilledItems.map(item => ({ itemId: item.itemId, quantity: item.quantity })),
+        discountType: 'none',
+        discountValue: 0,
+        paymentMethod: 'Cash',
+        amountPaid: 0,
+        splitPaymentMethod: 'Cash',
+        creditApplied: 0,
+        gifts: packageTemplate.gifts || [],
+      });
     }
     setIsOpen(newOpen);
   };
@@ -203,6 +243,54 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
                   items={items}
                   subtotal={subtotal}
                 />
+
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                      <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Free Gifts Included (No Stock Deduction)
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900"
+                      onClick={() => appendGift('' as any)}
+                    >
+                      <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add Gift
+                    </Button>
+                  </div>
+
+                  {giftFields.length > 0 ? (
+                    <div className="space-y-2">
+                      {giftFields.map((giftField, index) => (
+                        <div key={giftField.id} className="flex gap-2 items-center">
+                          <FormField
+                            control={form.control}
+                            name={`gifts.${index}` as any}
+                            render={({ field: giftProps }) => (
+                              <FormItem className="flex-1">
+                                <FormControl>
+                                  <Input className="h-8 text-xs bg-white dark:bg-zinc-900" placeholder="e.g., Free Pen, Bookmark, Calendar..." {...giftProps} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => removeGift(index)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No gifts added yet. Click "+ Add Gift" to include free gifts for this sale.</p>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField

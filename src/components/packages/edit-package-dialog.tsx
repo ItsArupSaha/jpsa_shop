@@ -10,31 +10,33 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import type { Item } from '@/lib/types';
+import type { Item, PackageTemplate } from '@/lib/types';
 import { packageFormSchema, type PackageFormValues } from './schema';
 
-interface CreatePackageDialogProps {
+interface EditPackageDialogProps {
+  packageTemplate: PackageTemplate;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   items: Item[];
   isPending: boolean;
-  onSubmit: (data: PackageFormValues) => void;
+  onSubmit: (packageId: string, data: PackageFormValues) => void;
 }
 
-export function CreatePackageDialog({
+export function EditPackageDialog({
+  packageTemplate,
   isOpen,
   onOpenChange,
   items,
   isPending,
   onSubmit
-}: CreatePackageDialogProps) {
+}: EditPackageDialogProps) {
   const form = useForm<PackageFormValues>({
     resolver: zodResolver(packageFormSchema),
     defaultValues: {
-      name: '',
-      description: '',
-      items: [{ itemId: '', quantity: 1 }],
-      gifts: [],
+      name: packageTemplate.name,
+      description: packageTemplate.description || '',
+      items: packageTemplate.items || [{ itemId: '', quantity: 1 }],
+      gifts: packageTemplate.gifts || [],
     },
   });
 
@@ -53,17 +55,17 @@ export function CreatePackageDialog({
   React.useEffect(() => {
     if (isOpen) {
       form.reset({
-        name: '',
-        description: '',
-        items: [{ itemId: '', quantity: 1 }],
-        gifts: [],
+        name: packageTemplate.name,
+        description: packageTemplate.description || '',
+        items: packageTemplate.items || [{ itemId: '', quantity: 1 }],
+        gifts: packageTemplate.gifts || [],
       });
     }
-  }, [isOpen, form]);
+  }, [isOpen, packageTemplate, form]);
 
   const handleFormSubmit = (data: PackageFormValues) => {
     const cleanedGifts = (data.gifts || []).map(g => typeof g === 'string' ? g.trim() : '').filter(Boolean);
-    onSubmit({
+    onSubmit(packageTemplate.id, {
       ...data,
       gifts: cleanedGifts,
     });
@@ -73,8 +75,8 @@ export function CreatePackageDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="font-headline">Create New Package</DialogTitle>
-          <DialogDescription>Add books and optional gifts to create a package template.</DialogDescription>
+          <DialogTitle className="font-headline">Edit Package: {packageTemplate.name}</DialogTitle>
+          <DialogDescription>Update books and included free gifts for this package template.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -230,7 +232,7 @@ export function CreatePackageDialog({
             <div className="flex justify-end pt-4 border-t">
               <Button type="submit" disabled={isPending}>
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Package Template
+                Update Package Template
               </Button>
             </div>
           </form>

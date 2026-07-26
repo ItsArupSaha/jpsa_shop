@@ -90,6 +90,15 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     doc.text(String(sale?.saleId || ''), 165, infoY);
     doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
     doc.text(currentPaymentMethod, 165, infoY + 10);
+    let pkgLinesCount = 0;
+    if (sale.packageName) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Package:', 140, infoY + 15);
+      doc.setFont('helvetica', 'normal');
+      const pkgLines = doc.splitTextToSize(sale.packageName, 32);
+      doc.text(pkgLines, 165, infoY + 15);
+      pkgLinesCount = pkgLines.length;
+    }
 
 
     // Table
@@ -117,7 +126,7 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
     }
 
     autoTable(doc, {
-      startY: Math.max(infoY + 25, phoneY + 10),
+      startY: Math.max(infoY + 15 + (pkgLinesCount > 0 ? (pkgLinesCount * 5) : 10), phoneY + 10),
       head: [['Description', 'Qty', 'Unit Price', 'Total']],
       body: tableData,
       theme: 'striped',
@@ -126,8 +135,28 @@ export function DownloadSaleMemo({ sale, customer, items, user }: DownloadSaleMe
       foot: footContent as any,
     });
 
-    // Footer
     let finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.getHeight() - 30;
+
+    if (sale.gifts && sale.gifts.length > 0) {
+      let currentGiftY = finalY + 8;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(34, 139, 34);
+      doc.text('Free Gifts Included:', 14, currentGiftY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 40, 40);
+      currentGiftY += 5;
+
+      sale.gifts.forEach((gift) => {
+        const giftLine = `• ${gift}`;
+        const splitGift = doc.splitTextToSize(giftLine, 180);
+        doc.text(splitGift, 14, currentGiftY);
+        currentGiftY += (splitGift.length * 5);
+      });
+
+      finalY = currentGiftY;
+    }
     doc.setFontSize(10);
     doc.text('Thank you. Relish the nectar of Srila Gurumaharaja.', 105, finalY + 20, { align: 'center' });
 

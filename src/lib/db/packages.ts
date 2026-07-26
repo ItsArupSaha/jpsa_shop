@@ -21,6 +21,7 @@ function docToPackage(docSnap: any): PackageTemplate {
         name: data.name || '',
         description: data.description || '',
         items: data.items || [],
+        gifts: data.gifts || [],
         createdAt: data.createdAt || new Date().toISOString(),
     };
 }

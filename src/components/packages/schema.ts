@@ -15,6 +15,7 @@ export const saleFormSchema = z.object({
   amountPaid: z.coerce.number().optional(),
   splitPaymentMethod: z.enum(['Cash', 'Bank']).optional(),
   creditApplied: z.coerce.number().optional(),
+  gifts: z.array(z.string()).optional().default([]),
 }).refine(data => {
   if (data.discountType === 'percentage') {
     return data.discountValue >= 0 && data.discountValue <= 100;
@@ -44,6 +45,7 @@ export const packageFormSchema = z.object({
   name: z.string().min(1, 'Package name is required'),
   description: z.string().optional().default(''),
   items: z.array(packageItemSchema).min(1, 'At least one item is required'),
+  gifts: z.array(z.string()).optional().default([]),
 });
 
 export type PackageFormValues = z.infer<typeof packageFormSchema>;

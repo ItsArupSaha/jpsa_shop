@@ -1,6 +1,6 @@
 'use client';
 
-import { addPackage, deletePackage, getItems, getPackages } from '@/lib/actions';
+import { addPackage, deletePackage, getItems, getPackages, updatePackage } from '@/lib/actions';
 import { Package as PackageIcon, PlusCircle } from 'lucide-react';
 import * as React from 'react';
 
@@ -80,6 +80,18 @@ export default function PackageManagement({ userId }: PackageManagementProps) {
     });
   };
 
+  const handleUpdate = (packageId: string, data: PackageFormValues) => {
+    startTransition(async () => {
+      const result = await updatePackage(userId, packageId, data);
+      if (result.success) {
+        toast({ title: 'Package Updated', description: 'The package template has been updated.' });
+        loadInitialData();
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to update package.' });
+      }
+    });
+  };
+
   return (
     <>
       <Card className="animate-in fade-in-50">
@@ -106,6 +118,7 @@ export default function PackageManagement({ userId }: PackageManagementProps) {
             isInitialLoading={isInitialLoading}
             isPending={isPending}
             onDeleteClick={handleDelete}
+            onUpdateSubmit={handleUpdate}
             loadInitialData={loadInitialData}
           />
         </CardContent>

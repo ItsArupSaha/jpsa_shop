@@ -5,7 +5,8 @@ import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, PlusCircle } from 'lucide-react';
+import { Download, Gift, PlusCircle } from 'lucide-react';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Separator } from './ui/separator';
@@ -107,6 +108,15 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         doc.text(sale.saleId, 165, infoY);
         doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
         doc.text(currentPaymentMethod, 165, infoY + 10);
+        let pkgLinesCount = 0;
+        if (sale.packageName) {
+            doc.setFont('helvetica', 'bold');
+            doc.text('Package:', 140, infoY + 15);
+            doc.setFont('helvetica', 'normal');
+            const pkgLines = doc.splitTextToSize(sale.packageName, 32);
+            doc.text(pkgLines, 165, infoY + 15);
+            pkgLinesCount = pkgLines.length;
+        }
 
 
         // Table
@@ -134,7 +144,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         }
 
         autoTable(doc, {
-            startY: Math.max(infoY + 25, phoneY + 10),
+            startY: Math.max(infoY + 15 + (pkgLinesCount > 0 ? (pkgLinesCount * 5) : 10), phoneY + 10),
             head: [['Description', 'Qty', 'Unit Price', 'Total']],
             body: tableData,
             theme: 'striped',
@@ -143,8 +153,28 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
             foot: footContent as any,
         });
 
-        // Footer
         let finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.getHeight() - 30;
+
+        if (sale.gifts && sale.gifts.length > 0) {
+            let currentGiftY = finalY + 8;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(34, 139, 34);
+            doc.text('Free Gifts Included:', 14, currentGiftY);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(40, 40, 40);
+            currentGiftY += 5;
+
+            sale.gifts.forEach((gift) => {
+                const giftLine = `• ${gift}`;
+                const splitGift = doc.splitTextToSize(giftLine, 180);
+                doc.text(splitGift, 14, currentGiftY);
+                currentGiftY += (splitGift.length * 5);
+            });
+
+            finalY = currentGiftY;
+        }
         doc.setFontSize(10);
         doc.text('Thank you. Relish the nectar of Srila Gurumaharaja.', 105, finalY + 20, { align: 'center' });
 
@@ -174,8 +204,26 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                             <p><span className="font-semibold">Invoice #:</span> {sale.saleId}</p>
                             <p><span className="font-semibold">Date:</span> {format(new Date(sale.date), 'PPP')}</p>
                             <p><span className="font-semibold">Status:</span> <span className={status === 'Paid' ? 'text-green-600 font-bold' : ''}>{status === 'Paid' ? 'PAID' : sale.paymentMethod}</span></p>
+                            {sale.packageName && (
+                                <p><span className="font-semibold">Package:</span> <span className="text-primary font-medium">{sale.packageName}</span></p>
+                            )}
                         </div>
                     </div>
+
+                    {sale.gifts && sale.gifts.length > 0 && (
+                        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-1.5 flex items-center gap-1">
+                                <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Free Gifts Included:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 pl-1">
+                                {sale.gifts.map((g, idx) => (
+                                    <li key={idx} className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                        {g}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
 
                     <Table>
                         <TableHeader>

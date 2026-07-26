@@ -21,6 +21,8 @@ import { Separator } from './ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { getSaleTransaction } from '@/lib/actions';
 import React from 'react';
+import { Gift } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface SaleDetailsDialogProps {
   sale: Sale;
@@ -61,9 +63,28 @@ export function SaleDetailsDialog({ sale, items, children }: SaleDetailsDialogPr
           <DialogTitle>Sale Details ({sale.saleId})</DialogTitle>
           <DialogDescription>
             Recorded on {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(sale.date))}
+            {sale.packageName && (
+              <span className="block mt-1 font-semibold text-primary">
+                Package: {sale.packageName}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="mt-4">
+          {sale.gifts && sale.gifts.length > 0 && (
+            <div className="mb-3 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md">
+              <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-1.5 flex items-center gap-1">
+                <Gift className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Free Gifts Included:
+              </p>
+              <ul className="list-disc list-inside space-y-1 pl-1">
+                {sale.gifts.map((g, idx) => (
+                  <li key={idx} className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    {g}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>

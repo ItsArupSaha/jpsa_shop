@@ -81,6 +81,8 @@ export type Sale = {
   amountPaid?: number;
   splitPaymentMethod?: 'Cash' | 'Bank';
   creditApplied?: number;
+  packageName?: string;
+  gifts?: string[];
 };
 
 export type SalesReturnItem = {
@@ -205,6 +207,7 @@ export type PackageTemplate = {
     name: string;
     description: string;
     items: PackageItem[];
+    gifts?: string[];
     createdAt: string; // ISO string
 };
 
