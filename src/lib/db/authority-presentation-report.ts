@@ -1,8 +1,14 @@
 'use server';
 
-import { addDays, endOfDay, endOfMonth, format, isAfter, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 
 import { getAccountOverview } from './account-overview';
+import {
+    inBusinessDayRange,
+    isValidBusinessYMD,
+    lastDayOfMonthYMD,
+    shiftDayYMD,
+} from './business-date';
 import { getExpenses } from './expenses';
 import { getPurchases } from './purchases';
 import { getSales } from './sales';
@@ -34,40 +40,32 @@ export type AuthorityPresentationReport = {
     purchases: AuthorityPurchaseRow[];
 };
 
-function parseLocalYmd(ymd: string): Date {
-    const parts = ymd.split('-').map((v) => parseInt(v, 10));
-    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
-        throw new Error('Invalid date');
-    }
-    const [y, m, d] = parts;
-    return new Date(y, m - 1, d);
+/**
+ * UTC-noon instant for a `yyyy-MM-dd` — renders as that same calendar day in
+ * any timezone within ±11h of UTC (including Asia/Dhaka and US Pacific), so
+ * `date-fns` `format` is safe on any server.
+ */
+function ymdToDisplayDate(ymd: string): Date {
+    return new Date(Date.parse(`${ymd}T12:00:00Z`));
 }
 
-function inInclusiveDayRange(isoDate: string, fromDay: Date, toDay: Date): boolean {
-    const t = new Date(isoDate).getTime();
-    return t >= startOfDay(fromDay).getTime() && t <= endOfDay(toDay).getTime();
-}
+function buildPeriodBounds(startYmd: string, endYmd: string): { from: string; to: string }[] {
+    const bounds: { from: string; to: string }[] = [];
+    let cursor = startYmd;
 
-function lastCalendarDayOfMonth(dayInMonth: Date): Date {
-    return startOfDay(endOfMonth(dayInMonth));
-}
-
-function buildPeriodBounds(rangeStart: Date, rangeEnd: Date): { from: Date; to: Date }[] {
-    const bounds: { from: Date; to: Date }[] = [];
-    let cursor = startOfDay(rangeStart);
-    const endDay = startOfDay(rangeEnd);
-
-    while (!isAfter(cursor, endDay)) {
-        const monthCap = lastCalendarDayOfMonth(cursor);
-        const sliceEnd = endDay.getTime() <= monthCap.getTime() ? endDay : monthCap;
+    while (cursor <= endYmd) {
+        const monthCap = lastDayOfMonthYMD(cursor);
+        const sliceEnd = endYmd <= monthCap ? endYmd : monthCap;
         bounds.push({ from: cursor, to: sliceEnd });
-        cursor = startOfDay(addDays(sliceEnd, 1));
+        cursor = shiftDayYMD(sliceEnd, 1);
     }
 
     return bounds;
 }
 
-function periodLabel(from: Date, to: Date): string {
+function periodLabel(fromYmd: string, toYmd: string): string {
+    const from = ymdToDisplayDate(fromYmd);
+    const to = ymdToDisplayDate(toYmd);
     if (format(from, 'yyyy-MM') === format(to, 'yyyy-MM')) {
         return `${format(from, 'd')}–${format(to, 'd MMM yyyy')}`;
     }
@@ -90,21 +88,19 @@ export async function getAuthorityPresentationReport(
         return { ok: false, error: 'Not signed in.' };
     }
 
-    let rangeStart: Date;
-    let rangeEnd: Date;
-    try {
-        rangeStart = startOfDay(parseLocalYmd(startYmd));
-        rangeEnd = startOfDay(parseLocalYmd(endYmd));
-    } catch {
+    if (!isValidBusinessYMD(startYmd) || !isValidBusinessYMD(endYmd)) {
         return { ok: false, error: 'Invalid start or end date.' };
     }
 
-    if (isAfter(rangeStart, rangeEnd)) {
+    if (startYmd > endYmd) {
         return { ok: false, error: 'Start date must be on or before end date.' };
     }
 
-    const openingAsOf = endOfDay(rangeStart);
-    const closingAsOf = endOfDay(rangeEnd);
+    // Opening balances are the closing balances of the day BEFORE the range;
+    // closing balances include every transaction of the range's last day.
+    // Both are Bangladesh calendar days (see business-date.ts).
+    const openingAsOf = shiftDayYMD(startYmd, -1);
+    const closingAsOf = endYmd;
 
     const [opening, closing, sales, expenses, purchases] = await Promise.all([
         getAccountOverview(userId, openingAsOf),
@@ -114,21 +110,21 @@ export async function getAuthorityPresentationReport(
         getPurchases(userId),
     ]);
 
-    const periodBounds = buildPeriodBounds(rangeStart, rangeEnd);
+    const periodBounds = buildPeriodBounds(startYmd, endYmd);
     const periods: AuthorityPeriodRow[] = periodBounds.map(({ from, to }) => {
         const income = sales
-            .filter((s) => inInclusiveDayRange(s.date, from, to))
+            .filter((s) => inBusinessDayRange(s.date, from, to))
             .reduce((sum, s) => sum + (s.total || 0), 0);
 
         const expense = expenses
             .filter((e) => !e.description.startsWith('Transfer to'))
-            .filter((e) => inInclusiveDayRange(e.date, from, to))
+            .filter((e) => inBusinessDayRange(e.date, from, to))
             .reduce((sum, e) => sum + (e.amount || 0), 0);
 
         return {
             label: periodLabel(from, to),
-            fromYmd: format(from, 'yyyy-MM-dd'),
-            toYmd: format(to, 'yyyy-MM-dd'),
+            fromYmd: from,
+            toYmd: to,
             income,
             expense,
             net: income - expense,
@@ -136,7 +132,7 @@ export async function getAuthorityPresentationReport(
     });
 
     const purchaseRows: AuthorityPurchaseRow[] = purchases
-        .filter((p) => inInclusiveDayRange(p.date, rangeStart, rangeEnd))
+        .filter((p) => inBusinessDayRange(p.date, startYmd, endYmd))
         .map((p) => ({
             purchaseId: p.purchaseId,
             date: p.date,

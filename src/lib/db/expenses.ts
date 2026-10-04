@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
+import { businessMonthBounds } from './business-date';
 import type { Expense, Metadata } from '../types';
 import { docToExpense } from './utils';
 
@@ -66,8 +67,7 @@ export async function getExpensesPaginated({ userId, pageLimit = 5, lastVisibleI
 export async function getExpensesForMonth(userId: string, year: number, month: number): Promise<Expense[]> {
     if (!db || !userId) return [];
     const expensesCollection = collection(db, 'users', userId, 'expenses');
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const { start: startDate, end: endDate } = businessMonthBounds(year, month);
     const q = query(
         expensesCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),

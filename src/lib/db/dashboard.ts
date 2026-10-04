@@ -3,6 +3,7 @@
 
 import { collection, doc, getDocs, query, Timestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { businessMonthBounds, currentBusinessYMD } from './business-date';
 import { getCustomersWithDueBalance } from './customers';
 import { getExpensesForMonth } from './expenses';
 import { docToItem, docToSale, docToSalesReturn } from './utils';
@@ -29,11 +30,12 @@ export async function getDashboardStats(userId: string) {
     const returnsCollection = collection(userRef, 'sales_returns');
     const expensesCollection = collection(userRef, 'expenses');
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    // "This month" is the Bangladesh calendar month (see business-date.ts),
+    // not the server's local month.
+    const nowYMD = currentBusinessYMD();
+    const year = parseInt(nowYMD.slice(0, 4), 10);
+    const month = parseInt(nowYMD.slice(5, 7), 10) - 1;
+    const { start: startDate, end: endDate } = businessMonthBounds(year, month);
 
     const salesQuery = query(
         salesCollection,

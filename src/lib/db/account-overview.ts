@@ -2,6 +2,7 @@
 
 import { Timestamp, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { onOrBeforeBusinessDay, toBusinessYMD } from './business-date';
 import { getCustomers } from './customers';
 import { getExpenses } from './expenses';
 import { getItems } from './items';
@@ -19,12 +20,15 @@ function toNum(v: unknown, fallback = 0): number {
     return Number.isFinite(n) ? n : fallback;
 }
 
-export async function getAccountOverview(userId: string, asOfDate?: Date) {
+export async function getAccountOverview(userId: string, asOfDate?: Date | string) {
     if (!db) {
         throw new Error("Database not connected");
     }
 
-    const cutoffTimestamp = asOfDate ? Timestamp.fromDate(asOfDate) : undefined;
+    // Stored business dates are instants of Asia/Dhaka midnight, so the cutoff is
+    // resolved to a Bangladesh calendar day — never via server-local setHours,
+    // which shifts boundaries by six hours on a UTC deployment.
+    const cutoffYMD = asOfDate === undefined ? null : toBusinessYMD(asOfDate);
 
     const [allItems, allSales, allExpenses, allTransactionsData, allPurchases, capitalData, allCustomers, transfersData, donationsData, allReturns] = await Promise.all([
         getItems(userId),
@@ -44,18 +48,7 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
     const allDonations = donationsData.docs.map(doc => doc.data());
     const allTransfers = transfersData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
 
-    const isBeforeOrOnCutoff = (date: any): boolean => {
-        if (!asOfDate) return true;
-        if (!date) return false;
-
-        // Ensure cutoff is End of Day
-        const cutoff = new Date(asOfDate);
-        cutoff.setHours(23, 59, 59, 999);
-        const cutoffTs = Timestamp.fromDate(cutoff);
-
-        const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
-        return dateTimestamp.toMillis() <= cutoffTs.toMillis();
-    };
+    const isBeforeOrOnCutoff = (date: any): boolean => onOrBeforeBusinessDay(date, cutoffYMD);
 
     const filteredCapital = allCapital.filter((capital: any) =>
         capital.source === 'Initial Capital' || isBeforeOrOnCutoff(capital.date)
@@ -131,8 +124,9 @@ export async function getAccountOverview(userId: string, asOfDate?: Date) {
                 // assume it was paid after the cutoff (conservative: avoids understating liabilities)
                 return true;
             }
-            // Payment date is after the cutoff → obligation was still outstanding as-of cutoff
-            return paymentDate.getTime() > (asOfDate instanceof Date ? asOfDate : new Date(asOfDate)).getTime();
+            // Payment happened on a later Bangladesh day → obligation was still outstanding as-of cutoff
+            const paymentDay = toBusinessYMD(paymentDate);
+            return paymentDay === null || !cutoffYMD || paymentDay > cutoffYMD;
         }
 
         return false;
@@ -333,11 +327,7 @@ export async function getAccountBalances(userId: string) {
 export async function getCustomersWithDueBalanceAsOfDate(userId: string, asOfDate: Date) {
     if (!db || !userId) return [];
 
-    const cutoffTimestamp = Timestamp.fromDate(asOfDate);
-    // Ensure cutoff is End of Day
-    const cutoffDate = asOfDate;
-    cutoffDate.setHours(23, 59, 59, 999);
-    const cutoffTs = Timestamp.fromDate(cutoffDate);
+    const cutoffYMD = asOfDate ? toBusinessYMD(asOfDate) : null;
 
     const [allSales, allTransactionsData, allCustomers, allReturns] = await Promise.all([
         getSales(userId),
@@ -348,11 +338,7 @@ export async function getCustomersWithDueBalanceAsOfDate(userId: string, asOfDat
 
     const allTransactions = allTransactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
 
-    const isBeforeOrOnCutoff = (date: any): boolean => {
-        if (!date) return false;
-        const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
-        return dateTimestamp.toMillis() <= cutoffTs.toMillis();
-    };
+    const isBeforeOrOnCutoff = (date: any): boolean => onOrBeforeBusinessDay(date, cutoffYMD);
 
     const filteredSales = allSales.filter((sale: any) => isBeforeOrOnCutoff(sale.date));
     const filteredTransactions = allTransactions.filter((t: any) => isBeforeOrOnCutoff(t.dueDate));
@@ -460,19 +446,12 @@ export async function getCustomersWithDueBalanceAsOfDate(userId: string, asOfDat
 export async function getPayablesAsOfDate(userId: string, asOfDate: Date) {
     if (!db || !userId) return [];
 
-    // Ensure cutoff is End of Day
-    const cutoffDate = new Date(asOfDate);
-    cutoffDate.setHours(23, 59, 59, 999);
-    const cutoffTs = Timestamp.fromDate(cutoffDate);
+    const cutoffYMD = asOfDate ? toBusinessYMD(asOfDate) : null;
 
     const transactionsData = await getDocs(collection(db, 'users', userId, 'transactions'));
     const allTransactions = transactionsData.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as any));
 
-    const isBeforeOrOnCutoff = (date: any): boolean => {
-        if (!date) return false;
-        const dateTimestamp = date instanceof Timestamp ? date : Timestamp.fromDate(new Date(date));
-        return dateTimestamp.toMillis() <= cutoffTs.toMillis();
-    };
+    const isBeforeOrOnCutoff = (date: any): boolean => onOrBeforeBusinessDay(date, cutoffYMD);
 
     // Filter to Payable type transactions created on or before cutoff date
     // We consider a payable "pending as of date" if it was created on or before that date

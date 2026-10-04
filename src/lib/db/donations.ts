@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
+import { businessMonthBounds } from './business-date';
 import type { Donation, Metadata } from '../types';
 import { docToDonation } from './utils';
 
@@ -58,8 +59,7 @@ export async function getDonationsPaginated({ userId, pageLimit = 5, lastVisible
 export async function getDonationsForMonth(userId: string, year: number, month: number): Promise<Donation[]> {
     if (!db || !userId) return [];
     const donationsCollection = collection(db, 'users', userId, 'donations');
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const { start: startDate, end: endDate } = businessMonthBounds(year, month);
     const q = query(
         donationsCollection,
         where('date', '>=', Timestamp.fromDate(startDate)),

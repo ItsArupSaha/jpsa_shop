@@ -21,6 +21,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Transaction, Transfer } from '../types';
+import { businessMonthBounds, inBusinessDayRange, toBusinessYMD } from './business-date';
 import { getCustomerById } from './customers';
 import { docToTransaction, docToTransfer } from './utils';
 
@@ -79,8 +80,9 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
   if (!db || !userId) return [];
   const transactionsCollection = collection(db, 'users', userId, 'transactions');
 
-  const finalToDate = new Date(toDate || fromDate);
-  finalToDate.setHours(23, 59, 59, 999);
+  // Boundaries are Bangladesh calendar days picked in the browser (see business-date.ts)
+  const fromYMD = toBusinessYMD(fromDate);
+  const toYMD = toBusinessYMD(toDate || fromDate);
 
   // First get all paid receivables, then filter by date in application code
   const q = query(
@@ -94,11 +96,10 @@ export async function getPaidReceivablesForDateRange(userId: string, fromDate: D
 
   // Filter by date range in application code to avoid composite index requirement
   const filteredTransactions = allTransactions.filter(transaction => {
-    const transactionDate = new Date(transaction.dueDate);
     // Exclude: explicitly hidden records AND original sale receivables (have saleId but no paymentMethod).
     // Old records may lack isHiddenFromHistory even though they should be hidden — saleId is the reliable signal.
     const isHidden = (transaction as any).isHiddenFromHistory || (transaction as any).saleId;
-    return !isHidden && transactionDate >= fromDate && transactionDate <= finalToDate;
+    return !isHidden && !!fromYMD && !!toYMD && inBusinessDayRange(transaction.dueDate, fromYMD, toYMD);
   });
 
   const transactions = await Promise.all(filteredTransactions.map(async (transaction) => {
@@ -544,8 +545,7 @@ export async function deleteTransaction(userId: string, id: string, type: 'Recei
 export async function getTransactionsForMonth(userId: string, year: number, month: number): Promise<Transaction[]> {
   if (!db || !userId) return [];
   const transactionsCollection = collection(db, 'users', userId, 'transactions');
-  const startDate = new Date(year, month, 1);
-  const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const { start: startDate, end: endDate } = businessMonthBounds(year, month);
   const q = query(
     transactionsCollection,
     where('dueDate', '>=', Timestamp.fromDate(startDate)),
@@ -588,8 +588,9 @@ export async function getPaidPayablesForDateRange(userId: string, fromDate: Date
   if (!db || !userId) return [];
   const transactionsCollection = collection(db, 'users', userId, 'transactions');
 
-  const finalToDate = toDate ? new Date(toDate) : new Date(fromDate);
-  finalToDate.setHours(23, 59, 59, 999);
+  // Boundaries are Bangladesh calendar days picked in the browser (see business-date.ts)
+  const fromYMD = toBusinessYMD(fromDate);
+  const toYMD = toBusinessYMD(toDate || fromDate);
 
   // Get all paid payables, then filter by date in application code
   const q = query(
@@ -603,9 +604,8 @@ export async function getPaidPayablesForDateRange(userId: string, fromDate: Date
 
   // Filter by date range in application code to avoid composite index requirement
   const filteredTransactions = allTransactions.filter(transaction => {
-    const transactionDate = new Date(transaction.dueDate);
     const isVisible = !(transaction as any).isHiddenFromHistory;
-    return transactionDate >= fromDate && transactionDate <= finalToDate && isVisible;
+    return isVisible && !!fromYMD && !!toYMD && inBusinessDayRange(transaction.dueDate, fromYMD, toYMD);
   });
 
   return filteredTransactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());

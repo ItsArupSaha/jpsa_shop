@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
+import { businessMonthBounds } from './business-date';
 import type { Item, Metadata, Sale, SaleItem } from '../types';
 import { docToSale } from './utils';
 
@@ -70,8 +71,7 @@ export async function getSalesForCustomer(userId: string, customerId: string): P
 export async function getSalesForMonth(userId: string, year: number, month: number): Promise<Sale[]> {
   if (!db || !userId) return [];
   const salesCollection = collection(db, 'users', userId, 'sales');
-  const startDate = new Date(year, month, 1);
-  const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const { start: startDate, end: endDate } = businessMonthBounds(year, month);
   const q = query(
     salesCollection,
     where('date', '>=', Timestamp.fromDate(startDate)),
