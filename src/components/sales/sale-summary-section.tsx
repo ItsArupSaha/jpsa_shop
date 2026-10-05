@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useFormContext } from 'react-hook-form';
+import { formatTaka } from '@/lib/format';
 
 interface SaleSummarySectionProps {
   customerCredit: number;
@@ -63,26 +64,26 @@ export function SaleSummarySection({ customerCredit }: SaleSummarySectionProps) 
     <div className="space-y-2 text-sm pr-4">
       <div className="flex justify-between">
         <span>Subtotal</span>
-        <span>৳{subtotal.toFixed(2)}</span>
+        <span>{formatTaka(subtotal.toFixed(2))}</span>
       </div>
       <div className="flex justify-between text-muted-foreground">
         <span>Discount</span>
-        <span>-৳{discountAmount.toFixed(2)}</span>
+        <span>-{formatTaka(discountAmount.toFixed(2))}</span>
       </div>
       {creditToApply > 0 && (
         <div className="flex justify-between text-green-600">
           <span>Credit Applied</span>
-          <span>-৳{creditToApply.toFixed(2)}</span>
+          <span>-{formatTaka(creditToApply.toFixed(2))}</span>
         </div>
       )}
       <div className="flex justify-between font-bold text-base border-t pt-2">
         <span>Total</span>
-        <span>৳{totalAfterCredit.toFixed(2)}</span>
+        <span>{formatTaka(totalAfterCredit.toFixed(2))}</span>
       </div>
       {(watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
         <div className="flex justify-between font-semibold text-destructive">
           <span>Due Amount</span>
-          <span>৳{dueAmount.toFixed(2)}</span>
+          <span>{formatTaka(dueAmount.toFixed(2))}</span>
         </div>
       )}
     </div>

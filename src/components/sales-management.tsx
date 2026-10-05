@@ -5,13 +5,14 @@ import { format } from 'date-fns';
 import { Download, Loader2, PlusCircle, Search, X, FileText, FileSpreadsheet } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { deleteSale, getCustomers, getItems, getSalesPaginated, searchSales } from '@/lib/actions';
+import { deleteSale, getCustomers, getItems, getSalesPaginated, getTransactions, searchSales } from '@/lib/actions';
 import type { Customer, Item, Sale } from '@/lib/types';
 import { Calendar } from './ui/calendar';
 import { ScrollArea } from './ui/scroll-area';
@@ -26,16 +27,22 @@ import {
 
 interface SalesManagementProps {
   userId: string;
+  /** Open the sale screen immediately (used by the dashboard "New Sale" action). */
+  autoOpenNew?: boolean;
 }
 
-export default function SalesManagement({ userId }: SalesManagementProps) {
+const PAGE_SIZE = 10;
+
+export default function SalesManagement({ userId, autoOpenNew = false }: SalesManagementProps) {
   const { authUser } = useAuth();
   const [sales, setSales] = React.useState<Sale[]>([]);
   const [items, setItems] = React.useState<Item[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
+  const [pendingDues, setPendingDues] = React.useState<Record<string, number>>({});
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [salePendingDelete, setSalePendingDelete] = React.useState<Sale | null>(null);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -48,15 +55,22 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-      const [{ sales: newSales, hasMore: newHasMore }, itemsData, customersData] = await Promise.all([
-        getSalesPaginated({ userId, pageLimit: 5 }),
+      const [{ sales: newSales, hasMore: newHasMore }, itemsData, customersData, pendingReceivables] = await Promise.all([
+        getSalesPaginated({ userId, pageLimit: PAGE_SIZE }),
         getItems(userId),
         getCustomers(userId),
+        // One fetch of all pending dues replaces one hidden query per table row.
+        getTransactions(userId, 'Receivable'),
       ]);
       setSales(newSales);
       setHasMore(newHasMore);
       setItems(itemsData);
       setCustomers(customersData);
+      const dues: Record<string, number> = {};
+      for (const t of pendingReceivables) {
+        if (t.saleId) dues[t.saleId] = (dues[t.saleId] || 0) + (t.amount || 0);
+      }
+      setPendingDues(dues);
     } catch (error) {
       console.error("Failed to load initial sales data:", error);
       toast({
@@ -75,12 +89,22 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
     }
   }, [userId, loadInitialData]);
 
+  // Dashboard "New Sale" deep-link: open the sale screen once items/customers
+  // are ready, then clean the URL so a refresh doesn't reopen it.
+  React.useEffect(() => {
+    if (autoOpenNew && !isInitialLoading && items.length >= 0 && customers.length > 0) {
+      setIsDialogOpen(true);
+      window.history.replaceState({}, '', '/sales');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenNew, isInitialLoading, customers.length]);
+
   const handleLoadMore = async () => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     const lastSaleId = sales[sales.length - 1]?.id;
     try {
-      const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: 5, lastVisibleId: lastSaleId });
+      const { sales: newSales, hasMore: newHasMore } = await getSalesPaginated({ userId, pageLimit: PAGE_SIZE, lastVisibleId: lastSaleId });
       setSales(prev => [...prev, ...newSales]);
       setHasMore(newHasMore);
     } catch (e) {
@@ -103,7 +127,7 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
       const results = await searchSales(userId, searchTerm.trim());
       setSearchResults(results);
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Search Error', description: 'Failed to search sales.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to search sales.' });
     } finally {
       setIsSearching(false);
     }
@@ -116,11 +140,14 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
 
   const displaySales = searchTerm.trim() !== '' ? searchResults : sales;
 
-  const handleDelete = (saleId: string) => {
+  const handleConfirmDelete = () => {
+    const sale = salePendingDelete;
+    if (!sale) return;
     startTransition(async () => {
-      const result = await deleteSale(userId, saleId);
+      const result = await deleteSale(userId, sale.id);
       if (result.success) {
-        toast({ title: 'Sale Deleted', description: 'The sale has been removed and stock restored.' });
+        toast({ title: 'Sale Deleted', description: `${sale.saleId} has been removed and the stock restored.` });
+        setSalePendingDelete(null);
         loadInitialData();
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error || 'Failed to delete sale.' });
@@ -178,8 +205,8 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="font-headline text-2xl">Record and View Sales</CardTitle>
-              <CardDescription>Create new sales transactions and view past sales history.</CardDescription>
+              <CardTitle className="font-headline text-2xl">Sales</CardTitle>
+              <CardDescription>Record new sales and review past sales history.</CardDescription>
             </div>
             <div className="flex flex-col gap-2 items-end">
               <Button onClick={() => setIsDialogOpen(true)}>
@@ -270,25 +297,38 @@ export default function SalesManagement({ userId }: SalesManagementProps) {
         </CardHeader>
         <CardContent>
           <SalesTable
-            userId={userId}
             sales={displaySales}
             items={items}
             customers={customers}
+            pendingDues={pendingDues}
             isInitialLoading={isInitialLoading}
             isSearching={isSearching}
             isPending={isPending}
-            onDelete={handleDelete}
+            onDelete={(sale) => setSalePendingDelete(sale)}
             authUser={authUser}
           />
           {hasMore && !searchTerm && (
             <div className="flex justify-center mt-4">
-              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+              <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...</> : 'Load More'}
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={salePendingDelete !== null}
+        onOpenChange={(open) => !open && setSalePendingDelete(null)}
+        title="Delete this sale?"
+        description={
+          salePendingDelete
+            ? `${salePendingDelete.saleId} will be removed, its items returned to stock, and the customer's balance corrected. This cannot be undone.`
+            : ''
+        }
+        onConfirm={handleConfirmDelete}
+        isPending={isPending}
+      />
 
       <RecordSaleDialog
         userId={userId}

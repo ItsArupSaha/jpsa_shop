@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle, Search, X } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingCustomer, setEditingCustomer] = React.useState<Customer | null>(null);
+  const [customerPendingDelete, setCustomerPendingDelete] = React.useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isSearching, setIsSearching] = React.useState(false);
   const { toast } = useToast();
@@ -51,7 +53,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     setIsInitialLoading(true);
     try {
       const { customers: refreshedCustomers, hasMore: refreshedHasMore } =
-        await getCustomersPaginated({ userId, pageLimit: 5 });
+        await getCustomersPaginated({ userId, pageLimit: 10 });
       setCustomers(refreshedCustomers);
       setHasMore(refreshedHasMore);
     } catch (error) {
@@ -220,19 +222,23 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleConfirmDelete = () => {
+    const customer = customerPendingDelete;
+    if (!customer) return;
     startTransition(async () => {
       try {
-        await deleteCustomer(userId, id);
+        await deleteCustomer(userId, customer.id);
         if (searchQuery.trim()) {
           performSearch(searchQuery);
         } else {
           await loadInitialCustomers();
         }
         await loadAllCustomers();
-        toast({ title: 'Customer Deleted', description: 'The customer has been removed.' });
+        toast({ title: 'Customer Deleted', description: `${customer.name} has been removed.` });
       } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete customer.' });
+      } finally {
+        setCustomerPendingDelete(null);
       }
     });
   };
@@ -257,7 +263,8 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         setEditingCustomer(null);
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Could not save customer.';
-        toast({ variant: 'destructive', title: 'Duplicate Customer', description: message });
+        const isDuplicate = message.includes('already exists');
+        toast({ variant: 'destructive', title: isDuplicate ? 'Duplicate Customer' : 'Error', description: message });
       }
     });
   };
@@ -277,7 +284,7 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="font-headline text-2xl">Customer List</CardTitle>
+            <CardTitle className="font-headline text-2xl">Customers</CardTitle>
             <CardDescription>Manage your customer information and balances.</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -336,14 +343,17 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
           customers={customers}
           isLoading={isInitialLoading}
           onEdit={handleEdit}
-          onDelete={handleDelete}
+          onDelete={(id) => {
+            const customer = customers.find(c => c.id === id) || allCustomers.find(c => c.id === id);
+            if (customer) setCustomerPendingDelete(customer);
+          }}
           isPending={isPending}
           searchQuery={searchQuery}
         />
 
         {showLoadMore && (
           <div className="flex justify-center mt-4">
-            <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+            <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
               {isLoadingMore ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
@@ -363,6 +373,19 @@ export default function CustomerManagement({ userId }: CustomerManagementProps) 
         onSubmit={onSubmit}
         isPending={isPending}
         editingCustomer={editingCustomer}
+      />
+
+      <ConfirmDialog
+        open={customerPendingDelete !== null}
+        onOpenChange={(open) => !open && setCustomerPendingDelete(null)}
+        title="Delete this customer?"
+        description={
+          customerPendingDelete
+            ? `${customerPendingDelete.name} will be removed from your customer list. Their past sales stay in your records.`
+            : ''
+        }
+        onConfirm={handleConfirmDelete}
+        isPending={isPending}
       />
     </Card>
   );

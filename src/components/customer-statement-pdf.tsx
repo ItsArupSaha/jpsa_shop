@@ -8,6 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { FileText } from 'lucide-react';
 import { Button } from './ui/button';
+import { formatTakaPlain } from '@/lib/format';
 
 interface CustomerStatementPDFProps {
   customer: Customer;
@@ -65,7 +66,7 @@ export default function CustomerStatementPDF({ customer, sales, items }: Custome
         format(new Date(sale.date), 'yyyy-MM-dd'),
         itemsString,
         sale.paymentMethod,
-        `BDT ${sale.total.toFixed(2)}`
+        `${formatTakaPlain(sale.total)}`
       ];
     });
 

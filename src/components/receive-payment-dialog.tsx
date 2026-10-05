@@ -23,6 +23,7 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { formatTaka } from '@/lib/format';
 
 const paymentSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
@@ -139,7 +140,7 @@ export default function ReceivePaymentDialog({ customerId, userId, children, onP
                       <SelectContent>
                         {customersWithDue.length > 0 ? customersWithDue.map(c => (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name} - (Due: ৳{c.dueBalance.toFixed(2)})
+                            {c.name} - (Due: {formatTaka(c.dueBalance.toFixed(2))})
                           </SelectItem>
                         )) : (
                            <p className="p-4 text-sm text-muted-foreground">No customers with due balance found.</p>

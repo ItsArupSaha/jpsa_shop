@@ -1,0 +1,169 @@
+
+import { format } from 'date-fns';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { getSaleTransaction } from '@/lib/actions';
+import { formatTakaPlain } from '@/lib/format';
+import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
+
+/**
+ * The single invoice/memo PDF generator, shared by the post-sale receipt view
+ * (sale-memo.tsx) and the per-row memo download (download-sale-memo.tsx).
+ * Resolves the live remaining due from the receivables ledger itself.
+ */
+export async function generateSaleMemoPdf({
+  sale,
+  customer,
+  items,
+  user,
+}: {
+  sale: Sale;
+  customer: Customer;
+  items: Item[];
+  user: AuthUser;
+}) {
+  const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
+
+  let currentPaymentMethod: string = sale.paymentMethod;
+  let displayDue = 0;
+
+  if (sale.paymentMethod === 'Due') {
+    displayDue = Math.max(0, sale.total - (sale.creditApplied || 0));
+  } else if (sale.paymentMethod === 'Split') {
+    displayDue = Math.max(0, sale.total - (sale.creditApplied || 0) - (sale.amountPaid || 0));
+  }
+
+  if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
+    try {
+      const transaction = await getSaleTransaction(user.uid, sale.saleId);
+      if (transaction) {
+        if (transaction.status === 'Paid') {
+          currentPaymentMethod = 'Paid';
+          displayDue = 0;
+        } else {
+          displayDue = transaction.amount;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching latest sale status:', error);
+    }
+  }
+
+  const doc = new jsPDF();
+  const companyName = user.companyName || 'Bookstore';
+  const address = user.address || '';
+  const phone = user.phone || '';
+
+  // Header
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text(companyName, 14, 22);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(address, 14, 28);
+  doc.text(phone, 14, 32);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('INVOICE', 200, 22, { align: 'right' });
+
+  // Customer & Invoice Info
+  const infoY = 45;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('BILL TO', 14, infoY);
+  doc.setFont('helvetica', 'normal');
+  const nameLines = doc.splitTextToSize(String(customer?.name || ''), 110);
+  doc.text(nameLines, 14, infoY + 5);
+  const addressY = infoY + 5 + (nameLines.length * 5);
+  const addressLines = doc.splitTextToSize(String(customer?.address || ''), 110);
+  doc.text(addressLines, 14, addressY);
+  const phoneY = addressY + (addressLines.length * 5);
+  doc.text(String(customer?.phone || ''), 14, phoneY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Invoice #:', 140, infoY);
+  doc.text('Date:', 140, infoY + 5);
+  doc.text('Status:', 140, infoY + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(sale?.saleId || ''), 165, infoY);
+  doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
+  doc.text(currentPaymentMethod, 165, infoY + 10);
+  let pkgLinesCount = 0;
+  if (sale.packageName) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Package:', 140, infoY + 15);
+    doc.setFont('helvetica', 'normal');
+    const pkgLines = doc.splitTextToSize(sale.packageName, 32);
+    doc.text(pkgLines, 165, infoY + 15);
+    pkgLinesCount = pkgLines.length;
+  }
+
+  // Table
+  const tableData = sale.items.map(item => [
+    getItemTitle(item.itemId),
+    item.quantity,
+    `${formatTakaPlain(item.price)}`,
+    `${formatTakaPlain(item.quantity * item.price)}`
+  ]);
+
+  const footContent = [
+    [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `${formatTakaPlain(sale.subtotal)}`, styles: { textColor: [100, 100, 100] } }],
+    [{ content: `Discount${sale.discountType === 'percentage' ? ` (${sale.discountValue}%)` : ''}`, colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-${formatTakaPlain(sale.subtotal - sale.total)}`, styles: { textColor: [34, 197, 94] } }],
+    [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `${formatTakaPlain(sale.total)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
+  ];
+
+  if (sale.creditApplied && sale.creditApplied > 0) {
+    footContent.push(
+      [{ content: 'Paid from Advance', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `-${formatTakaPlain(sale.creditApplied)}`, styles: { textColor: [100, 100, 100] } }]
+    );
+  }
+
+  if (displayDue > 0) {
+    footContent.push(
+      [{ content: 'Remaining Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `${formatTakaPlain(displayDue)}`, styles: { textColor: [220, 38, 38] } }]
+    );
+  } else if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
+    footContent.push(
+      [{ content: 'Status', colSpan: 3, styles: { halign: 'right' as const, textColor: [34, 197, 94] } }, { content: 'PAID', styles: { textColor: [34, 197, 94] } }]
+    );
+  }
+
+  autoTable(doc, {
+    startY: Math.max(infoY + 15 + (pkgLinesCount > 0 ? (pkgLinesCount * 5) : 10), phoneY + 10),
+    head: [['Description', 'Qty', 'Unit Price', 'Total']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [48, 103, 84] }, // #306754
+    footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold' },
+    foot: footContent as any,
+  });
+
+  let finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.getHeight() - 30;
+
+  if (sale.gifts && sale.gifts.length > 0) {
+    let currentGiftY = finalY + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(34, 139, 34);
+    doc.text('Free Gifts Included:', 14, currentGiftY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(40, 40, 40);
+    currentGiftY += 5;
+
+    sale.gifts.forEach((gift) => {
+      const giftLine = `• ${gift}`;
+      const splitGift = doc.splitTextToSize(giftLine, 180);
+      doc.text(splitGift, 14, currentGiftY);
+      currentGiftY += (splitGift.length * 5);
+    });
+
+    finalY = currentGiftY;
+  }
+  doc.setFontSize(10);
+  doc.text('Thank you. Relish the nectar of Srila Gurumaharaja.', 105, finalY + 20, { align: 'center' });
+
+  doc.save(`memo-${sale.saleId}-${customer?.name || 'Customer'}.pdf`);
+}

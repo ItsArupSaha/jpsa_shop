@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import type { Expense } from '@/lib/types';
 import { getExpenses } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
+import { formatTakaPlain } from '@/lib/format';
 
 export async function getFilteredExpenses(userId: string, dateRange: DateRange | undefined) {
   if (!dateRange?.from) {
@@ -74,12 +75,12 @@ export async function downloadExpensesPdf(userId: string, dateRange: DateRange |
       e.name || '',
       e.description || '',
       e.paymentMethod || '',
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(e.amount)}`
+      `${formatTakaPlain(e.amount)}`
     ]).filter(row => row.every(cell => cell !== undefined)),
     foot: [
       [
         { content: 'Total', colSpan: 5, styles: { halign: 'right' } },
-        `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalExpenses)}`
+        `${formatTakaPlain(totalExpenses)}`
       ],
     ],
     footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },

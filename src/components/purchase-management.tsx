@@ -1,16 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import { Download, PlusCircle } from 'lucide-react';
+import { Download, PlusCircle, Search, X } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories, getPurchasesPaginated, getItems } from '@/lib/actions';
+import { getCategories, getPurchases, getItems } from '@/lib/actions';
 import type { Category, Purchase, Item } from '@/lib/types';
 import { AddOfficeAssetDialog } from './add-office-asset-dialog';
 import { ScrollArea } from './ui/scroll-area';
@@ -23,29 +24,32 @@ interface PurchaseManagementProps {
   userId: string;
 }
 
+const PAGE_SIZE = 10;
+
 export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
   const { authUser } = useAuth();
-  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [allPurchases, setAllPurchases] = React.useState<Purchase[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [items, setItems] = React.useState<Item[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const { toast } = useToast();
-  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10 });
-      setPurchases(newPurchases);
-      setHasMore(newHasMore);
-      const categoriesData = await getCategories(userId);
+      const [purchasesData, categoriesData, itemsData] = await Promise.all([
+        getPurchases(userId),
+        getCategories(userId),
+        getItems(userId),
+      ]);
+      setAllPurchases(purchasesData);
       setCategories(categoriesData);
-      const itemsData = await getItems(userId);
       setItems(itemsData);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
@@ -60,20 +64,21 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     }
   }, [userId, loadInitialData]);
 
-  const handleLoadMore = async () => {
-    if (!hasMore || isLoadingMore) return;
-    setIsLoadingMore(true);
-    const lastPurchaseId = purchases[purchases.length - 1]?.id;
-    try {
-      const { purchases: newPurchases, hasMore: newHasMore } = await getPurchasesPaginated({ userId, pageLimit: 10, lastVisibleId: lastPurchaseId });
-      setPurchases(prev => [...prev, ...newPurchases]);
-      setHasMore(newHasMore);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load more purchases." });
-    } finally {
-      setIsLoadingMore(false);
-    }
-  };
+  const filteredPurchases = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return allPurchases;
+    return allPurchases.filter(p =>
+      p.purchaseId.toLowerCase().includes(q) ||
+      p.supplier.toLowerCase().includes(q) ||
+      p.items.some(i => i.itemName.toLowerCase().includes(q))
+    );
+  }, [allPurchases, searchQuery]);
+
+  const visiblePurchases = React.useMemo(
+    () => filteredPurchases.slice(0, visibleCount),
+    [filteredPurchases, visibleCount]
+  );
+  const hasMore = visibleCount < filteredPurchases.length;
 
   const handleDownloadPdf = async () => {
     try {
@@ -101,12 +106,12 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     <>
       <Card className="animate-in fade-in-50">
         <CardHeader>
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
             <div>
-              <CardTitle className="font-headline text-2xl">Record Purchases</CardTitle>
+              <CardTitle className="font-headline text-2xl">Purchases</CardTitle>
               <CardDescription>Manage purchases of books and other assets for the store.</CardDescription>
             </div>
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-wrap items-center gap-2 justify-end">
               <Button onClick={() => setIsDialogOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Record New Purchase
               </Button>
@@ -118,7 +123,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
               <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
-                    <Download className="mr-2 h-4 w-4" /> Download Reports
+                    <Download className="mr-2 h-4 w-4" /> Export
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
@@ -148,14 +153,44 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
           </div>
         </CardHeader>
         <CardContent>
-          <PurchasesTable 
-            purchases={purchases}
+          <div className="flex flex-col md:flex-row gap-3 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search purchases by ID, supplier, or item..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setVisibleCount(PAGE_SIZE);
+                }}
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Clear search"
+                  className="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setVisibleCount(PAGE_SIZE);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground md:py-2">{filteredPurchases.length} purchase(s)</p>
+          </div>
+
+          <PurchasesTable
+            purchases={visiblePurchases}
             isInitialLoading={isInitialLoading}
           />
           {hasMore && (
             <div className="flex justify-center mt-4">
-              <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-                {isLoadingMore ? 'Loading...' : 'Load More'}
+              <Button variant="outline" onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}>
+                Load More
               </Button>
             </div>
           )}
@@ -182,3 +217,4 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     </>
   );
 }
+

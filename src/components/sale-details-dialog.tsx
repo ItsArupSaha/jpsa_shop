@@ -23,6 +23,7 @@ import { getSaleTransaction } from '@/lib/actions';
 import React from 'react';
 import { Gift } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { formatTaka } from '@/lib/format';
 
 interface SaleDetailsDialogProps {
   sale: Sale;
@@ -99,8 +100,8 @@ export function SaleDetailsDialog({ sale, items, children }: SaleDetailsDialogPr
                 <TableRow key={index}>
                   <TableCell className="font-medium">{getItemTitle(item.itemId)}</TableCell>
                   <TableCell className="text-center">{item.quantity}</TableCell>
-                  <TableCell className="text-right">৳{item.price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">৳{(item.quantity * item.price).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{formatTaka(item.price.toFixed(2))}</TableCell>
+                  <TableCell className="text-right">{formatTaka((item.quantity * item.price).toFixed(2))}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -109,15 +110,15 @@ export function SaleDetailsDialog({ sale, items, children }: SaleDetailsDialogPr
           <div className="space-y-2 text-sm pr-4">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>৳{sale.subtotal.toFixed(2)}</span>
+              <span>{formatTaka(sale.subtotal.toFixed(2))}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Discount</span>
-              <span>-৳{(sale.subtotal - sale.total).toFixed(2)}</span>
+              <span>-{formatTaka((sale.subtotal - sale.total).toFixed(2))}</span>
             </div>
             <div className="flex justify-between font-bold text-base border-b pb-2">
               <span>Grand Total</span>
-              <span>৳{sale.total.toFixed(2)}</span>
+              <span>{formatTaka(sale.total.toFixed(2))}</span>
             </div>
 
             <div className="pt-2">

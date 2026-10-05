@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Customer } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
 
 interface CustomersTableProps {
   customers: Customer[];
@@ -67,7 +68,7 @@ export function CustomersTable({
                 </TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell>{customer.address}</TableCell>
-                <TableCell className="text-right">৳{(customer.dueBalance || 0).toFixed(2)}</TableCell>
+                <TableCell className="text-right">{formatTaka((customer.dueBalance || 0).toFixed(2))}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => onEdit(customer)}>
                     <Edit className="h-4 w-4" />

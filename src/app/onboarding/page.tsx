@@ -193,7 +193,7 @@ export default function OnboardingPage() {
                   <FormItem>
                     <FormLabel>Store Address</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="123 Bookworm Lane, Readsville, USA" {...field} />
+                      <Textarea placeholder="House / Road / Area, Dhaka" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

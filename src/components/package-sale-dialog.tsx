@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { saleFormSchema, type SaleFormValues } from './packages/schema';
 import { PackageSaleItemsSummary } from './packages/package-sale-items-summary';
 import { Badge } from '@/components/ui/badge';
+import { formatTaka } from '@/lib/format';
 
 interface PackageSaleDialogProps {
   packageTemplate: PackageTemplate;
@@ -317,7 +318,7 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
                         </Select>
                         {customerCredit > 0 && (
                           <p className="text-sm text-green-600 mt-2">
-                            Customer has ৳{customerCredit.toFixed(2)} credit available.
+                            Customer has {formatTaka(customerCredit.toFixed(2))} credit available.
                           </p>
                         )}
                         <FormMessage />
@@ -491,7 +492,7 @@ export function PackageSaleDialog({ packageTemplate, items, userId, onSaleComple
               <div className="bg-primary/5 text-primary border border-primary/20 p-4 rounded-xl flex justify-between items-center shadow-inner mt-4">
                 <div>
                     <p className="text-sm font-medium opacity-80">Final Total</p>
-                    <p className="text-3xl font-bold tracking-tight">৳{totalAfterCredit.toFixed(2)}</p>
+                    <p className="text-3xl font-bold tracking-tight">{formatTaka(totalAfterCredit.toFixed(2))}</p>
                 </div>
                 <Button type="submit" size="lg" className="font-semibold shadow-md" disabled={isPending}>
                   {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShoppingCart className="mr-2 h-5 w-5" />}

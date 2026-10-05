@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { formatTaka } from '@/lib/format';
 
 interface RefundCustomerDialogProps {
     customer: CustomerWithDue;
@@ -100,7 +101,7 @@ export default function RefundCustomerDialog({ customer, userId, children, onRef
 
                 <div className="bg-muted p-3 mt-4 rounded-md">
                     <p className="text-sm font-medium mb-1">Customer: {customer.name}</p>
-                    <p className="text-sm">Overpaid Amount: <span className="font-bold text-emerald-600">৳{maxRefundableAmount.toFixed(2)}</span></p>
+                    <p className="text-sm">Overpaid Amount: <span className="font-bold text-emerald-600">{formatTaka(maxRefundableAmount.toFixed(2))}</span></p>
                 </div>
 
                 <Form {...form}>

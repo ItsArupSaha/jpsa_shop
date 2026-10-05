@@ -58,7 +58,7 @@ export async function getPurchasesPaginated({ userId, pageLimit = 5, lastVisible
   return { purchases, hasMore };
 }
 
-export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: string }) {
+export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: string; date?: string }): Promise<{ success: boolean; error?: string; purchase?: Purchase }> {
   if (!db || !userId) return { success: false, error: 'Database not connected' };
 
   try {
@@ -69,8 +69,9 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           const itemsCollection = collection(userRef, 'items');
           const expensesCollection = collection(userRef, 'expenses');
           const transactionsCollection = collection(userRef, 'transactions');
-          
-          const purchaseDate = new Date();
+
+          const purchaseDate = data.date ? new Date(data.date) : new Date();
+          if (Number.isNaN(purchaseDate.getTime())) throw new Error('Invalid purchase date.');
 
           const metadataDoc = await transaction.get(metadataRef);
           let lastPurchaseNumber = 0;
@@ -79,57 +80,55 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           }
           const newPurchaseNumber = lastPurchaseNumber + 1;
           const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
-          
+
+          const normalizeTitle = (value: unknown) =>
+              String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
           let totalAmount = 0;
           for (const item of data.items) {
               totalAmount += item.cost * item.quantity;
           }
           const discountAmount = data.discountAmount || 0;
 
-          const newPurchaseRef = doc(purchasesCollection);
-          const purchaseData = {
-              ...data,
-              purchaseId,
-              date: Timestamp.fromDate(purchaseDate),
-              dueDate: Timestamp.fromDate(new Date(data.dueDate)),
-              totalAmount: totalAmount,
-              discountAmount: discountAmount,
-          };
-          transaction.set(newPurchaseRef, purchaseData);
-          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
-
+          // Resolve every row against the catalog so the purchase remembers which
+          // item it fed; rows without a match create a new item.
+          const itemsWithLinks: (typeof data.items)[number][] = [];
           for (const item of data.items) {
-              const q = query(itemsCollection, where("title", "==", item.itemName));
-              const bookSnapshot = await getDocs(q); 
+              const categorySnapshot = await getDocs(
+                  query(itemsCollection, where('categoryId', '==', item.categoryId))
+              );
+              const existingDoc = categorySnapshot.docs.find(
+                  d => normalizeTitle(d.data().title) === normalizeTitle(item.itemName)
+              );
 
-              if (!bookSnapshot.empty) {
-                  const bookDoc = bookSnapshot.docs[0];
-                  const bookData = bookDoc.data();
+              let linkedItemId: string;
+              if (existingDoc) {
+                  linkedItemId = existingDoc.id;
+                  const bookData = existingDoc.data();
                   const currentStock = Number(bookData.stock) || 0;
                   const currentTotalValue = currentStock * (Number(bookData.productionPrice) || 0);
                   const newTotalValue = Number(item.cost) * Number(item.quantity);
                   const newStock = currentStock + Number(item.quantity);
                   const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
-                  
-                   // Optionally keep the higher selling price or recalculate standard markup
-                  const newSellingPrice = item.sellingPrice && item.sellingPrice > 0 
-                                            ? item.sellingPrice 
+
+                  // Optionally keep the higher selling price or recalculate standard markup
+                  const newSellingPrice = item.sellingPrice && item.sellingPrice > 0
+                                            ? item.sellingPrice
                                             : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
-                  
-                  const updateData: any = { 
+
+                  const updateData: any = {
                       stock: newStock,
                       productionPrice: newProductionPrice,
                       sellingPrice: newSellingPrice
                   };
-                  if (item.medicineGroup) updateData.medicineGroup = item.medicineGroup;
-                  if (item.company) updateData.company = item.company;
-                  if (item.expiryDate) updateData.expiryDate = item.expiryDate;
+                  if (item.author) updateData.author = item.author;
 
-                  transaction.update(bookDoc.ref, updateData);
+                  transaction.update(existingDoc.ref, updateData);
               } else {
                   const newItemRef = doc(itemsCollection);
+                  linkedItemId = newItemRef.id;
                   const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
-                  
+
                   const newItemData: Omit<Item, 'id'> = {
                       title: item.itemName,
                       categoryId: item.categoryId,
@@ -138,15 +137,25 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                       stock: item.quantity,
                       productionPrice: item.cost,
                       sellingPrice: sellingPrice,
+                      createdAt: Timestamp.fromDate(purchaseDate),
                   };
-
-                  if (item.medicineGroup) newItemData.medicineGroup = item.medicineGroup;
-                  if (item.company) newItemData.company = item.company;
-                  if (item.expiryDate) newItemData.expiryDate = item.expiryDate;
-
                   transaction.set(newItemRef, newItemData);
               }
+              itemsWithLinks.push({ ...item, itemId: linkedItemId });
           }
+
+          const newPurchaseRef = doc(purchasesCollection);
+          const purchaseData = {
+              ...data,
+              items: itemsWithLinks,
+              purchaseId,
+              date: Timestamp.fromDate(purchaseDate),
+              dueDate: Timestamp.fromDate(new Date(data.dueDate)),
+              totalAmount: totalAmount,
+              discountAmount: discountAmount,
+          };
+          transaction.set(newPurchaseRef, purchaseData);
+          transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
           // Get expense counter for generating expense IDs
           let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
@@ -157,13 +166,13 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
               if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
                   lastExpenseNumber += 1;
                   const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
-                  const expenseData = {
-                      expenseId,
-                      description: `Payment for Purchase ${purchaseId}`,
-                      amount: finalAmount,
-                      date: Timestamp.fromDate(new Date()),
-                      paymentMethod: data.paymentMethod,
-                  };
+                      const expenseData = {
+                          expenseId,
+                          description: `Payment for Purchase ${purchaseId}`,
+                          amount: finalAmount,
+                          date: Timestamp.fromDate(purchaseDate),
+                          paymentMethod: data.paymentMethod,
+                      };
                   transaction.set(doc(expensesCollection), expenseData);
               } else if (data.paymentMethod === 'Split') {
                   const amountPaid = data.amountPaid || 0;
@@ -176,7 +185,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
                           expenseId,
                           description: `Partial payment for Purchase ${purchaseId}`,
                           amount: amountPaid,
-                          date: Timestamp.fromDate(new Date()),
+                          date: Timestamp.fromDate(purchaseDate),
                           paymentMethod: data.splitPaymentMethod,
                       };
                       transaction.set(doc(expensesCollection), expenseData);

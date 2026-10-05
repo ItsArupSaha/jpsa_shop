@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
+import { formatTaka } from '@/lib/format';
 
 interface PayPayableDialogProps {
     payable: Transaction;
@@ -98,7 +99,7 @@ export default function PayPayableDialog({ payable, userId, children, onPaymentS
 
                 <div className="bg-muted p-3 mt-4 rounded-md">
                     <p className="text-sm font-medium mb-1">{payable.description}</p>
-                    <p className="text-sm">Current Balance: <span className="font-bold text-destructive">৳{payable.amount.toFixed(2)}</span></p>
+                    <p className="text-sm">Current Balance: <span className="font-bold text-destructive">{formatTaka(payable.amount.toFixed(2))}</span></p>
                 </div>
 
                 <Form {...form}>

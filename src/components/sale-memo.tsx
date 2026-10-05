@@ -3,8 +3,6 @@
 
 import type { AuthUser, Customer, Item, Sale } from '@/lib/types';
 import { format } from 'date-fns';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { Download, Gift, PlusCircle } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -14,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 
 import { getSaleTransaction } from '@/lib/actions';
 import React from 'react';
+import { formatTaka } from '@/lib/format';
+import { generateSaleMemoPdf } from './sale-memo-pdf';
 
 interface SaleMemoProps {
     sale: Sale;
@@ -45,143 +45,9 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
         fetchStatus();
     }, [sale.saleId, sale.paymentMethod, user.uid]);
 
-    const generatePdf = async () => {
-        let currentPaymentMethod: string = sale.paymentMethod;
-        let displayDue = 0;
+    const generatePdf = () => generateSaleMemoPdf({ sale, customer, items, user });
 
-        if (sale.paymentMethod === 'Due') {
-            displayDue = sale.total;
-        } else if (sale.paymentMethod === 'Split') {
-            displayDue = sale.total - (sale.amountPaid || 0);
-        }
-
-        if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
-            const transaction = await getSaleTransaction(user.uid, sale.saleId);
-            if (transaction) {
-                if (transaction.status === 'Paid') {
-                    currentPaymentMethod = 'Paid';
-                    displayDue = 0;
-                } else {
-                    displayDue = transaction.amount;
-                }
-            }
-        }
-
-        const doc = new jsPDF();
-        const companyName = user.companyName || 'Bookstore';
-        const address = user.address || '';
-        const phone = user.phone || '';
-
-        // Header
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(22);
-        doc.text(companyName, 14, 22);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(address, 14, 28);
-        doc.text(phone, 14, 32);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('INVOICE', 200, 22, { align: 'right' });
-
-        // Customer & Invoice Info
-        const infoY = 45;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('BILL TO', 14, infoY);
-        doc.setFont('helvetica', 'normal');
-        const nameLines = doc.splitTextToSize(customer.name || '', 110);
-        doc.text(nameLines, 14, infoY + 5);
-        const addressY = infoY + 5 + (nameLines.length * 5);
-        const addressLines = doc.splitTextToSize(customer.address || '', 110);
-        doc.text(addressLines, 14, addressY);
-        const phoneY = addressY + (addressLines.length * 5);
-        doc.text(customer.phone || '', 14, phoneY);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text('Invoice #:', 140, infoY);
-        doc.text('Date:', 140, infoY + 5);
-        doc.text('Status:', 140, infoY + 10);
-
-        doc.setFont('helvetica', 'normal');
-        doc.text(sale.saleId, 165, infoY);
-        doc.text(format(new Date(sale.date), 'PPP'), 165, infoY + 5);
-        doc.text(currentPaymentMethod, 165, infoY + 10);
-        let pkgLinesCount = 0;
-        if (sale.packageName) {
-            doc.setFont('helvetica', 'bold');
-            doc.text('Package:', 140, infoY + 15);
-            doc.setFont('helvetica', 'normal');
-            const pkgLines = doc.splitTextToSize(sale.packageName, 32);
-            doc.text(pkgLines, 165, infoY + 15);
-            pkgLinesCount = pkgLines.length;
-        }
-
-
-        // Table
-        const tableData = sale.items.map(item => [
-            getItemTitle(item.itemId),
-            item.quantity,
-            `TK ${item.price.toFixed(2)}`,
-            `TK ${(item.quantity * item.price).toFixed(2)}`
-        ]);
-
-        const footContent = [
-            [{ content: 'Subtotal', colSpan: 3, styles: { halign: 'right', textColor: [100, 100, 100] } }, { content: `TK ${sale.subtotal.toFixed(2)}`, styles: { textColor: [100, 100, 100] } }],
-            [{ content: `Discount${sale.discountType === 'percentage' ? ` (${sale.discountValue}%)` : ''}`, colSpan: 3, styles: { halign: 'right', textColor: [34, 197, 94] } }, { content: `-TK ${(sale.subtotal - sale.total).toFixed(2)}`, styles: { textColor: [34, 197, 94] } }],
-            [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontSize: 12, textColor: [0, 0, 0] } }, { content: `TK ${sale.total.toFixed(2)}`, styles: { textColor: [0, 0, 0], fontSize: 12 } }],
-        ];
-
-        if (displayDue > 0) {
-            footContent.push(
-                [{ content: 'Remaining Due', colSpan: 3, styles: { halign: 'right' as const, textColor: [220, 38, 38] } }, { content: `TK ${displayDue.toFixed(2)}`, styles: { textColor: [220, 38, 38] } }]
-            );
-        } else if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
-            footContent.push(
-                [{ content: 'Status', colSpan: 3, styles: { halign: 'right' as const, textColor: [34, 197, 94] } }, { content: `PAID`, styles: { textColor: [34, 197, 94] } }]
-            );
-        }
-
-        autoTable(doc, {
-            startY: Math.max(infoY + 15 + (pkgLinesCount > 0 ? (pkgLinesCount * 5) : 10), phoneY + 10),
-            head: [['Description', 'Qty', 'Unit Price', 'Total']],
-            body: tableData,
-            theme: 'striped',
-            headStyles: { fillColor: [48, 103, 84] }, // #306754
-            footStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold' },
-            foot: footContent as any,
-        });
-
-        let finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.getHeight() - 30;
-
-        if (sale.gifts && sale.gifts.length > 0) {
-            let currentGiftY = finalY + 8;
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(34, 139, 34);
-            doc.text('Free Gifts Included:', 14, currentGiftY);
-
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(40, 40, 40);
-            currentGiftY += 5;
-
-            sale.gifts.forEach((gift) => {
-                const giftLine = `• ${gift}`;
-                const splitGift = doc.splitTextToSize(giftLine, 180);
-                doc.text(splitGift, 14, currentGiftY);
-                currentGiftY += (splitGift.length * 5);
-            });
-
-            finalY = currentGiftY;
-        }
-        doc.setFontSize(10);
-        doc.text('Thank you. Relish the nectar of Srila Gurumaharaja.', 105, finalY + 20, { align: 'center' });
-
-        doc.save(`memo-${sale.saleId}-${customer.name}.pdf`);
-    };
-
-    const displayDueAmount = status === 'Paid' ? 0 : (currentDue !== null ? currentDue : (sale.total - (sale.amountPaid || 0)));
+    const displayDueAmount = status === 'Paid' ? 0 : (currentDue !== null ? currentDue : Math.max(0, sale.total - (sale.creditApplied || 0) - (sale.amountPaid || 0)));
 
     return (
         <>
@@ -238,7 +104,7 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                                 <TableRow key={index}>
                                     <TableCell className="font-medium">{getItemTitle(item.itemId)}</TableCell>
                                     <TableCell className="text-center">{item.quantity}</TableCell>
-                                    <TableCell className="text-right">TK {(item.quantity * item.price).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">{formatTaka(item.quantity * item.price)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -249,21 +115,27 @@ export function SaleMemo({ sale, customer, items, user, onNewSale }: SaleMemoPro
                     <div className="space-y-2 text-sm pr-4">
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">Subtotal</span>
-                            <span>TK {sale.subtotal.toFixed(2)}</span>
+                            <span>{formatTaka(sale.subtotal)}</span>
                         </div>
                         <div className="flex justify-between text-green-600">
                             <span>Discount{sale.discountType === 'percentage' ? ` (${sale.discountValue}%)` : ''}</span>
-                            <span>-TK {(sale.subtotal - sale.total).toFixed(2)}</span>
+                            <span>-{formatTaka(sale.subtotal - sale.total)}</span>
                         </div>
+                        {sale.creditApplied && sale.creditApplied > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                                <span>Paid from Advance</span>
+                                <span>-{formatTaka(sale.creditApplied)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between font-bold text-base border-t pt-2">
                             <span>Grand Total</span>
-                            <span>TK {sale.total.toFixed(2)}</span>
+                            <span>{formatTaka(sale.total - (sale.creditApplied || 0))}</span>
                         </div>
 
                         {(sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') && (
                             <div className="flex justify-between font-bold pt-2">
                                 <span className={status === 'Paid' ? 'text-green-600' : 'text-destructive'}>Remaining Due</span>
-                                <span className={status === 'Paid' ? 'text-green-600' : 'text-destructive'}>TK {displayDueAmount.toFixed(2)}</span>
+                                <span className={status === 'Paid' ? 'text-green-600' : 'text-destructive'}>{formatTaka(displayDueAmount)}</span>
                             </div>
                         )}
                     </div>

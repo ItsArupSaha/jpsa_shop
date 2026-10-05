@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 
 import { useAuth } from '@/hooks/use-auth';
+import { formatTaka } from '@/lib/format';
 import {
   getAuthorityPresentationReport,
   type AuthorityPresentationReport as AuthorityReportData,
@@ -33,11 +34,7 @@ import {
 import { OverviewTables } from './authority/overview-tables';
 import { exportAuthorityReportPdf } from './authority/authority-export-utils';
 
-const formatCurrency = (amount: number) =>
-  `BDT ${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const formatCurrency = (amount: number) => formatTaka(amount);
 
 interface AuthorityPresentationReportProps {
   userId: string;

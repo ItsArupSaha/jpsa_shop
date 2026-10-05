@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { getAccountOverview } from '@/lib/actions';
+import { formatTaka } from '@/lib/format';
 import { CalendarIcon, Download } from 'lucide-react';
 import { exportBalanceSheetPdf } from './balance-sheet/balance-sheet-pdf';
 import { BalanceSheetTables } from './balance-sheet/balance-sheet-tables';
@@ -26,11 +27,7 @@ interface BalanceSheetProps {
 
 type Overview = Awaited<ReturnType<typeof getAccountOverview>>;
 
-const formatCurrency = (amount: number) =>
-    `BDT ${amount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    })}`;
+const formatCurrency = (amount: number) => formatTaka(amount);
 
 export default function BalanceSheet({ userId }: BalanceSheetProps) {
     const { authUser } = useAuth();

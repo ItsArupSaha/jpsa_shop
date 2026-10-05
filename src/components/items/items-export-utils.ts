@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { formatTakaPlain } from '@/lib/format';
 import type { ClosingStock } from '@/lib/types';
 
 interface AuthUserProps {
@@ -20,7 +21,11 @@ export function exportClosingStockPdf(
   if (!closingStockData.length || !closingStockDate || !authUser) return;
 
   const doc = new jsPDF();
-  const dateString = format(closingStockDate, 'PPP');
+  const dateString = format(closingStockDate, 'dd MMM yyyy');
+  const totalStockValue = closingStockData.reduce(
+    (sum, item) => sum + (item.closingStock > 0 ? item.closingStock * item.productionPrice : 0),
+    0
+  );
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
@@ -50,17 +55,18 @@ export function exportClosingStockPdf(
 
   autoTable(doc, {
     startY: 60,
-    head: [['Title', 'Category', 'Author/Group', 'Company', 'Expiry Date', 'Prod. Price (TK)', 'MRP (TK)', 'Stock']],
+    head: [['Title', 'Category', 'Author', 'Cost Price', 'Selling Price', 'Stock', 'Stock Value']],
     body: closingStockData.map(item => [
       item.title,
       item.categoryName,
-      item.author || item.medicineGroup || '-',
-      item.company || '-',
-      item.expiryDate || '-',
-      item.productionPrice.toFixed(2),
-      item.sellingPrice.toFixed(2),
-      item.closingStock
+      item.author || '-',
+      formatTakaPlain(item.productionPrice),
+      formatTakaPlain(item.sellingPrice),
+      item.closingStock,
+      formatTakaPlain(item.closingStock > 0 ? item.closingStock * item.productionPrice : 0),
     ]),
+    foot: [['', '', '', '', '', 'Total', formatTakaPlain(totalStockValue)]],
+    footStyles: { fontStyle: 'bold' },
   });
 
   doc.save(`closing-stock-report-${format(closingStockDate, 'yyyy-MM-dd')}.pdf`);
@@ -75,12 +81,11 @@ export function exportClosingStockXlsx(
   const dataToExport = closingStockData.map(item => ({
     Title: item.title,
     Category: item.categoryName,
-    'Author/Group': item.author || item.medicineGroup || '-',
-    Company: item.company || '-',
-    'Expiry Date': item.expiryDate || '-',
-    'Production Price': item.productionPrice,
-    'MRP': item.sellingPrice,
+    Author: item.author || '-',
+    'Cost Price': item.productionPrice,
+    'Selling Price': item.sellingPrice,
     Stock: item.closingStock,
+    'Stock Value': item.closingStock > 0 ? item.closingStock * item.productionPrice : 0,
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
-import { DollarSign, FileSpreadsheet, FileText, Loader2, MoreVertical } from 'lucide-react';
+import { DollarSign, Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -197,7 +197,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">
-                    <MoreVertical className="h-4 w-4" />
+                    <Download className="mr-2 h-4 w-4" /> Export
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">

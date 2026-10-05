@@ -1,11 +1,8 @@
 import * as React from 'react';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { formatTaka } from '@/lib/format';
 
-const formatCurrency = (amount: number) =>
-  `BDT ${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const formatCurrency = (amount: number) => formatTaka(amount);
 
 interface OverviewProps {
   cash: number;

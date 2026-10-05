@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import type { Sale, Item, Customer, Transaction } from '@/lib/types';
 import { getSales, getTransactionsForCustomer } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
+import { formatTakaPlain } from '@/lib/format';
 
 function getOriginalDueAmount(sale: Sale) {
   if (sale.paymentMethod === 'Due') {
@@ -227,11 +228,11 @@ export async function downloadSalesPdf(userId: string, dateRange: DateRange | un
       sale.saleId,
       getCustomerName(sale.customerId),
       sale.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', '),
-      sale.discountType === 'percentage' ? `${sale.discountValue}%` : `TK ${sale.discountValue.toFixed(2)}`,
+      sale.discountType === 'percentage' ? `${sale.discountValue}%` : `${formatTakaPlain(sale.discountValue)}`,
       exportBreakdown[sale.id]?.statusLabel || sale.paymentMethod,
-      `TK ${(exportBreakdown[sale.id]?.paidAmount ?? sale.total).toFixed(2)}`,
-      `TK ${(exportBreakdown[sale.id]?.dueAmount ?? 0).toFixed(2)}`,
-      `TK ${sale.total.toFixed(2)}`
+      `${formatTakaPlain(exportBreakdown[sale.id]?.paidAmount ?? sale.total)}`,
+      `${formatTakaPlain(exportBreakdown[sale.id]?.dueAmount ?? 0)}`,
+      `${formatTakaPlain(sale.total)}`
     ]),
   });
 
@@ -342,9 +343,9 @@ export async function downloadSalesItemsPdf(userId: string, dateRange: DateRange
       i + 1,
       row.title,
       row.qty,
-      `BDT ${row.revenue.toFixed(2)}`,
+      `${formatTakaPlain(row.revenue)}`,
     ]),
-    foot: [['', 'TOTAL', totalQty, `BDT ${totalRevenue.toFixed(2)}`]],
+    foot: [['', 'TOTAL', totalQty, `${formatTakaPlain(totalRevenue)}`]],
     footStyles: { fontStyle: 'bold' },
   });
 

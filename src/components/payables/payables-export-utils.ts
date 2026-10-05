@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Transaction } from '@/lib/types';
+import { formatTakaPlain } from '@/lib/format';
 
 interface AuthUserProps {
   companyName?: string;
@@ -56,11 +57,11 @@ export function generatePendingPayablesPdf(data: Transaction[], date: Date, auth
     body: data.map(t => [
       t.description,
       format(new Date(t.dueDate), 'yyyy-MM-dd'),
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(t.amount)}`
+      `${formatTakaPlain(t.amount)}`
     ]),
     foot: [[
       { content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalAmount)}`
+      `${formatTakaPlain(totalAmount)}`
     ]],
     footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
   });
@@ -105,11 +106,11 @@ export function generatePaidPayablesPdf(data: Transaction[], fromDate: Date, toD
     body: data.map(t => [
       t.description,
       format(new Date(t.dueDate), 'yyyy-MM-dd'),
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(t.amount)}`
+      `${formatTakaPlain(t.amount)}`
     ]),
     foot: [[
       { content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalAmount)}`
+      `${formatTakaPlain(totalAmount)}`
     ]],
     footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
   });

@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CustomerWithDue, Transaction } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
 
 interface PendingReceivablesTableProps {
   customers: CustomerWithDue[];
@@ -47,7 +48,7 @@ export function PendingReceivablesTable({ customers, isLoading }: PendingReceiva
                 </TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell className="text-right font-bold text-destructive">
-                  ৳{customer.dueBalance.toFixed(2)}
+                  {formatTaka(customer.dueBalance.toFixed(2))}
                 </TableCell>
               </TableRow>
             ))
@@ -110,7 +111,7 @@ export function ReceivedPaymentsTable({ receivedPayments, isLoading }: ReceivedP
                 </TableCell>
                 <TableCell>{payment.paymentMethod || 'N/A'}</TableCell>
                 <TableCell className="text-right font-bold text-primary">
-                  ৳{payment.amount.toFixed(2)}
+                  {formatTaka(payment.amount.toFixed(2))}
                 </TableCell>
               </TableRow>
             ))

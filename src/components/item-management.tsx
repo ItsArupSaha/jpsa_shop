@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { PlusCircle, Search, X } from 'lucide-react';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   const [isItemDialogOpen, setIsItemDialogOpen] = React.useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isStockDialogOpen, setIsStockDialogOpen] = React.useState(false);
+  const [itemPendingDelete, setItemPendingDelete] = React.useState<Item | null>(null);
+  const [categoryPendingDelete, setCategoryPendingDelete] = React.useState<Category | null>(null);
 
   // Editing States
   const [editingItem, setEditingItem] = React.useState<Item | null>(null);
@@ -108,26 +111,34 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     setIsCategoryDialogOpen(true);
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleConfirmDeleteItem = () => {
+    const item = itemPendingDelete;
+    if (!item) return;
     startTransition(async () => {
       try {
-        await deleteItem(userId, id);
+        await deleteItem(userId, item.id);
         await loadData(true);
-        toast({ title: 'Item Deleted', description: 'The item has been removed from the inventory.' });
+        toast({ title: 'Item Deleted', description: `"${item.title}" has been removed from the catalog.` });
       } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the item.' });
+      } finally {
+        setItemPendingDelete(null);
       }
     });
   };
 
-  const handleDeleteCategory = (id: string) => {
+  const handleConfirmDeleteCategory = () => {
+    const category = categoryPendingDelete;
+    if (!category) return;
     startTransition(async () => {
       try {
-        await deleteCategory(userId, id);
+        await deleteCategory(userId, category.id);
         await loadData(true);
-        toast({ title: 'Category Deleted', description: 'The category has been removed.' });
+        toast({ title: 'Category Deleted', description: `The category "${category.name}" has been removed.` });
       } catch (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Could not delete the category.' });
+      } finally {
+        setCategoryPendingDelete(null);
       }
     });
   };
@@ -160,18 +171,6 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
     exportClosingStockXlsx(closingStockData, closingStockDate);
   };
 
-  const expiringAndExpiredMedicines = React.useMemo(() => {
-    const now = new Date();
-    const oneMonthFromNow = new Date();
-    oneMonthFromNow.setDate(now.getDate() + 30);
-
-    return allItems.filter((item) => {
-      if (!item.expiryDate) return false;
-      const exp = new Date(item.expiryDate);
-      return exp <= oneMonthFromNow;
-    });
-  }, [allItems]);
-
   // Client-side filtering & sorting
   const filteredAndSortedItems = React.useMemo(() => {
     let result = [...allItems];
@@ -182,9 +181,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         (item) =>
           item.title.toLowerCase().includes(q) ||
           item.categoryName.toLowerCase().includes(q) ||
-          (item.author && item.author.toLowerCase().includes(q)) ||
-          (item.medicineGroup && item.medicineGroup.toLowerCase().includes(q)) ||
-          (item.company && item.company.toLowerCase().includes(q))
+          (item.author && item.author.toLowerCase().includes(q))
       );
     }
 
@@ -192,24 +189,10 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
       result = result.filter((item) => item.categoryId === selectedCategoryFilter);
     }
 
-    const now = new Date();
-    const oneMonthFromNow = new Date();
-    oneMonthFromNow.setDate(now.getDate() + 30);
-
     if (selectedStatusFilter === 'lowStock') {
       result = result.filter((item) => item.stock <= 5);
-    } else if (selectedStatusFilter === 'expiringSoon') {
-      result = result.filter((item) => {
-        if (!item.expiryDate) return false;
-        const exp = new Date(item.expiryDate);
-        return exp > now && exp <= oneMonthFromNow;
-      });
-    } else if (selectedStatusFilter === 'expired') {
-      result = result.filter((item) => {
-        if (!item.expiryDate) return false;
-        const exp = new Date(item.expiryDate);
-        return exp <= now;
-      });
+    } else if (selectedStatusFilter === 'outOfStock') {
+      result = result.filter((item) => item.stock <= 0);
     }
 
     result.sort((a, b) => {
@@ -225,20 +208,8 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
       if (sortBy === 'stock-desc') {
         return b.stock - a.stock;
       }
-      if (sortBy === 'group-asc') {
-        const groupA = a.medicineGroup || '';
-        const groupB = b.medicineGroup || '';
-        return groupA.localeCompare(groupB);
-      }
-      if (sortBy === 'company-asc') {
-        const companyA = a.company || '';
-        const companyB = b.company || '';
-        return companyA.localeCompare(companyB);
-      }
-      if (sortBy === 'expiry-asc') {
-        const dateA = a.expiryDate ? new Date(a.expiryDate).getTime() : Infinity;
-        const dateB = b.expiryDate ? new Date(b.expiryDate).getTime() : Infinity;
-        return dateA - dateB;
+      if (sortBy === 'author-asc') {
+        return (a.author || '').localeCompare(b.author || '');
       }
       return 0;
     });
@@ -259,12 +230,12 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
   return (
     <Card className="animate-in fade-in-50">
       <CardHeader>
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
           <div>
-            <CardTitle className="font-headline text-2xl">Item Inventory</CardTitle>
-            <CardDescription>Manage your item catalog, prices, and stock levels.</CardDescription>
+            <CardTitle className="font-headline text-2xl">Item Catalog</CardTitle>
+            <CardDescription>Manage your books, prices, and stock levels.</CardDescription>
           </div>
-          <div className="flex flex-col gap-2 items-end">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={handleAddNewItem} className="bg-primary hover:bg-primary/90">
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Item
             </Button>
@@ -285,35 +256,15 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {/* Expiry Warning Banner */}
-        {expiringAndExpiredMedicines.length > 0 && (
-          <div className="mb-6 p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/50 rounded-lg flex items-start gap-3 animate-in slide-in-from-top duration-300">
-            <span className="text-xl">⚠️</span>
-            <div className="flex-1">
-              <h4 className="font-semibold text-amber-800 dark:text-amber-400">Medicine Expiry Alert</h4>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                There are {expiringAndExpiredMedicines.length} medicine(s) expired or expiring within 30 days.
-              </p>
-              <Button
-                variant="link"
-                className="p-0 h-auto text-sm text-amber-800 dark:text-amber-400 font-semibold underline hover:text-amber-900"
-                onClick={() => {
-                  setSelectedStatusFilter('expiringSoon');
-                  setSelectedCategoryFilter('all');
-                }}
-              >
-                Filter items to view them
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Categories Section */}
         <CategoriesList
           categories={categories}
           onAddClick={handleAddNewCategory}
           onEditClick={handleEditCategory}
-          onDeleteClick={handleDeleteCategory}
+          onDeleteClick={(id) => {
+            const category = categories.find((c) => c.id === id);
+            if (category) setCategoryPendingDelete(category);
+          }}
           isPending={isPending}
         />
 
@@ -328,6 +279,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
 
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Current Inventory</h3>
+          <p className="text-sm text-muted-foreground">{filteredAndSortedItems.length} item(s)</p>
         </div>
 
         {/* Search, Filter, and Sort Controls */}
@@ -335,7 +287,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search items by name, group, manufacturer, category, author..."
+              placeholder="Search items by title, author, or category..."
               className="pl-8"
               value={searchQuery}
               onChange={(e) => {
@@ -347,6 +299,7 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Clear search"
                 className="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setSearchQuery('');
@@ -389,10 +342,9 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">All Stock Levels</SelectItem>
                 <SelectItem value="lowStock">Low Stock (≤5)</SelectItem>
-                <SelectItem value="expiringSoon">Expiring Soon (30d)</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
+                <SelectItem value="outOfStock">Out of Stock</SelectItem>
               </SelectContent>
             </Select>
 
@@ -403,48 +355,27 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
               <SelectContent>
                 <SelectItem value="title-asc">Title: A to Z</SelectItem>
                 <SelectItem value="title-desc">Title: Z to A</SelectItem>
+                <SelectItem value="author-asc">Author: A to Z</SelectItem>
                 <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
                 <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
-                <SelectItem value="group-asc">Medicine Group: A-Z</SelectItem>
-                <SelectItem value="company-asc">Company Name: A-Z</SelectItem>
-                <SelectItem value="expiry-asc">Expiry Date: Soonest</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        {/* Dedicated Quick Sort Pills */}
-        <div className="flex flex-wrap items-center gap-2 mb-4 text-sm bg-muted/20 p-2.5 rounded-lg border border-dashed">
-          <span className="text-muted-foreground font-medium mr-1">Quick Sort Medicine:</span>
-          <Button
-            variant={sortBy === 'group-asc' ? 'default' : 'outline'}
-            size="sm"
-            className="rounded-full h-8 px-3.5 text-xs font-semibold"
-            onClick={() => setSortBy(sortBy === 'group-asc' ? 'title-asc' : 'group-asc')}
-          >
-            By Generic Group
-          </Button>
-          <Button
-            variant={sortBy === 'company-asc' ? 'default' : 'outline'}
-            size="sm"
-            className="rounded-full h-8 px-3.5 text-xs font-semibold"
-            onClick={() => setSortBy(sortBy === 'company-asc' ? 'title-asc' : 'company-asc')}
-          >
-            By Company / Manufacturer
-          </Button>
         </div>
 
         <ItemsTable
           items={displayedItems}
           isInitialLoading={isInitialLoading}
           onEdit={handleEditItem}
-          onDelete={handleDeleteItem}
+          onDelete={(item) => setItemPendingDelete(item)}
           isPending={isPending}
         />
 
         {hasMore && (
           <div className="flex justify-center mt-4">
-            <Button onClick={handleLoadMore}>Load More</Button>
+            <Button variant="outline" onClick={handleLoadMore}>
+              Load More
+            </Button>
           </div>
         )}
       </CardContent>
@@ -465,6 +396,24 @@ export default function ItemManagement({ userId }: ItemManagementProps) {
         onOpenChange={setIsCategoryDialogOpen}
         editingCategory={editingCategory}
         onSuccess={() => loadData(true)}
+      />
+
+      <ConfirmDialog
+        open={itemPendingDelete !== null}
+        onOpenChange={(open) => !open && setItemPendingDelete(null)}
+        title="Delete this item?"
+        description={itemPendingDelete ? `"${itemPendingDelete.title}" will be removed from the catalog. Past sales and reports keep their records.` : ''}
+        onConfirm={handleConfirmDeleteItem}
+        isPending={isPending}
+      />
+
+      <ConfirmDialog
+        open={categoryPendingDelete !== null}
+        onOpenChange={(open) => !open && setCategoryPendingDelete(null)}
+        title="Delete this category?"
+        description={categoryPendingDelete ? `The category "${categoryPendingDelete.name}" will be removed. Items in it are not deleted.` : ''}
+        onConfirm={handleConfirmDeleteCategory}
+        isPending={isPending}
       />
     </Card>
   );

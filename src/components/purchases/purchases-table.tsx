@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Purchase } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
 
 interface PurchasesTableProps {
   purchases: Purchase[];
@@ -53,9 +54,9 @@ export function PurchasesTable({
                 {purchase.items.map(i => `${i.quantity}x ${i.itemName}`).join(', ')}
               </TableCell>
               <TableCell>{purchase.paymentMethod}</TableCell>
-              <TableCell className="text-right font-medium">৳{purchase.totalAmount.toFixed(2)}</TableCell>
+              <TableCell className="text-right font-medium">{formatTaka(purchase.totalAmount.toFixed(2))}</TableCell>
               <TableCell className="text-right text-muted-foreground">{purchase.discountAmount ? `৳${purchase.discountAmount.toFixed(2)}` : '-'}</TableCell>
-              <TableCell className="text-right font-bold">৳{(purchase.totalAmount - (purchase.discountAmount || 0)).toFixed(2)}</TableCell>
+              <TableCell className="text-right font-bold">{formatTaka((purchase.totalAmount - (purchase.discountAmount || 0)).toFixed(2))}</TableCell>
             </TableRow>
           )) : (
             <TableRow>

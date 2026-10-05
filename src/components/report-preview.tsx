@@ -9,6 +9,7 @@ import type { ReportAnalysis } from '@/lib/report-generator';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Download } from 'lucide-react';
+import { formatTakaPlain } from '@/lib/format';
 
 interface ReportPreviewProps {
   reportData: ReportAnalysis;
@@ -17,18 +18,12 @@ interface ReportPreviewProps {
 }
 
 const formatCurrency = (amount: number) => {
-  return `BDT ${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}`;
+  return formatTakaPlain(amount);
 };
 
 // Separate function for PDF formatting to avoid BDT symbol issues
 const formatCurrencyForPdf = (amount: number) => {
-  return `BDT ${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}`;
+  return formatTakaPlain(amount);
 };
 
 export default function ReportPreview({ reportData, month, year }: ReportPreviewProps) {

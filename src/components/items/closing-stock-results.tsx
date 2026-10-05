@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { formatTaka } from '@/lib/format';
 import type { ClosingStock } from '@/lib/types';
 
 interface ClosingStockResultsProps {
@@ -31,40 +32,47 @@ export function ClosingStockResults({
 }: ClosingStockResultsProps) {
   if (closingStockData.length === 0) return null;
 
+  const totalStockValue = closingStockData.reduce(
+    (sum, item) => sum + (item.closingStock > 0 ? item.closingStock * item.productionPrice : 0),
+    0
+  );
+
   return (
     <div className="mb-6">
       <h3 className="text-lg font-semibold mb-2">
-        Closing Stock as of {closingStockDate ? format(closingStockDate, 'PPP') : ''}
+        Closing Stock as of {closingStockDate ? format(closingStockDate, 'dd MMM yyyy') : ''}
       </h3>
       <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Author/Group</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Expiry Date</TableHead>
-              <TableHead className="text-right">Prod. Price</TableHead>
-              <TableHead className="text-right">MRP</TableHead>
+              <TableHead className="hidden md:table-cell">Category</TableHead>
+              <TableHead className="hidden lg:table-cell">Author</TableHead>
+              <TableHead className="text-right">Cost Price</TableHead>
+              <TableHead className="text-right">Selling Price</TableHead>
               <TableHead className="text-right">Stock</TableHead>
+              <TableHead className="text-right">Stock Value</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {closingStockData.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">{item.title}</TableCell>
-                <TableCell>{item.categoryName}</TableCell>
-                <TableCell>{item.author || item.medicineGroup || '-'}</TableCell>
-                <TableCell>{item.company || '-'}</TableCell>
-                <TableCell>
-                  {item.expiryDate ? format(new Date(item.expiryDate), 'yyyy-MM-dd') : '-'}
-                </TableCell>
-                <TableCell className="text-right">৳{item.productionPrice.toFixed(2)}</TableCell>
-                <TableCell className="text-right">৳{item.sellingPrice.toFixed(2)}</TableCell>
+                <TableCell className="hidden md:table-cell">{item.categoryName}</TableCell>
+                <TableCell className="hidden lg:table-cell">{item.author || '-'}</TableCell>
+                <TableCell className="text-right">{formatTaka(item.productionPrice)}</TableCell>
+                <TableCell className="text-right">{formatTaka(item.sellingPrice)}</TableCell>
                 <TableCell className="text-right">{item.closingStock}</TableCell>
+                <TableCell className="text-right">
+                  {formatTaka(item.closingStock > 0 ? item.closingStock * item.productionPrice : 0)}
+                </TableCell>
               </TableRow>
             ))}
+            <TableRow className="font-semibold bg-muted/50">
+              <TableCell colSpan={6}>Total stock value (at cost)</TableCell>
+              <TableCell className="text-right">{formatTaka(totalStockValue)}</TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </div>

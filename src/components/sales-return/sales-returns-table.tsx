@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { SalesReturn, Item, Customer } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
 
 interface SalesReturnsTableProps {
   returns: SalesReturn[];
@@ -63,7 +64,7 @@ export function SalesReturnsTable({
                   <TableCell className="max-w-[300px] truncate">
                     {r.items.map(i => `${i.quantity}x ${getItemTitle(i.itemId)}`).join(', ')}
                   </TableCell>
-                  <TableCell className="text-right font-medium">৳{r.totalReturnValue.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium">{formatTaka(r.totalReturnValue.toFixed(2))}</TableCell>
                 </TableRow>
               ))
             ) : (

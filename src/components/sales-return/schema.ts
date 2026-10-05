@@ -8,6 +8,7 @@ export const salesReturnItemSchema = z.object({
 
 export const salesReturnFormSchema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
+  date: z.date({ required_error: "A return date is required." }),
   items: z.array(salesReturnItemSchema).min(1, 'At least one item is required.'),
 });
 

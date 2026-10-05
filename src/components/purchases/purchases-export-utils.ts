@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Purchase } from '@/lib/types';
+import { formatTakaPlain } from '@/lib/format';
 import { getPurchases } from '@/lib/actions';
 import type { DateRange } from 'react-day-picker';
 
@@ -75,9 +76,9 @@ export async function downloadPurchasesPdf(userId: string, dateRange: DateRange 
         p.purchaseId,
         p.supplier,
         p.items.map(i => `${i.quantity}x ${i.itemName}`).join(', '),
-        `TK ${p.totalAmount.toFixed(2)}`,
-        `TK ${discount.toFixed(2)}`,
-        `TK ${net.toFixed(2)}`
+        `${formatTakaPlain(p.totalAmount)}`,
+        `${formatTakaPlain(discount)}`,
+        `${formatTakaPlain(net)}`
       ];
     }),
   });

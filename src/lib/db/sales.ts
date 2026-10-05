@@ -133,8 +133,9 @@ export async function addSale(
 
         const price = Number(itemData.sellingPrice);
         calculatedSubtotal += price * Number(saleItem.quantity);
-        totalProductionCost += Number(itemData.productionPrice) * Number(saleItem.quantity);
-        itemsWithPrices.push({ ...saleItem, price });
+        const unitCost = Number(itemData.productionPrice);
+        totalProductionCost += unitCost * Number(saleItem.quantity);
+        itemsWithPrices.push({ ...saleItem, price, cost: unitCost });
       }
 
       let discountAmount = 0;
@@ -169,6 +170,7 @@ export async function addSale(
         total: totalAfterDiscount,
         date: Timestamp.fromDate(saleDate) as any,
         creditApplied: creditApplied,
+        productionCost: totalProductionCost,
         paymentMethod: finalTotal <= 0 ? 'Paid by Credit' : data.paymentMethod,
       };
       transaction.set(newSaleRef, saleDataToSave);
@@ -296,13 +298,18 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
 
       // 2. Adjust customer balance
       if (customerDoc.exists()) {
-        let amountToReverse = 0;
-        if (saleToDelete.paymentMethod === 'Due' || saleToDelete.paymentMethod === 'Split') {
-          amountToReverse = saleToDelete.total - (saleToDelete.amountPaid || 0);
+        // The sale had raised the customer's balance by the credit it consumed
+        // plus whatever remained unpaid (Due/Split). Undo exactly that amount.
+        const creditApplied = saleToDelete.creditApplied || 0;
+        const finalTotal = saleToDelete.total - creditApplied;
+        let amountToReverse = creditApplied;
+        if (saleToDelete.paymentMethod === 'Due') {
+          amountToReverse += finalTotal;
+        } else if (saleToDelete.paymentMethod === 'Split') {
+          amountToReverse += Math.max(finalTotal - (saleToDelete.amountPaid || 0), 0);
         }
-        const creditReversal = saleToDelete.creditApplied || 0;
         const currentDue = customerDoc.data().dueBalance || 0;
-        const newDueBalance = currentDue - amountToReverse + creditReversal;
+        const newDueBalance = currentDue - amountToReverse;
         transaction.update(customerRef, { dueBalance: newDueBalance });
       }
 

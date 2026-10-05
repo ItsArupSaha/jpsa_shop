@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatTakaPlain } from '@/lib/format';
 
 interface BalanceSheetPdfData {
     cash: number;
@@ -21,11 +22,7 @@ interface BalanceSheetPdfUser {
     bankInfo?: string | null;
 }
 
-const formatCurrencyForPdf = (amount: number) =>
-    `BDT ${new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(amount)}`;
+const formatCurrencyForPdf = (amount: number) => formatTakaPlain(amount);
 
 export function exportBalanceSheetPdf(
     current: BalanceSheetPdfData,

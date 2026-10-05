@@ -58,11 +58,11 @@ export async function getSalesReturnsPaginated({ userId, pageLimit = 5, lastVisi
 }
 
 export async function addSalesReturn(
-    userId: string,
-    data: Omit<SalesReturn, 'id' | 'returnId' | 'date' | 'totalReturnValue'>
-  ): Promise<{ success: boolean; error?: string; salesReturn?: SalesReturn }> {
+  userId: string,
+  data: Omit<SalesReturn, 'id' | 'returnId' | 'date' | 'totalReturnValue'> & { date?: string }
+): Promise<{ success: boolean; error?: string; salesReturn?: SalesReturn }> {
     if (!db || !userId) return { success: false, error: "Database not configured." };
-  
+
     try {
       const result = await runTransaction(db, async (transaction) => {
         const userRef = doc(db!, 'users', userId);
@@ -70,46 +70,50 @@ export async function addSalesReturn(
         const itemsCollection = collection(userRef, 'items');
         const customersCollection = collection(userRef, 'customers');
         const returnsCollection = collection(userRef, 'sales_returns');
-        
-        const returnDate = new Date();
+
+        const returnDate = data.date ? new Date(data.date) : new Date();
+        if (Number.isNaN(returnDate.getTime())) throw new Error('Invalid return date.');
         const itemRefs = data.items.map(item => doc(itemsCollection, item.itemId));
         const customerRef = doc(customersCollection, data.customerId);
-        
+
         const [metadataDoc, customerDoc, ...itemDocs] = await Promise.all([
             transaction.get(metadataRef),
             transaction.get(customerRef),
             ...itemRefs.map(ref => transaction.get(ref)),
         ]);
-        
+
         if (!customerDoc.exists()) throw new Error(`Customer with id ${data.customerId} does not exist!`);
 
         const metadata = metadataDoc.data() as Metadata;
         const lastReturnNumber = metadata?.lastReturnNumber || 0;
         const newReturnNumber = lastReturnNumber + 1;
         const returnId = `RTN-${String(newReturnNumber).padStart(4, '0')}`;
-        
+
         let totalReturnValue = 0;
-  
+        const itemsWithCost: SalesReturn['items'] = [];
+
         for (let i = 0; i < data.items.length; i++) {
-          const itemDoc = itemDocs[i];
-          const returnItem = data.items[i];
-  
-          if (!itemDoc.exists()) throw new Error(`Item with id ${returnItem.itemId} does not exist!`);
-          
-          const itemData = itemDoc.data() as Item;
-          const newStock = Number(itemData.stock) + Number(returnItem.quantity);
-          transaction.update(itemRefs[i], { stock: newStock });
-          
-          totalReturnValue += returnItem.price * returnItem.quantity;
+            const itemDoc = itemDocs[i];
+            const returnItem = data.items[i];
+
+            if (!itemDoc.exists()) throw new Error(`Item with id ${returnItem.itemId} does not exist!`);
+
+            const itemData = itemDoc.data() as Item;
+            const newStock = Number(itemData.stock) + Number(returnItem.quantity);
+            transaction.update(itemRefs[i], { stock: newStock });
+
+            const unitCost = Number(itemData.productionPrice);
+            totalReturnValue += returnItem.price * returnItem.quantity;
+            itemsWithCost.push({ ...returnItem, cost: unitCost });
         }
-  
+
         const newReturnRef = doc(returnsCollection);
         const returnDataToSave = {
-          customerId: data.customerId,
-          items: data.items,
-          returnId,
-          totalReturnValue,
-          date: Timestamp.fromDate(returnDate),
+            customerId: data.customerId,
+            items: itemsWithCost,
+            returnId,
+            totalReturnValue,
+            date: Timestamp.fromDate(returnDate),
         };
         transaction.set(newReturnRef, returnDataToSave);
         transaction.set(metadataRef, { lastReturnNumber: newReturnNumber }, { merge: true });

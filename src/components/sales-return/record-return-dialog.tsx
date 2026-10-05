@@ -4,12 +4,14 @@ import * as React from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusCircle, Trash2 } from 'lucide-react';
+import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { formatTaka } from '@/lib/format';
 import type { Customer, Item } from '@/lib/types';
 import { salesReturnFormSchema, type SalesReturnFormValues } from './schema';
 
@@ -34,6 +36,7 @@ export function RecordReturnDialog({
     resolver: zodResolver(salesReturnFormSchema),
     defaultValues: {
       customerId: '',
+      date: new Date(),
       items: [{ itemId: '', quantity: 1, price: 0 }],
     },
   });
@@ -55,6 +58,7 @@ export function RecordReturnDialog({
     if (isOpen) {
       form.reset({
         customerId: '',
+        date: new Date(),
         items: [{ itemId: '', quantity: 1, price: 0 }],
       });
     }
@@ -76,22 +80,42 @@ export function RecordReturnDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 p-1">
-              <FormField
-                control={form.control}
-                name="customerId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Customer</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
-                      <SelectPortal><SelectContent>
-                        {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                      </SelectContent></SelectPortal>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="customerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                        <SelectPortal><SelectContent>
+                          {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                        </SelectContent></SelectPortal>
+                        </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Return Date</FormLabel>
+                      <FormControl>
+                        <DateField
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Pick a date"
+                          aria-label="Return date"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <Separator />
               <FormLabel>Returned Items</FormLabel>
               {fields.map((field, index) => (
@@ -144,7 +168,7 @@ export function RecordReturnDialog({
               <Separator />
               <div className="flex justify-between font-bold text-base pr-4">
                 <span>Total Return Credit</span>
-                <span>৳{totalReturnValue.toFixed(2)}</span>
+                <span>{formatTaka(totalReturnValue)}</span>
               </div>
             </div>
             <DialogFooter>

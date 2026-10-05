@@ -5,6 +5,7 @@ import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusCircle } from 'lucide-react';
 
+import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -36,6 +37,8 @@ interface RecordPurchaseDialogProps {
   onAddCategoryClick: () => void;
 }
 
+const emptyItemRow = { itemId: undefined, itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 };
+
 export function RecordPurchaseDialog({
   userId,
   isOpen,
@@ -52,7 +55,8 @@ export function RecordPurchaseDialog({
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
       supplier: '',
-      items: [{ itemName: '', categoryId: '', categoryName: '', author: '', medicineGroup: '', company: '', expiryDate: '', quantity: 1, cost: 0, sellingPrice: 0 }],
+      date: new Date(),
+      items: [{ ...emptyItemRow }],
       discountType: 'amount',
       discountValue: 0,
       paymentMethod: 'Due',
@@ -71,7 +75,8 @@ export function RecordPurchaseDialog({
     if (isOpen) {
       form.reset({
         supplier: '',
-        items: [{ itemName: '', categoryId: '', categoryName: '', author: '', medicineGroup: '', company: '', expiryDate: '', quantity: 1, cost: 0, sellingPrice: 0 }],
+        date: new Date(),
+        items: [{ ...emptyItemRow }],
         discountType: 'amount',
         discountValue: 0,
         paymentMethod: 'Due',
@@ -86,16 +91,17 @@ export function RecordPurchaseDialog({
     startTransition(async () => {
       try {
         const calculatedTotal = data.items.reduce((acc, item) => acc + (item.cost * item.quantity), 0);
-        const calculatedDiscount = data.discountType === 'percentage' 
-            ? (calculatedTotal * (data.discountValue || 0)) / 100 
+        const calculatedDiscount = data.discountType === 'percentage'
+            ? (calculatedTotal * (data.discountValue || 0)) / 100
             : (data.discountValue || 0);
 
         const purchaseData = {
           ...data,
           discountAmount: calculatedDiscount,
+          date: data.date.toISOString(),
           dueDate: data.dueDate.toISOString()
         };
-        
+
         // @ts-ignore
         delete purchaseData.discountType;
         // @ts-ignore
@@ -107,7 +113,7 @@ export function RecordPurchaseDialog({
           onSuccess();
           onOpenChange(false);
         } else {
-          toast({ variant: 'destructive', title: 'Error', description: 'Failed to record purchase.' });
+          toast({ variant: 'destructive', title: 'Error', description: result?.error || 'Failed to record purchase.' });
         }
       } catch (err) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to save the purchase.' });
@@ -126,21 +132,41 @@ export function RecordPurchaseDialog({
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1 py-4">
               <div className="space-y-4 px-4">
-                <FormField
-                  control={form.control}
-                  name="supplier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Supplier Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Global Publishing House" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Supplier Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Global Publishing House" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Purchase Date</FormLabel>
+                        <FormControl>
+                          <DateField
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Pick a date"
+                            aria-label="Purchase date"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <Separator />
-                
+
                 <FormLabel>Items</FormLabel>
                 <div className="space-y-3">
                   {fields.map((field, index) => (
@@ -159,16 +185,16 @@ export function RecordPurchaseDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => append({ itemName: '', categoryId: '', categoryName: '', author: '', medicineGroup: '', company: '', expiryDate: '', quantity: 1, cost: 0, sellingPrice: 0 })}
+                  onClick={() => append({ ...emptyItemRow })}
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                 </Button>
-                
+
                 <Separator />
                 <PurchasePaymentSection />
               </div>
             </div>
-            
+
             <div className="mt-auto pt-4 space-y-4 border-t px-6 pb-6 bg-background">
               <PurchaseSummarySection />
               <DialogFooter>
@@ -183,3 +209,4 @@ export function RecordPurchaseDialog({
     </Dialog>
   );
 }
+

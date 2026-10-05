@@ -8,11 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { Sale, Item, Customer, Transaction } from '@/lib/types';
-import { getSaleTransaction } from '@/lib/actions';
+import { formatTaka } from '@/lib/format';
+import type { Sale, Item, Customer } from '@/lib/types';
 import { DownloadSaleMemo } from '../download-sale-memo';
 import { SaleDetailsDialog } from '../sale-details-dialog';
-import { cn } from '@/lib/utils';
 
 type SaleStatus = {
   label: string;
@@ -21,28 +20,29 @@ type SaleStatus = {
 };
 
 interface SalesTableProps {
-  userId: string;
   sales: Sale[];
   items: Item[];
   customers: Customer[];
+  /** Remaining unpaid amount per sale id (loaded once by the parent). */
+  pendingDues: Record<string, number>;
   isInitialLoading: boolean;
   isSearching: boolean;
   isPending: boolean;
-  onDelete: (id: string) => void;
+  onDelete: (sale: Sale) => void;
   authUser: any;
 }
 
 function getOriginalDueAmount(sale: Sale) {
   if (sale.paymentMethod === 'Due') {
-    return sale.total;
+    return Math.max(0, sale.total - (sale.creditApplied || 0));
   }
   if (sale.paymentMethod === 'Split') {
-    return Math.max(0, sale.total - (sale.amountPaid || 0));
+    return Math.max(0, sale.total - (sale.creditApplied || 0) - (sale.amountPaid || 0));
   }
   return 0;
 }
 
-function getImmediateSaleStatus(sale: Sale): SaleStatus {
+function getSaleStatus(sale: Sale, remainingDue: number | undefined): SaleStatus {
   switch (sale.paymentMethod) {
     case 'Cash':
       return { label: 'Cash', variant: 'default' };
@@ -51,104 +51,38 @@ function getImmediateSaleStatus(sale: Sale): SaleStatus {
     case 'Paid by Credit':
       return { label: 'Credit', variant: 'default' };
     case 'Due':
-      return { label: 'Due', variant: 'destructive', dueAmount: sale.total };
-    case 'Split':
-      return {
-        label: 'Partial Due',
-        variant: 'secondary',
-        dueAmount: Math.max(0, sale.total - (sale.amountPaid || 0)),
-      };
+    case 'Split': {
+      const originalDue = getOriginalDueAmount(sale);
+      if (originalDue <= 0.005) {
+        return { label: 'Paid', variant: 'default' };
+      }
+      // A Due/Split sale missing from the pending list has been settled in full.
+      const remaining = remainingDue === undefined ? 0 : remainingDue;
+      if (remaining <= 0.005) {
+        return { label: 'Paid', variant: 'default' };
+      }
+      if (remaining + 0.005 < originalDue || sale.paymentMethod === 'Split') {
+        return { label: 'Partial Due', variant: 'secondary', dueAmount: remaining };
+      }
+      return { label: 'Due', variant: 'destructive', dueAmount: remaining };
+    }
     default:
       return { label: sale.paymentMethod, variant: 'outline' };
   }
 }
 
-function getResolvedSaleStatus(sale: Sale, transaction: Transaction | null): SaleStatus {
-  if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
-    return getImmediateSaleStatus(sale);
-  }
-
-  const originalDueAmount = getOriginalDueAmount(sale);
-
-  if (!transaction) {
-    return getImmediateSaleStatus(sale);
-  }
-
-  if (transaction.status === 'Paid' || transaction.amount <= 0) {
-    return { label: 'Paid', variant: 'default' };
-  }
-
-  if (sale.paymentMethod === 'Split' || transaction.amount < originalDueAmount) {
-    return {
-      label: 'Partial Due',
-      variant: 'secondary',
-      dueAmount: transaction.amount,
-    };
-  }
-
-  return {
-    label: 'Due',
-    variant: 'destructive',
-    dueAmount: transaction.amount,
-  };
-}
-
 export function SalesTable({
-  userId,
   sales,
   items,
   customers,
+  pendingDues,
   isInitialLoading,
   isSearching,
   isPending,
   onDelete,
   authUser,
 }: SalesTableProps) {
-  const [saleStatuses, setSaleStatuses] = React.useState<Record<string, SaleStatus>>({});
-
   const getItemTitle = (itemId: string) => items.find(i => i.id === itemId)?.title || 'Unknown Item';
-
-  React.useEffect(() => {
-    let isCancelled = false;
-
-    async function loadSaleStatuses() {
-      const nextStatuses: Record<string, SaleStatus> = {};
-
-      await Promise.all(
-        sales.map(async (sale) => {
-          if (sale.paymentMethod !== 'Due' && sale.paymentMethod !== 'Split') {
-            nextStatuses[sale.id] = getImmediateSaleStatus(sale);
-            return;
-          }
-
-          try {
-            const transaction = await getSaleTransaction(userId, sale.saleId);
-            nextStatuses[sale.id] = getResolvedSaleStatus(sale, transaction);
-          } catch (error) {
-            console.error(`Failed to resolve live status for ${sale.saleId}:`, error);
-            nextStatuses[sale.id] = getImmediateSaleStatus(sale);
-          }
-        })
-      );
-
-      if (!isCancelled) {
-        setSaleStatuses(nextStatuses);
-      }
-    }
-
-    if (sales.length === 0) {
-      setSaleStatuses({});
-      return () => {
-        isCancelled = true;
-      };
-    }
-
-    loadSaleStatuses();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [sales, userId]);
 
   return (
     <div className="border rounded-md">
@@ -158,7 +92,7 @@ export function SalesTable({
             <TableHead>Date</TableHead>
             <TableHead>Sale ID</TableHead>
             <TableHead>Customer</TableHead>
-            <TableHead>Items</TableHead>
+            <TableHead className="hidden lg:table-cell">Items</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead className="text-right w-[100px]">Actions</TableHead>
@@ -179,12 +113,13 @@ export function SalesTable({
             ))
           ) : sales.length > 0 ? sales.map((sale) => {
             const customer = customers.find(c => c.id === sale.customerId);
+            const status = getSaleStatus(sale, pendingDues[sale.saleId]);
             return (
               <TableRow key={sale.id}>
-                <TableCell>{format(new Date(sale.date), 'PPP')}</TableCell>
+                <TableCell className="whitespace-nowrap">{format(new Date(sale.date), 'dd MMM yyyy')}</TableCell>
                 <TableCell className="font-mono">{sale.saleId}</TableCell>
                 <TableCell className="font-medium">{customer?.name || 'Unknown Customer'}</TableCell>
-                <TableCell className="max-w-[300px]">
+                <TableCell className="max-w-[300px] hidden lg:table-cell">
                   {sale.items.length > 0 && (
                     <div className="flex items-center gap-2">
                       <span>
@@ -202,22 +137,22 @@ export function SalesTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
-                    <Badge variant={saleStatuses[sale.id]?.variant || 'outline'}>
-                      {saleStatuses[sale.id]?.label || sale.paymentMethod}
+                    <Badge variant={status.variant}>
+                      {status.label}
                     </Badge>
-                    {saleStatuses[sale.id]?.dueAmount !== undefined && saleStatuses[sale.id].dueAmount! > 0 && (
+                    {status.dueAmount !== undefined && status.dueAmount > 0 && (
                       <span className="text-xs text-muted-foreground">
-                        Due: ৳{saleStatuses[sale.id].dueAmount!.toFixed(2)}
+                        Due: {formatTaka(status.dueAmount)}
                       </span>
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-right font-medium">৳{sale.total.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-medium">{formatTaka(sale.total)}</TableCell>
                 <TableCell className="text-right">
                   {customer && authUser && (
                     <DownloadSaleMemo sale={sale} customer={customer} items={items} user={authUser} />
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(sale.id)} disabled={isPending}>
+                  <Button variant="ghost" size="icon" aria-label={`Delete ${sale.saleId}`} onClick={() => onDelete(sale)} disabled={isPending}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </TableCell>

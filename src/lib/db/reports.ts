@@ -2,31 +2,39 @@
 'use server';
 
 import type { ClosingStock } from '../types';
+import { toBusinessYMD } from './business-date';
+import { closingStockQuantities } from './closing-stock';
 import { getItems } from './items';
+import { getPurchases } from './purchases';
 import { getSales } from './sales';
+import { getSalesReturns } from './sales-returns';
 
 /**
- * Calculates the closing stock for all books up to a specific date.
- * This is a heavy operation and should be called from a server action.
+ * Calculates the closing stock for all items up to the end of a specific
+ * Bangladesh calendar day. See closing-stock.ts for how history is rebuilt.
  * @param closingStockDate The date to calculate the closing stock for.
- * @returns A promise that resolves to an array of books with their closing stock.
+ * @returns A promise that resolves to an array of items with their closing stock.
  */
 export async function calculateClosingStock(userId: string, closingStockDate: Date): Promise<ClosingStock[]> {
-    const [allItems, allSales] = await Promise.all([getItems(userId), getSales(userId)]);
+    const cutoffYMD = toBusinessYMD(closingStockDate);
+    if (!cutoffYMD) {
+        throw new Error('Invalid closing stock date.');
+    }
 
-    const salesAfterDate = allSales.filter((s: any) => new Date(s.date) > closingStockDate);
+    const [allItems, allSales, allPurchases, allReturns] = await Promise.all([
+        getItems(userId),
+        getSales(userId),
+        getPurchases(userId),
+        getSalesReturns(userId),
+    ]);
 
-    const calculatedData = allItems.map((item: any) => {
-        const quantitySoldAfter = salesAfterDate.reduce((total: number, sale: any) => {
-            const saleItem = sale.items.find((i: any) => i.itemId === item.id);
-            return total + (saleItem ? Number(saleItem.quantity) || 0 : 0);
-        }, 0);
-        
-        return {
-            ...item,
-            closingStock: (Number(item.stock) || 0) + quantitySoldAfter
-        }
-    });
+    const quantities = closingStockQuantities(
+        { items: allItems, sales: allSales, purchases: allPurchases, returns: allReturns },
+        cutoffYMD
+    );
 
-    return calculatedData;
+    return allItems.map((item) => ({
+        ...item,
+        closingStock: quantities.get(item.id) ?? 0,
+    }));
 }

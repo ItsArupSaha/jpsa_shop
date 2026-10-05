@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { CustomerWithDue, Transaction } from '@/lib/types';
 import PayPayableDialog from '../pay-payable-dialog';
 import RefundCustomerDialog from '../refund-customer-dialog';
+import { formatTaka } from '@/lib/format';
 
 interface PendingPayablesTableProps {
   payables: Transaction[];
@@ -56,7 +57,7 @@ export function PendingPayablesTable({
               <TableRow key={payable.id}>
                 <TableCell className="font-medium">{payable.description}</TableCell>
                 <TableCell>{format(new Date(payable.dueDate), 'PPP')}</TableCell>
-                <TableCell className="text-right">৳{payable.amount.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{formatTaka(payable.amount.toFixed(2))}</TableCell>
                 <TableCell className="text-center">
                   <PayPayableDialog payable={payable} userId={userId} onPaymentSuccess={onPaymentSuccess}>
                     <Button size="sm" variant="outline" className="w-full whitespace-nowrap">
@@ -127,7 +128,7 @@ export function CustomerOverpaymentsTable({
                 <TableCell className="font-medium">{cust.name}</TableCell>
                 <TableCell>{cust.phone}</TableCell>
                 <TableCell className="text-right font-bold text-emerald-600">
-                  ৳{Math.abs(cust.dueBalance).toFixed(2)}
+                  {formatTaka(Math.abs(cust.dueBalance).toFixed(2))}
                 </TableCell>
                 <TableCell className="text-center">
                   <RefundCustomerDialog customer={cust} userId={userId} onRefundSuccess={onRefundSuccess}>
@@ -197,7 +198,7 @@ export function PaidHistoryTable({ paidPayables, isLoading }: PaidHistoryTablePr
                 <TableCell>{format(new Date(payable.dueDate), 'PPP')}</TableCell>
                 <TableCell>{payable.paymentMethod || 'Cash'}</TableCell>
                 <TableCell className="text-right text-primary font-bold">
-                  ৳{payable.amount.toFixed(2)}
+                  {formatTaka(payable.amount.toFixed(2))}
                 </TableCell>
               </TableRow>
             ))

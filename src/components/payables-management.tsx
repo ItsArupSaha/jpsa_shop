@@ -210,7 +210,7 @@ export default function PayablesManagement({ userId }: PayablesManagementProps) 
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="font-headline text-2xl">Track Payables</CardTitle>
+              <CardTitle className="font-headline text-2xl">Payables</CardTitle>
               <CardDescription>Manage bills, supplier payments, and customer refunds.</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">

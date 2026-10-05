@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Separator } from '@/components/ui/separator';
 import type { Item } from '@/lib/types';
 import type { SaleFormValues } from './schema';
+import { formatTaka } from '@/lib/format';
 
 interface PackageSaleItemsSummaryProps {
   control: Control<SaleFormValues>;
@@ -89,7 +90,7 @@ export function PackageSaleItemsSummary({
                   {stock < qty ? (
                     <span className="text-[10px] text-destructive font-semibold tracking-tight uppercase leading-none mb-1">Stock: {stock}</span>
                   ) : null}
-                  <span className="text-sm font-medium tabular-nums">৳{(price * qty).toFixed(2)}</span>
+                  <span className="text-sm font-medium tabular-nums">{formatTaka((price * qty).toFixed(2))}</span>
                 </div>
               </div>
               <Button
@@ -118,7 +119,7 @@ export function PackageSaleItemsSummary({
       <Separator className="my-3" />
       <div className="flex justify-between items-center font-semibold">
         <span>Subtotal</span>
-        <span className="tabular-nums">৳{subtotal.toFixed(2)}</span>
+        <span className="tabular-nums">{formatTaka(subtotal.toFixed(2))}</span>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { Timestamp, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { onOrBeforeBusinessDay, toBusinessYMD } from './business-date';
+import { closingStockQuantities } from './closing-stock';
 import { getCustomers } from './customers';
 import { getExpenses } from './expenses';
 import { getItems } from './items';
@@ -161,10 +162,13 @@ export async function getAccountOverview(userId: string, asOfDate?: Date | strin
     filteredSales.forEach((sale: any) => {
         const total = toNum(sale.total);
         const amountPaid = toNum(sale.amountPaid);
+        // Credit (customer advance) was already received as cash when the customer
+        // deposited it, so only the remainder actually hit cash/bank in this sale.
+        const settledNow = total - toNum(sale.creditApplied);
         if (sale.paymentMethod === 'Cash') {
-            cash += total;
+            cash += settledNow;
         } else if (sale.paymentMethod === 'Bank') {
-            bank += total;
+            bank += settledNow;
         } else if (sale.paymentMethod === 'Split' && amountPaid > 0) {
             if (sale.splitPaymentMethod === 'Bank') {
                 bank += amountPaid;
@@ -212,37 +216,27 @@ export async function getAccountOverview(userId: string, asOfDate?: Date | strin
         }
     });
 
-    const stockValue = allItems.reduce((sum: number, item: any) => {
-        const itemSalesAfterCutoff = allSales
-            .filter((sale: any) => !isBeforeOrOnCutoff(sale.date))
-            .reduce((saleSum: number, sale: any) => {
-                const saleItems = Array.isArray(sale.items) ? sale.items : [];
-                const saleItem = saleItems.find((si: any) => si.itemId === item.id);
-                if (saleItem) {
-                    return saleSum + toNum(saleItem.quantity);
-                }
-                return saleSum;
-            }, 0);
-
-        const itemPurchasesAfterCutoff = allPurchases
-            .filter((purchase: any) => !isBeforeOrOnCutoff(purchase.date))
-            .reduce((purchaseSum: number, purchase: any) => {
-                const purchaseItems = Array.isArray(purchase.items) ? purchase.items : [];
-                const purchaseItem = purchaseItems.find(
-                    (pi: any) => pi.categoryId === item.categoryId && pi.itemName === item.title
-                );
-                if (purchaseItem) {
-                    return purchaseSum + toNum(purchaseItem.quantity);
-                }
-                return purchaseSum;
-            }, 0);
-
-        const closingStockAsOfDate =
-            toNum(item.stock) + itemSalesAfterCutoff - itemPurchasesAfterCutoff;
-        const unitCost = toNum(item.productionPrice);
-        const value = closingStockAsOfDate > 0 ? unitCost * closingStockAsOfDate : 0;
-        return sum + value;
-    }, 0);
+    const stockValue = (() => {
+        // No cutoff ("as of today") → stock value is just the current stock.
+        if (!cutoffYMD) {
+            return allItems.reduce(
+                (sum: number, item: any) => sum + Math.max(toNum(item.stock), 0) * toNum(item.productionPrice),
+                0
+            );
+        }
+        const quantities = closingStockQuantities(
+            { items: allItems, sales: allSales, purchases: allPurchases, returns: allReturns },
+            cutoffYMD
+        );
+        let sum = 0;
+        for (const item of allItems) {
+            const closingQty = quantities.get(item.id) ?? 0;
+            if (closingQty > 0) {
+                sum += closingQty * toNum((item as any).productionPrice);
+            }
+        }
+        return sum;
+    })();
 
     const officeAssetsValue = filteredPurchases
         .flatMap((p: any) => p.items)

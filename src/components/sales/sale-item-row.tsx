@@ -7,8 +7,6 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import type { Item } from '@/lib/types';
 
 interface SaleItemRowProps {
@@ -52,17 +50,10 @@ export function SaleItemRow({
                 <SelectPortal>
                   <SelectContent className="max-h-60 overflow-y-auto">
                     {items.map(item => {
-                      const now = new Date();
-                      const oneMonthFromNow = new Date();
-                      oneMonthFromNow.setDate(now.getDate() + 30);
-                      const isExpired = item.expiryDate && new Date(item.expiryDate) <= now;
-                      const isExpiringSoon = item.expiryDate && !isExpired && new Date(item.expiryDate) <= oneMonthFromNow;
-
                       const details = [
-                        item.company,
-                        item.medicineGroup,
+                        item.author,
                         `Stock: ${item.stock}`,
-                        isExpired ? 'EXPIRED' : isExpiringSoon ? 'EXPIRING SOON' : null
+                        item.stock <= 0 ? 'OUT OF STOCK' : item.stock <= 5 ? 'LOW STOCK' : null
                       ].filter(Boolean).join(' - ');
 
                       const label = details ? `${item.title} (${details})` : item.title;
@@ -73,7 +64,7 @@ export function SaleItemRow({
                           value={item.id}
                           disabled={watchItems.some((i, itemIndex) => i.itemId === item.id && itemIndex !== index)}
                         >
-                          <span className={cn(isExpired ? 'text-destructive font-semibold' : isExpiringSoon ? 'text-amber-600 font-semibold' : '')}>
+                          <span className={item.stock <= 5 ? 'text-amber-600 font-semibold' : ''}>
                             {label}
                           </span>
                         </SelectItem>
@@ -100,33 +91,11 @@ export function SaleItemRow({
                   <span className="text-xs text-muted-foreground">
                     In stock: {selectedItem.stock}
                   </span>
-                  {selectedItem.expiryDate && (() => {
-                    const now = new Date();
-                    const oneMonthFromNow = new Date();
-                    oneMonthFromNow.setDate(now.getDate() + 30);
-                    const isExpired = new Date(selectedItem.expiryDate) <= now;
-                    const isExpiringSoon = !isExpired && new Date(selectedItem.expiryDate) <= oneMonthFromNow;
-                    
-                    if (isExpired) {
-                      return (
-                        <span className="text-xs font-bold text-destructive flex items-center gap-1 animate-pulse">
-                          ⚠️ Expired on {format(new Date(selectedItem.expiryDate), 'yyyy-MM-dd')}!
-                        </span>
-                      );
-                    }
-                    if (isExpiringSoon) {
-                      return (
-                        <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
-                          ⚠️ Expiring on {format(new Date(selectedItem.expiryDate), 'yyyy-MM-dd')}!
-                        </span>
-                      );
-                    }
-                    return (
-                      <span className="text-xs text-muted-foreground">
-                        Exp: {format(new Date(selectedItem.expiryDate), 'yyyy-MM-dd')}
-                      </span>
-                    );
-                  })()}
+                  {selectedItem.stock <= 5 && (
+                    <span className="text-xs font-bold text-amber-600">
+                      Low stock — restock soon.
+                    </span>
+                  )}
                 </div>
               )}
               <FormMessage />
@@ -138,6 +107,7 @@ export function SaleItemRow({
         type="button"
         variant="ghost"
         size="icon"
+        aria-label="Remove item"
         className="text-destructive hover:bg-destructive/10"
         onClick={onRemove}
         disabled={disabledRemove}

@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Customer } from '@/lib/types';
+import { formatTakaPlain } from '@/lib/format';
 
 interface AuthUserProps {
   companyName?: string;
@@ -54,7 +55,7 @@ export function exportCustomersToPdf(allCustomers: Customer[], authUser: AuthUse
       c.name,
       c.phone,
       c.address,
-      `BDT ${(c.dueBalance || 0).toFixed(2)}`
+      `${formatTakaPlain(c.dueBalance || 0)}`
     ]),
   });
 

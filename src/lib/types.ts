@@ -49,12 +49,13 @@ export type Item = {
   categoryId: string;
   categoryName: string;
   author?: string; // Optional, only for books
-  medicineGroup?: string; // Optional, only for medicines
-  company?: string; // Optional, only for medicines
-  expiryDate?: string; // Optional, only for medicines (stored as YYYY-MM-DD string)
+  medicineGroup?: string; // Legacy field from the medicine mode; unused for books
+  company?: string; // Legacy field from the medicine mode; unused for books
+  expiryDate?: string; // Legacy field from the medicine mode; unused for books
   productionPrice: number;
   sellingPrice: number;
   stock: number;
+  createdAt?: any; // Firestore Timestamp; used to rebuild historical stock
 };
 
 export type ClosingStock = Item & {
@@ -65,6 +66,7 @@ export type SaleItem = {
     itemId: string;
     quantity: number;
     price: number; // This is the selling price at the time of sale
+    cost?: number; // Production cost per unit at the time of sale
 };
 
 export type Sale = {
@@ -83,12 +85,14 @@ export type Sale = {
   creditApplied?: number;
   packageName?: string;
   gifts?: string[];
+  productionCost?: number; // Total production cost at the time of sale
 };
 
 export type SalesReturnItem = {
   itemId: string;
   quantity: number;
   price: number; // The price at which the item was sold, used for credit.
+  cost?: number; // Production cost per unit at the time of the return
 };
 
 export type SalesReturn = {
@@ -102,13 +106,14 @@ export type SalesReturn = {
 
 
 export type PurchaseItem = {
+    itemId?: string; // Set when the purchase row is linked to a known item
     itemName: string;
     categoryId: string;
     categoryName: string;
     author?: string;
-    medicineGroup?: string;
-    company?: string;
-    expiryDate?: string;
+    medicineGroup?: string; // Legacy field from the medicine mode; unused for books
+    company?: string; // Legacy field from the medicine mode; unused for books
+    expiryDate?: string; // Legacy field from the medicine mode; unused for books
     quantity: number;
     cost: number;
     sellingPrice?: number;

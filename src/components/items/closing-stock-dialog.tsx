@@ -1,9 +1,7 @@
-import * as React from 'react';
-import { format } from 'date-fns';
-import { Download } from 'lucide-react';
+import { CalendarClock } from 'lucide-react';
 
+import { DateField } from '@/components/date-field';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import {
   Dialog,
   DialogContent,
@@ -35,34 +33,28 @@ export function ClosingStockDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Download className="mr-2 h-4 w-4" /> Download Stock
+          <CalendarClock className="mr-2 h-4 w-4" /> Stock on a Date
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Calculate Closing Stock</DialogTitle>
+          <DialogTitle>Stock on a Date</DialogTitle>
           <DialogDescription>
-            Select a date to calculate the closing stock for all items up to that day.
+            Pick a day to see how much of each item was in stock at the end of that day.
+            Today&rsquo;s choice always matches your current inventory.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 overflow-y-auto max-h-[calc(100vh-200px)]">
-          <div className="flex flex-col items-center gap-4">
-            <Calendar
-              mode="single"
-              selected={closingStockDate}
-              onSelect={onDateChange}
-              initialFocus
-              numberOfMonths={1}
-              disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
-            />
-            <p className="text-sm text-muted-foreground">
-              {closingStockDate ? (
-                <>Selected: {format(closingStockDate, 'LLL dd, y')}</>
-              ) : (
-                <span>Please pick a date.</span>
-              )}
-            </p>
-          </div>
+        <div className="py-4">
+          <DateField
+            value={closingStockDate}
+            onChange={onDateChange}
+            placeholder="Pick a date"
+            aria-label="Closing stock date"
+          />
+          <p className="text-sm text-muted-foreground mt-3">
+            The report undoes every sale, purchase, and return made after the chosen day,
+            so past dates show the stock you really had then.
+          </p>
         </div>
         <DialogFooter>
           <Button onClick={onCalculate} disabled={isCalculating || !closingStockDate}>

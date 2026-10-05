@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useFormContext } from 'react-hook-form';
+import { formatTaka } from '@/lib/format';
 
 export function PurchaseSummarySection() {
   const { watch } = useFormContext();
@@ -44,24 +45,24 @@ export function PurchaseSummarySection() {
     <div className="space-y-2 text-sm">
       <div className="flex justify-between font-bold text-base">
         <span>Total Amount</span>
-        <span>৳{totalAmount.toFixed(2)}</span>
+        <span>{formatTaka(totalAmount.toFixed(2))}</span>
       </div>
       {discountAmount > 0 && (
         <div className="flex justify-between font-medium text-green-600">
           <span>Discount</span>
-          <span>-৳{discountAmount.toFixed(2)}</span>
+          <span>-{formatTaka(discountAmount.toFixed(2))}</span>
         </div>
       )}
       {discountAmount > 0 && (
         <div className="flex justify-between font-bold text-base">
           <span>Net Payable</span>
-          <span>৳{finalAmount.toFixed(2)}</span>
+          <span>{formatTaka(finalAmount.toFixed(2))}</span>
         </div>
       )}
       {(watchPaymentMethod === 'Due' || watchPaymentMethod === 'Split') && (
         <div className="flex justify-between font-semibold text-destructive">
           <span>Due Amount</span>
-          <span>৳{dueAmount.toFixed(2)}</span>
+          <span>{formatTaka(dueAmount.toFixed(2))}</span>
         </div>
       )}
     </div>

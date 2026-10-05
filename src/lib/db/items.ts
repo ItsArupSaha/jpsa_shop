@@ -1,6 +1,7 @@
 'use server';
 
 import {
+  Timestamp,
   addDoc,
   collection,
   deleteDoc,
@@ -65,8 +66,9 @@ export async function getItemsPaginated({ userId, pageLimit = 10, lastVisibleId 
 export async function addItem(userId: string, data: Omit<Item, 'id'>) {
   if (!db || !userId) return;
   const itemsCollection = collection(db, 'users', userId, 'items');
-  const newDocRef = await addDoc(itemsCollection, data);
-  return { id: newDocRef.id, ...data };
+  const dataWithCreation = { ...data, createdAt: Timestamp.fromDate(new Date()) };
+  const newDocRef = await addDoc(itemsCollection, dataWithCreation);
+  return { id: newDocRef.id, ...dataWithCreation };
 }
 
 export async function updateItem(userId: string, id: string, data: Omit<Item, 'id'>) {

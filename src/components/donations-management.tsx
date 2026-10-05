@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { DateRange } from 'react-day-picker';
-import { Download, FileSpreadsheet, FileText, Loader2, PlusCircle } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, PlusCircle, Search, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -18,9 +18,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { addDonation, getDonations, getDonationsPaginated } from '@/lib/actions';
+import { addDonation, getDonations } from '@/lib/actions';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Donation } from '@/lib/types';
@@ -34,28 +35,31 @@ interface DonationsManagementProps {
   userId: string;
 }
 
+const PAGE_SIZE = 10;
+
 export default function DonationsManagement({ userId }: DonationsManagementProps) {
   const { authUser } = useAuth();
-  const [donations, setDonations] = React.useState<Donation[]>([]);
-  const [hasMore, setHasMore] = React.useState(true);
+  const [allDonations, setAllDonations] = React.useState<Donation[]>([]);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
-  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({
-      userId,
-      pageLimit: 10,
-    });
-    setDonations(newDonations);
-    setHasMore(newHasMore);
-    setIsInitialLoading(false);
-  }, [userId]);
+    try {
+      const donationsData = await getDonations(userId);
+      setAllDonations(donationsData);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not load donations.' });
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [userId, toast]);
 
   React.useEffect(() => {
     if (userId) {
@@ -63,19 +67,21 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
     }
   }, [userId, loadInitialData]);
 
-  const handleLoadMore = async () => {
-    if (!hasMore || isLoadingMore) return;
-    setIsLoadingMore(true);
-    const lastDonationId = donations.length > 0 ? donations[donations.length - 1]?.id : undefined;
-    const { donations: newDonations, hasMore: newHasMore } = await getDonationsPaginated({
-      userId,
-      pageLimit: 10,
-      lastVisibleId: lastDonationId,
-    });
-    setDonations((prev) => [...prev, ...newDonations]);
-    setHasMore(newHasMore);
-    setIsLoadingMore(false);
-  };
+  const filteredDonations = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return allDonations;
+    return allDonations.filter(d =>
+      (d.donationId || '').toLowerCase().includes(q) ||
+      d.donorName.toLowerCase().includes(q) ||
+      (d.notes || '').toLowerCase().includes(q)
+    );
+  }, [allDonations, searchQuery]);
+
+  const visibleDonations = React.useMemo(
+    () => filteredDonations.slice(0, visibleCount),
+    [filteredDonations, visibleCount]
+  );
+  const hasMore = visibleCount < filteredDonations.length;
 
   const form = useForm<DonationFormValues>({
     resolver: zodResolver(donationSchema),
@@ -94,10 +100,14 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
 
   const onSubmit = (data: DonationFormValues) => {
     startTransition(async () => {
-      const newDonation = await addDonation(userId, data);
-      setDonations((prev) => [newDonation, ...prev]);
-      toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
-      setIsDialogOpen(false);
+      try {
+        const newDonation = await addDonation(userId, data);
+        setAllDonations((prev) => [newDonation, ...prev]);
+        toast({ title: 'Donation Added', description: 'The new donation has been recorded.' });
+        setIsDialogOpen(false);
+      } catch (err) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to record the donation.' });
+      }
     });
   };
 
@@ -155,21 +165,21 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
   return (
     <Card className="animate-in fade-in-50">
       <CardHeader>
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <CardTitle className="font-headline text-2xl">Donations</CardTitle>
             <CardDescription>
               Record and view all donations received. Initial capital is not shown here.
             </CardDescription>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2 justify-end">
             <Button onClick={handleAddNew}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Donation
             </Button>
             <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" /> Download Report
+                  <Download className="mr-2 h-4 w-4" /> Export
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
@@ -193,10 +203,10 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
                 </ScrollArea>
                 <DialogFooter className="gap-2 sm:justify-center pt-4 border-t">
                   <Button variant="outline" onClick={handleDownloadPdf} disabled={!dateRange?.from}>
-                    <FileText className="mr-2 h-4 w-4" /> Download PDF
+                    <FileText className="mr-2 h-4 w-4" /> PDF
                   </Button>
                   <Button variant="outline" onClick={handleDownloadXlsx} disabled={!dateRange?.from}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Download Excel
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -205,17 +215,41 @@ export default function DonationsManagement({ userId }: DonationsManagementProps
         </div>
       </CardHeader>
       <CardContent>
-        <DonationsTable donations={donations} isLoading={isInitialLoading} />
+        <div className="flex flex-col md:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search donations by donor or ID..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setVisibleCount(PAGE_SIZE);
+              }}
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Clear search"
+                className="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSearchQuery('');
+                  setVisibleCount(PAGE_SIZE);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground md:py-2">{filteredDonations.length} donation(s)</p>
+        </div>
+
+        <DonationsTable donations={visibleDonations} isLoading={isInitialLoading} />
         {hasMore && (
           <div className="flex justify-center mt-4">
-            <Button onClick={handleLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
-                </>
-              ) : (
-                'Load More'
-              )}
+            <Button variant="outline" onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}>
+              Load More
             </Button>
           </div>
         )}

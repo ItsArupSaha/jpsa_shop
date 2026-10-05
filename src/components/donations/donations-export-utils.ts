@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { Donation } from '@/lib/types';
+import { formatTakaPlain } from '@/lib/format';
 
 export function exportDonationsToPdf(
   filteredDonations: Donation[],
@@ -59,10 +60,10 @@ export function exportDonationsToPdf(
       d.donorName,
       d.paymentMethod,
       d.notes || '',
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(d.amount)}`
+      `${formatTakaPlain(d.amount)}`
     ]),
     foot: [
-      [{ content: 'Total', colSpan: 5, styles: { halign: 'right' } }, `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDonations)}`],
+      [{ content: 'Total', colSpan: 5, styles: { halign: 'right' } }, `${formatTakaPlain(totalDonations)}`],
     ],
     footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
   });

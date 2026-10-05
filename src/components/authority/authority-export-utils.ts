@@ -2,12 +2,9 @@ import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { AuthorityPresentationReport as AuthorityReportData } from '@/lib/db/authority-presentation-report';
+import { formatTakaPlain } from '@/lib/format';
 
-const formatCurrencyForPdf = (amount: number) =>
-  `BDT ${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}`;
+const formatCurrencyForPdf = (amount: number) => formatTakaPlain(amount);
 
 function truncatePdfCell(text: string, maxLen: number): string {
   const t = (text || '').replace(/\s+/g, ' ').trim();

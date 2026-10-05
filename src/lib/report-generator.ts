@@ -40,6 +40,23 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
   const { salesData, expensesData, donationsData, itemsData, transactionsData } = input;
 
   const calculateSaleProfit = (sale: Sale): number => {
+    // Profit is fixed at the moment of sale when the cost is stored on the sale
+    // (total cost, or per-item cost). Older sales fall back to the current
+    // item cost, which is the best available estimate for them.
+    const storedTotalCost = (sale as any).productionCost;
+    if (typeof storedTotalCost === 'number' && Number.isFinite(storedTotalCost)) {
+      return sale.total - storedTotalCost;
+    }
+    const perItemStoredCost = sale.items.reduce((acc, saleItem) => {
+      const cost = (saleItem as any).cost;
+      return typeof cost === 'number' && Number.isFinite(cost)
+        ? acc + cost * saleItem.quantity
+        : NaN;
+    }, 0);
+    if (Number.isFinite(perItemStoredCost)) {
+      return sale.total - perItemStoredCost;
+    }
+
     const totalProductionCost = sale.items.reduce((acc, saleItem) => {
         const itemData = itemsData.find(i => i.id === saleItem.itemId);
         if (itemData) {
@@ -104,10 +121,13 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
   // Cash/bank breakdown for sales based on payment method
   const salesCashBank = salesData.reduce(
     (acc, sale) => {
+      // Customer advance (credit) was already counted as cash when deposited,
+      // so only the remainder of a Cash/Bank sale is new money in this month.
+      const settledNow = sale.total - (sale.creditApplied || 0);
       if (sale.paymentMethod === 'Cash') {
-        acc.cash += sale.total;
+        acc.cash += settledNow;
       } else if (sale.paymentMethod === 'Bank') {
-        acc.bank += sale.total;
+        acc.bank += settledNow;
       } else if (sale.paymentMethod === 'Split' && sale.amountPaid && sale.amountPaid > 0 && sale.splitPaymentMethod) {
         // Only the immediate paid portion counts towards cash/bank; the rest is due
         if (sale.splitPaymentMethod === 'Cash') {

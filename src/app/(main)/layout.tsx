@@ -3,27 +3,26 @@
 
 import {
   ArrowLeftRight,
-  ArrowRightLeft,
   Book,
   CreditCard,
   FileText,
   Gift,
+  HandCoins,
   Home,
   LogIn,
   LogOut,
   Package,
   Presentation,
+  ReceiptText,
   RotateCcw,
   Scale,
   ShoppingBag,
   ShoppingCart,
   Users,
-  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
-import { getItems } from '@/lib/actions';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -31,6 +30,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -41,24 +42,55 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/use-auth';
 
-const navItems = [
-  { href: '/dashboard', icon: Home, label: 'Dashboard' },
-  { href: '/items', icon: Book, label: 'Items' },
-  { href: '/expiry-alerts', icon: AlertTriangle, label: 'Expiry Alerts' },
-  { href: '/packages', icon: Package, label: 'Packages' },
-  { href: '/customers', icon: Users, label: 'Customers' },
-  { href: '/sales', icon: ShoppingCart, label: 'Sales' },
-  { href: '/sales-returns', icon: RotateCcw, label: 'Sales Returns' },
-  { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
-  { href: '/donations', icon: Gift, label: 'Donations' },
-  { href: '/expenses', icon: CreditCard, label: 'Expenses' },
-  { href: '/transfer', icon: ArrowLeftRight, label: 'Transfer' },
-  { href: '/receivables', icon: ArrowRightLeft, label: 'Receivables' },
-  { href: '/payables', icon: ArrowRightLeft, label: 'Payables' },
-  { href: '/reports', icon: FileText, label: 'Reports' },
-  { href: '/balance-sheet', icon: Scale, label: 'Balance Sheet' },
-  { href: '/authority-presentation', icon: Presentation, label: 'Authority presentation' },
+const navGroups = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/dashboard', icon: Home, label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Selling',
+    items: [
+      { href: '/sales', icon: ShoppingCart, label: 'Sales' },
+      { href: '/sales-returns', icon: RotateCcw, label: 'Sales Returns' },
+      { href: '/packages', icon: Package, label: 'Packages' },
+      { href: '/customers', icon: Users, label: 'Customers' },
+      { href: '/receivables', icon: HandCoins, label: 'Receivables' },
+    ],
+  },
+  {
+    label: 'Buying',
+    items: [
+      { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
+      { href: '/payables', icon: ReceiptText, label: 'Payables' },
+    ],
+  },
+  {
+    label: 'Inventory',
+    items: [
+      { href: '/items', icon: Book, label: 'Items' },
+    ],
+  },
+  {
+    label: 'Money',
+    items: [
+      { href: '/expenses', icon: CreditCard, label: 'Expenses' },
+      { href: '/donations', icon: Gift, label: 'Donations' },
+      { href: '/transfer', icon: ArrowLeftRight, label: 'Transfer' },
+      { href: '/balance-sheet', icon: Scale, label: 'Balance Sheet' },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { href: '/reports', icon: FileText, label: 'Monthly Report' },
+      { href: '/authority-presentation', icon: Presentation, label: 'Authority Presentation' },
+    ],
+  },
 ];
+
+const allNavItems = navGroups.flatMap((group) => group.items);
 
 function ProfileButton() {
   const { user, signOut } = useAuth();
@@ -101,21 +133,12 @@ function ProfileButton() {
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { authUser, user } = useAuth();
-  const [alertCount, setAlertCount] = React.useState(0);
-  const pageTitle = navItems.find(item => pathname.startsWith(item.href))?.label || 'Dashboard';
-
-  React.useEffect(() => {
-    if (user) {
-      getItems(user.uid).then(items => {
-        const now = new Date();
-        const oneMonthFromNow = new Date();
-        oneMonthFromNow.setDate(now.getDate() + 30);
-        const count = items.filter(item => item.expiryDate && new Date(item.expiryDate) <= oneMonthFromNow).length;
-        setAlertCount(count);
-      }).catch(err => console.error("Failed to fetch alert count for sidebar:", err));
-    }
-  }, [user, pathname]); // Re-fetch on path name change to update badges when editing/deleting
+  const { authUser } = useAuth();
+  // Exact match first so /sales-returns is not titled "Sales".
+  const pageTitle =
+    allNavItems.find((item) => pathname === item.href)?.label ||
+    allNavItems.find((item) => pathname.startsWith(item.href + '/'))?.label ||
+    'Dashboard';
 
   return (
     <SidebarProvider>
@@ -126,36 +149,34 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                 <Book className="h-6 w-6 text-primary-foreground" />
               </div>
-              <div className="flex flex-col">
-                <h1 className="font-headline text-2xl font-semibold text-primary">{authUser?.companyName || 'Store'}</h1>
-                {authUser?.subtitle && <p className="text-xs text-muted-foreground">{authUser.subtitle}</p>}
+              <div className="flex flex-col min-w-0">
+                <h1 className="font-headline text-xl font-semibold text-primary truncate">{authUser?.companyName || 'Store'}</h1>
+                {authUser?.subtitle && <p className="text-xs text-muted-foreground truncate">{authUser.subtitle}</p>}
               </div>
             </div>
           </SidebarHeader>
-          <SidebarContent className="p-4">
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(item.href)}
-                    tooltip={item.label}
-                  >
-                    <Link href={item.href} className="flex justify-between items-center w-full">
-                      <div className="flex items-center gap-2">
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </div>
-                      {item.href === '/expiry-alerts' && alertCount > 0 && (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground animate-pulse">
-                          {alertCount}
-                        </span>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+          <SidebarContent className="p-2">
+            {navGroups.map((group) => (
+              <SidebarGroup key={group.label} className="pb-0">
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === item.href || pathname.startsWith(item.href + '/')}
+                        tooltip={item.label}
+                      >
+                        <Link href={item.href}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            ))}
           </SidebarContent>
           <SidebarFooter className="p-4 border-t flex flex-col gap-4">
             <ProfileButton />

@@ -39,14 +39,11 @@ const itemSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   categoryId: z.string().min(1, 'Category is required'),
   author: z.string().optional(),
-  medicineGroup: z.string().optional(),
-  company: z.string().optional(),
-  expiryDate: z.string().optional(),
-  productionPrice: z.coerce.number().min(0, 'Production price must be positive'),
+  productionPrice: z.coerce.number().min(0, 'Cost price must be positive'),
   sellingPrice: z.coerce.number().min(0, 'Selling price must be positive'),
   stock: z.coerce.number().int().min(0, 'Stock must be a non-negative integer'),
 }).refine(data => data.sellingPrice >= data.productionPrice, {
-  message: "Selling price cannot be less than production price.",
+  message: "Selling price cannot be less than cost price.",
   path: ["sellingPrice"],
 });
 
@@ -80,9 +77,6 @@ export function AddItemDialog({
       title: '',
       categoryId: '',
       author: '',
-      medicineGroup: '',
-      company: '',
-      expiryDate: '',
       productionPrice: 0,
       sellingPrice: 0,
       stock: 0,
@@ -97,9 +91,6 @@ export function AddItemDialog({
           title: editingItem.title,
           categoryId: editingItem.categoryId,
           author: editingItem.author || '',
-          medicineGroup: editingItem.medicineGroup || '',
-          company: editingItem.company || '',
-          expiryDate: editingItem.expiryDate || '',
           productionPrice: editingItem.productionPrice,
           sellingPrice: editingItem.sellingPrice,
           stock: editingItem.stock,
@@ -109,9 +100,6 @@ export function AddItemDialog({
           title: '',
           categoryId: '',
           author: '',
-          medicineGroup: '',
-          company: '',
-          expiryDate: '',
           productionPrice: 0,
           sellingPrice: 0,
           stock: 0,
@@ -120,27 +108,15 @@ export function AddItemDialog({
     }
   }, [isOpen, editingItem, itemForm]);
 
-  const selectedCategory = categories.find(cat => cat.id === itemForm.watch('categoryId'));
-  const showAuthorField = selectedCategory?.name?.toLowerCase().includes('book') || false;
-  const isMedicineCategory = selectedCategory?.name?.toLowerCase().includes('medicine') || false;
-
   const onSubmit = (data: ItemFormValues) => {
-    // Validate author field for books
-    if (showAuthorField && (!data.author || data.author.trim().length === 0)) {
-      toast({ variant: "destructive", title: "Error", description: "Author is required for books." });
-      return;
-    }
-
     startTransition(async () => {
       try {
+        const selectedCategory = categories.find(cat => cat.id === data.categoryId);
         const itemData: Omit<Item, 'id'> = {
           title: data.title,
           categoryId: data.categoryId,
           categoryName: selectedCategory?.name || '',
-          author: showAuthorField ? data.author || undefined : undefined,
-          medicineGroup: isMedicineCategory ? data.medicineGroup || undefined : undefined,
-          company: isMedicineCategory ? data.company || undefined : undefined,
-          expiryDate: isMedicineCategory ? data.expiryDate || undefined : undefined,
+          author: data.author?.trim() ? data.author.trim() : undefined,
           productionPrice: data.productionPrice,
           sellingPrice: data.sellingPrice,
           stock: data.stock,
@@ -181,13 +157,13 @@ export function AddItemDialog({
                     <FormItem>
                       <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <Input placeholder="Item name" {...field} />
+                        <Input placeholder="Book title" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                
+
                 <div className="flex gap-2">
                   <FormField
                     control={itemForm.control}
@@ -217,6 +193,7 @@ export function AddItemDialog({
                     type="button"
                     variant="outline"
                     size="icon"
+                    aria-label="Add category"
                     className="mt-8"
                     onClick={onAddCategoryClick}
                   >
@@ -224,65 +201,19 @@ export function AddItemDialog({
                   </Button>
                 </div>
 
-                {showAuthorField && (
-                  <FormField
-                    control={itemForm.control}
-                    name="author"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Author</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Author name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                {isMedicineCategory && (
-                  <>
-                    <FormField
-                      control={itemForm.control}
-                      name="medicineGroup"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Medicine Group (Generic Name)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Paracetamol, Omeprazole" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={itemForm.control}
-                      name="company"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Company / Manufacturer</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Beximco, Square" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={itemForm.control}
-                      name="expiryDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expiry Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                )}
+                <FormField
+                  control={itemForm.control}
+                  name="author"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Author <span className="text-muted-foreground">(optional)</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="Author name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -290,7 +221,7 @@ export function AddItemDialog({
                     name="productionPrice"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Production Price</FormLabel>
+                        <FormLabel>Cost Price (৳)</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.01" placeholder="5.50" {...field} />
                         </FormControl>
@@ -303,7 +234,7 @@ export function AddItemDialog({
                     name="sellingPrice"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Selling Price</FormLabel>
+                        <FormLabel>Selling Price (৳)</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.01" placeholder="10.99" {...field} />
                         </FormControl>
@@ -317,7 +248,7 @@ export function AddItemDialog({
                   name="stock"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Stock</FormLabel>
+                      <FormLabel>Stock in hand</FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="15" {...field} />
                       </FormControl>

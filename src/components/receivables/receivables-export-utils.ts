@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import type { CustomerWithDue, Transaction } from '@/lib/types';
 import type { DateRange } from 'react-day-picker';
+import { formatTakaPlain } from '@/lib/format';
 
 interface AuthUserProps {
   companyName?: string;
@@ -56,11 +57,11 @@ export function generatePdf(data: CustomerWithDue[], date: Date | undefined, aut
     body: data.map(c => [
       c.name,
       c.phone,
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(c.dueBalance)}`
+      `${formatTakaPlain(c.dueBalance)}`
     ]),
     foot: [[
       { content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-      `BDT ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDue)}`
+      `${formatTakaPlain(totalDue)}`
     ]],
     footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
   });
@@ -100,7 +101,7 @@ export function generateReceivedPaymentsPdf(data: Transaction[], dateRange: Date
       format(new Date(t.dueDate), 'PPP'),
       t.customerName || 'N/A',
       t.paymentMethod || 'N/A',
-      `BDT ${t.amount.toFixed(2)}`
+      `${formatTakaPlain(t.amount)}`
     ])
   });
   doc.save(`received-payments-${format(new Date(), 'yyyy-MM-dd')}.pdf`);

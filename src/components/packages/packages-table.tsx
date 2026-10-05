@@ -10,6 +10,7 @@ import { EditPackageDialog } from './edit-package-dialog';
 import type { Item, PackageTemplate } from '@/lib/types';
 import type { PackageFormValues } from './schema';
 import { Badge } from '@/components/ui/badge';
+import { formatTaka } from '@/lib/format';
 
 interface PackagesTableProps {
   packages: PackageTemplate[];
@@ -83,10 +84,10 @@ export function PackagesTable({
                     )}
                   </TableCell>
                   <TableCell className="font-semibold text-primary">
-                    ৳{pkg.items.reduce((sum, pkgItem) => {
+                    {formatTaka(pkg.items.reduce((sum, pkgItem) => {
                       const item = items.find(i => i.id === pkgItem.itemId);
                       return sum + (item?.sellingPrice || 0) * pkgItem.quantity;
-                    }, 0).toFixed(2)}
+                    }, 0).toFixed(2))}
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <PackageSaleDialog

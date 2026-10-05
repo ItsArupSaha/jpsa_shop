@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Donation } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
 
 interface DonationsTableProps {
   donations: Donation[];
@@ -56,7 +57,7 @@ export function DonationsTable({ donations, isLoading }: DonationsTableProps) {
                 <TableCell className="font-medium">{donation.donorName}</TableCell>
                 <TableCell>{donation.notes}</TableCell>
                 <TableCell>{donation.paymentMethod}</TableCell>
-                <TableCell className="text-right">৳{donation.amount.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{formatTaka(donation.amount.toFixed(2))}</TableCell>
               </TableRow>
             ))
           ) : (

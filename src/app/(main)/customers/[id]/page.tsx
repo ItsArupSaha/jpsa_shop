@@ -1,31 +1,40 @@
 'use client';
 
+import CustomerStatementPDF from '@/components/customer-statement-pdf';
+import ReceivePaymentDialog from '@/components/receive-payment-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
 import { getCustomerById, getTransactionsForCustomer, getSalesForCustomer, getItems } from '@/lib/actions';
-import type { Transaction, Sale, Item } from '@/lib/types';
+import { formatTaka } from '@/lib/format';
+import type { Item, Sale, Transaction } from '@/lib/types';
 import { format } from 'date-fns';
-import { Book, DollarSign, MapPin, Phone, User, ShoppingCart, ArrowDownToLine } from 'lucide-react';
+import { ArrowLeft, Book, MapPin, Phone, User, ShoppingCart, ArrowDownToLine } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+type Activity = ((Transaction & { activityType: 'transaction'; sortDate: number }) | (Sale & { activityType: 'sale'; sortDate: number }));
+
 export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const { user } = useAuth();
   const [customerData, setCustomerData] = useState<any>(null);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [customerSales, setCustomerSales] = useState<Sale[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        setLoading(true);
         const { id } = await params;
 
         if (!user) {
@@ -34,11 +43,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           return;
         }
 
-        console.log('Customer Detail Page Debug:', { customerId: id, userId: user.uid });
-
-        // Get customer data
         const customer = await getCustomerById(user.uid, id);
-        console.log('Customer Data:', customer);
 
         if (!customer) {
           setError('Customer not found');
@@ -46,47 +51,36 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           return;
         }
 
-        // Get transactions for this customer (this query doesn't require complex indexes)
-        // Ensure we catch all payment records and older sales
         const customerTransactions = await getTransactionsForCustomer(user.uid, id, 'Receivable');
-        const customerSales = await getSalesForCustomer(user.uid, id);
-
-        // Fetch items so we can display the titles for the sale rows
+        const sales = await getSalesForCustomer(user.uid, id);
         const allItems = await getItems(user.uid);
 
-        // Combine them into a single timeline Activity array
-        const combinedActivities = [
+        const combinedActivities: Activity[] = [
           ...customerTransactions
             .filter(t => !t.description?.startsWith('Due from SALE'))
-            .map(t => ({ ...t, activityType: 'transaction', sortDate: new Date(t.dueDate).getTime() })),
-          ...customerSales.map(s => ({ ...s, activityType: 'sale', sortDate: new Date(s.date).getTime() }))
+            .map((t): Activity => ({ ...t, activityType: 'transaction', sortDate: new Date(t.dueDate).getTime() })),
+          ...sales.map((s): Activity => ({ ...s, activityType: 'sale', sortDate: new Date(s.date).getTime() }))
         ].sort((a, b) => b.sortDate - a.sortDate);
 
         setCustomerData(customer);
         setActivities(combinedActivities);
+        setCustomerSales(sales);
         setItems(allItems);
-        setLoading(false);
+        setError(null);
       } catch (err) {
         console.error('Error loading customer data:', err);
         setError('Failed to load customer data');
+      } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [params, user]);
+  }, [params, user, reloadKey]);
 
-  if (!user) {
+  if (!user || loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Book className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-[50vh] w-full items-center justify-center">
         <Book className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -94,25 +88,31 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
   if (error || !customerData) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-[50vh] w-full items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-destructive">Customer Not Found</h1>
           <p className="text-muted-foreground mt-2">The customer you're looking for doesn't exist.</p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link href="/customers"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Customers</Link>
+          </Button>
         </div>
       </div>
     );
   }
 
-  const customer = { ...customerData, dueBalance: customerData.dueBalance || customerData.openingBalance };
+  const customer = { ...customerData, dueBalance: customerData.dueBalance ?? customerData.openingBalance };
 
   return (
     <div className="animate-in fade-in-50 space-y-6">
       {/* Customer Information Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="icon" aria-label="Back to customers" className="-ml-2">
+                  <Link href="/customers"><ArrowLeft className="h-5 w-5" /></Link>
+                </Button>
                 <User className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>
               </div>
@@ -145,9 +145,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                       ? 'text-green-600'
                       : 'text-primary'
                   }`}>
-                  ${customer.dueBalance.toFixed(2)}
+                  {formatTaka(customer.dueBalance)}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 justify-end">
                   {customer.dueBalance > 0 && (
                     <Badge variant="destructive">Owes Money</Badge>
                   )}
@@ -167,17 +167,28 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       {/* Transaction History Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="font-headline text-2xl">Transaction History</CardTitle>
               <CardDescription>
-                All transactions between {customer.name} and your bookstore
+                All transactions between {customer.name} and your store
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm">
-              <DollarSign className="mr-2 h-4 w-4" />
-              Receive Payment
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {user && (
+                <ReceivePaymentDialog
+                  customerId={customer.id}
+                  userId={user.uid}
+                  onPaymentReceived={() => setReloadKey((k) => k + 1)}
+                >
+                  <Button size="sm">
+                    <ArrowDownToLine className="mr-2 h-4 w-4" />
+                    Receive Payment
+                  </Button>
+                </ReceivePaymentDialog>
+              )}
+              <CustomerStatementPDF customer={customer} sales={customerSales} items={items} />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -200,7 +211,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                     return (
                       <TableRow key={activity.id || index}>
                         <TableCell className="whitespace-nowrap">
-                          {format(new Date(isSale ? activity.date : activity.dueDate), 'PPP')}
+                          {format(new Date(isSale ? activity.date : activity.dueDate), 'dd MMM yyyy')}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 font-medium">
@@ -243,7 +254,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          TK {isSale ? activity.total.toFixed(2) : activity.amount.toFixed(2)}
+                          {formatTaka(isSale ? activity.total : activity.amount)}
                         </TableCell>
                       </TableRow>
                     );
