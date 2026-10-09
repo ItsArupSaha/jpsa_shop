@@ -67,7 +67,8 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
     const activityBody = [
       ['Total Sales', formatCurrencyForPdf(monthlyActivity.totalSales)],
       ['Total Profit', formatCurrencyForPdf(monthlyActivity.totalProfit)],
-      ['Received Payments from Dues', formatCurrencyForPdf(monthlyActivity.receivedPaymentsFromDues)],
+      ["Due Payments Received - Prior Months' Dues", formatCurrencyForPdf(monthlyActivity.recoveredFromPriorDues)],
+      ['Due Payments Received - Settled Same Month', formatCurrencyForPdf(monthlyActivity.sameMonthDueSettlements)],
       ['Total Donations', formatCurrencyForPdf(monthlyActivity.totalDonations)],
       ['Total Expenses', `(${formatCurrencyForPdf(monthlyActivity.totalExpenses)})`],
     ];
@@ -158,7 +159,18 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                 <TableBody>
                   <TableRow><TableCell>Total Sales</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalSales)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Profit</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.totalProfit)}</TableCell></TableRow>
-                  <TableRow><TableCell>Received Payments from Dues</TableCell><TableCell className="text-right">{formatCurrency(monthlyActivity.receivedPaymentsFromDues)}</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell>
+                      <div className="font-medium">Due Payments Received</div>
+                      <div className="pl-3 text-sm text-muted-foreground">Recovered from prior months&rsquo; dues</div>
+                      <div className="pl-3 text-sm text-muted-foreground">Settled within the same month</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-medium">{formatCurrency(monthlyActivity.receivedPaymentsFromDues)}</div>
+                      <div className="text-sm text-muted-foreground">{formatCurrency(monthlyActivity.recoveredFromPriorDues)}</div>
+                      <div className="text-sm text-muted-foreground">{formatCurrency(monthlyActivity.sameMonthDueSettlements)}</div>
+                    </TableCell>
+                  </TableRow>
                   <TableRow><TableCell>Total Donations</TableCell><TableCell className="text-right text-primary">{formatCurrency(monthlyActivity.totalDonations)}</TableCell></TableRow>
                   <TableRow><TableCell>Total Expenses</TableCell><TableCell className="text-right text-destructive">({formatCurrency(monthlyActivity.totalExpenses)})</TableCell></TableRow>
                 </TableBody>
@@ -211,6 +223,10 @@ export default function ReportPreview({ reportData, month, year }: ReportPreview
                   <div className="flex justify-between text-sm">
                     <span>Bank</span>
                     <span className="font-semibold">{formatCurrency(cashFlow.duePayments.bank)}</span>
+                  </div>
+                  <div className="mt-2 border-t pt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">Prior months&rsquo; dues: {formatCurrency(monthlyActivity.recoveredFromPriorDues)}</p>
+                    <p className="text-xs text-muted-foreground">Same-month settlements: {formatCurrency(monthlyActivity.sameMonthDueSettlements)}</p>
                   </div>
                 </div>
 

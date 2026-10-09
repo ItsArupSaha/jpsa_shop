@@ -1,4 +1,5 @@
 
+import { toBusinessYMD } from './db/business-date';
 import type { Donation, Expense, Item, Sale, Transaction } from './types';
 
 export interface ReportAnalysis {
@@ -7,6 +8,10 @@ export interface ReportAnalysis {
     profitFromPaidSales: number;
     profitFromDuePayments: number;
     receivedPaymentsFromDues: number;
+    /** Portion of the month's due payments that settled dues created in a previous month. */
+    recoveredFromPriorDues: number;
+    /** Portion of the month's due payments that settled dues created in the same month. */
+    sameMonthDueSettlements: number;
     totalProfit: number;
     totalExpenses: number;
     totalDonations: number;
@@ -33,11 +38,129 @@ export interface ReportInput {
   itemsData: Item[];
   month: string;
   year: string;
+  /** 0-based month index and numeric year of the report period (Bangladesh calendar). */
+  monthIndex: number;
+  yearNumber: number;
   transactionsData: Transaction[];
+  /** Every sale ever, used to rebuild each customer's due history for the settlement replay. */
+  allSalesData: Sale[];
+  /** Every receivable transaction ever (original dues + payments) for the same replay. */
+  allReceivablesData: Transaction[];
+}
+
+interface DueEntry {
+  // Bangladesh calendar day (`yyyy-MM-dd`) the due was created
+  createdYMD: string;
+  remaining: number;
+}
+
+/**
+ * Split the month's "Payment from customer" collections into:
+ *  - sameMonth: dues created and settled within the same Bangladesh month
+ *    (ordinary invoice terms, not chased dues)
+ *  - priorMonths: recoveries of dues outstanding from before that month
+ *
+ * addPayment() settles a customer's pending receivables FIFO (oldest first)
+ * and does not record the linkage on the payment transaction, so the split is
+ * rebuilt by replaying every customer's payments chronologically against
+ * their due queue. Sale dues are rebuilt from the sale records (the source of
+ * truth — the receivable docs are decremented/hidden in place as they
+ * settle); manually added receivables contribute their stored amount, which
+ * underestimates partially settled ones. Any payment amount beyond the
+ * queued dues (data drift, e.g. a deleted sale) is counted as a prior-month
+ * recovery so the two buckets always sum to the reported total.
+ */
+function classifyDuePayments(
+  reportYm: string,
+  allSales: Sale[],
+  allReceivables: Transaction[],
+): { sameMonth: number; priorMonths: number } {
+  const duesByCustomer = new Map<string, DueEntry[]>();
+  const addDue = (customerId: string, createdYMD: string, amount: number) => {
+    if (!customerId || amount <= 0) return;
+    const queue = duesByCustomer.get(customerId);
+    if (queue) {
+      queue.push({ createdYMD, remaining: amount });
+    } else {
+      duesByCustomer.set(customerId, [{ createdYMD, remaining: amount }]);
+    }
+  };
+
+  for (const sale of allSales) {
+    if (sale.paymentMethod === 'Due' || sale.paymentMethod === 'Split') {
+      const dueAmount = sale.paymentMethod === 'Due'
+        ? sale.total
+        : sale.total - (sale.amountPaid || 0);
+      const day = toBusinessYMD(sale.date);
+      if (day) addDue(sale.customerId, day, dueAmount);
+    }
+  }
+
+  // Manual receivables only — sale-linked originals are covered above by the
+  // sale records, so including them here would double-count.
+  for (const t of allReceivables) {
+    if (!t.paymentMethod && !t.saleId) {
+      const day = toBusinessYMD(t.dueDate);
+      if (day) addDue(t.customerId || '', day, Number(t.amount) || 0);
+    }
+  }
+
+  const paymentsByCustomer = new Map<string, Transaction[]>();
+  for (const t of allReceivables) {
+    if (t.type === 'Receivable' && t.status === 'Paid' && t.description?.startsWith('Payment from customer')) {
+      const list = paymentsByCustomer.get(t.customerId || '');
+      if (list) {
+        list.push(t);
+      } else {
+        paymentsByCustomer.set(t.customerId || '', [t]);
+      }
+    }
+  }
+
+  let sameMonth = 0;
+  let priorMonths = 0;
+
+  for (const [customerId, payments] of paymentsByCustomer) {
+    const dues = (duesByCustomer.get(customerId) || [])
+      .sort((a, b) => a.createdYMD.localeCompare(b.createdYMD));
+    const chronological = [...payments].sort(
+      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+    );
+
+    // Receivables become settleable only once created (FIFO, oldest first),
+    // mirroring the query order addPayment() uses.
+    let settleable = 0;
+    for (const payment of chronological) {
+      const paymentDay = toBusinessYMD(payment.dueDate);
+      if (!paymentDay) continue;
+      while (settleable < dues.length && dues[settleable].createdYMD <= paymentDay) {
+        settleable++;
+      }
+
+      let amount = Number(payment.amount) || 0;
+      let settledSameMonth = 0;
+      for (let i = 0; i < settleable && amount > 0; i++) {
+        const due = dues[i];
+        const settled = Math.min(amount, due.remaining);
+        due.remaining -= settled;
+        amount -= settled;
+        if (due.createdYMD.slice(0, 7) === paymentDay.slice(0, 7)) {
+          settledSameMonth += settled;
+        }
+      }
+
+      if (paymentDay.slice(0, 7) === reportYm) {
+        sameMonth += settledSameMonth;
+        priorMonths += (Number(payment.amount) || 0) - settledSameMonth;
+      }
+    }
+  }
+
+  return { sameMonth, priorMonths };
 }
 
 export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
-  const { salesData, expensesData, donationsData, itemsData, transactionsData } = input;
+  const { salesData, expensesData, donationsData, itemsData, transactionsData, allSalesData, allReceivablesData } = input;
 
   const calculateSaleProfit = (sale: Sale): number => {
     // Profit is fixed at the moment of sale when the cost is stored on the sale
@@ -148,6 +271,12 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
   const receivedPaymentsFromDues = duePayments
     .reduce((total, payment) => total + payment.amount, 0);
 
+  const { sameMonth: sameMonthDueSettlements, priorMonths: recoveredFromPriorDues } = classifyDuePayments(
+    `${input.yearNumber}-${String(input.monthIndex + 1).padStart(2, '0')}`,
+    allSalesData,
+    allReceivablesData,
+  );
+
   const duePaymentsCashBank = duePayments.reduce(
     (acc, t) => {
       if (t.paymentMethod === 'Cash') {
@@ -193,6 +322,8 @@ export function generateMonthlyReport(input: ReportInput): ReportAnalysis {
     profitFromPaidSales,
     profitFromDuePayments,
     receivedPaymentsFromDues,
+    recoveredFromPriorDues,
+    sameMonthDueSettlements,
     totalProfit,
     totalExpenses,
     totalDonations,

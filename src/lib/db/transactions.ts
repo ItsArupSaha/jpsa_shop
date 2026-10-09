@@ -36,6 +36,19 @@ export async function getTransactions(userId: string, type: 'Receivable' | 'Paya
   return transactions.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 }
 
+/**
+ * Every Receivable transaction regardless of status, including hidden
+ * original sale dues and paid "Payment from customer" records. Used by the
+ * monthly report to reconstruct the FIFO settlement history per customer.
+ */
+export async function getAllReceivableTransactions(userId: string): Promise<Transaction[]> {
+  if (!db || !userId) return [];
+  const transactionsCollection = collection(db, 'users', userId, 'transactions');
+  const q = query(transactionsCollection, where('type', '==', 'Receivable'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(docToTransaction);
+}
+
 export async function getTransactionsPaginated({ userId, type, pageLimit = 5, lastVisibleId }: { userId: string, type: 'Receivable' | 'Payable', pageLimit?: number, lastVisibleId?: string }): Promise<{ transactions: Transaction[], hasMore: boolean }> {
   if (!db || !userId) return { transactions: [], hasMore: false };
   const transactionsCollection = collection(db, 'users', userId, 'transactions');

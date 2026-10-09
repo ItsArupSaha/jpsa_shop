@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectPortal, SelectTrigger, SelectV
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getDonationsForMonth, getExpensesForMonth, getItems, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
+import { getAllReceivableTransactions, getDonationsForMonth, getExpensesForMonth, getItems, getSales, getSalesForMonth, getTransactionsForMonth } from '@/lib/actions';
 import { generateMonthlyReport, type ReportAnalysis } from '@/lib/report-generator';
 import type { Item } from '@/lib/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -79,11 +79,15 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
       const selectedMonth = parseInt(formData.month, 10);
       const selectedYear = parseInt(formData.year, 10);
 
-      const [salesForMonth, expensesForMonth, donationsForMonth, transactionsForMonth] = await Promise.all([
+      const [salesForMonth, expensesForMonth, donationsForMonth, transactionsForMonth, allSales, allReceivables] = await Promise.all([
         getSalesForMonth(userId, selectedYear, selectedMonth),
         getExpensesForMonth(userId, selectedYear, selectedMonth),
         getDonationsForMonth(userId, selectedYear, selectedMonth),
-        getTransactionsForMonth(userId, selectedYear, selectedMonth)
+        getTransactionsForMonth(userId, selectedYear, selectedMonth),
+        // Full history: needed to tell same-month invoice settlements apart
+        // from recoveries of older dues (FIFO replay per customer).
+        getSales(userId),
+        getAllReceivableTransactions(userId)
       ]);
 
       const input = {
@@ -93,7 +97,11 @@ export default function ReportGenerator({ userId }: ReportGeneratorProps) {
         itemsData: dataSource.items,
         month: new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' }),
         year: formData.year,
+        monthIndex: selectedMonth,
+        yearNumber: selectedYear,
         transactionsData: transactionsForMonth,
+        allSalesData: allSales,
+        allReceivablesData: allReceivables,
       };
 
       const result = generateMonthlyReport(input);
