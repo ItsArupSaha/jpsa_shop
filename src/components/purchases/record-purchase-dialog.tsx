@@ -19,8 +19,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { addPurchase } from '@/lib/actions';
-import type { Category, Item } from '@/lib/types';
+import { addPurchase, updatePurchase } from '@/lib/actions';
+import type { Category, Item, Purchase } from '@/lib/types';
 
 import { purchaseFormSchema, type PurchaseFormValues } from './schema';
 import { PurchaseItemRow } from './purchase-item-row';
@@ -35,9 +35,22 @@ interface RecordPurchaseDialogProps {
   items: Item[];
   onSuccess: () => void;
   onAddCategoryClick: () => void;
+  editingPurchase?: Purchase | null;
 }
 
 const emptyItemRow = { itemId: undefined, itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 };
+
+const getEmptyFormValues = (): PurchaseFormValues => ({
+  supplier: '',
+  date: new Date(),
+  items: [{ ...emptyItemRow }],
+  discountType: 'amount',
+  discountValue: 0,
+  paymentMethod: 'Due',
+  amountPaid: 0,
+  splitPaymentMethod: 'Cash',
+  dueDate: new Date(),
+});
 
 export function RecordPurchaseDialog({
   userId,
@@ -47,23 +60,14 @@ export function RecordPurchaseDialog({
   items,
   onSuccess,
   onAddCategoryClick,
+  editingPurchase,
 }: RecordPurchaseDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
-    defaultValues: {
-      supplier: '',
-      date: new Date(),
-      items: [{ ...emptyItemRow }],
-      discountType: 'amount',
-      discountValue: 0,
-      paymentMethod: 'Due',
-      amountPaid: 0,
-      splitPaymentMethod: 'Cash',
-      dueDate: new Date(),
-    },
+    defaultValues: getEmptyFormValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -73,19 +77,33 @@ export function RecordPurchaseDialog({
 
   React.useEffect(() => {
     if (isOpen) {
-      form.reset({
-        supplier: '',
-        date: new Date(),
-        items: [{ ...emptyItemRow }],
-        discountType: 'amount',
-        discountValue: 0,
-        paymentMethod: 'Due',
-        amountPaid: 0,
-        splitPaymentMethod: 'Cash',
-        dueDate: new Date(),
-      });
+      if (editingPurchase) {
+        form.reset({
+          supplier: editingPurchase.supplier,
+          date: new Date(editingPurchase.date),
+          items: editingPurchase.items.map(i => ({
+            itemId: i.itemId,
+            itemName: i.itemName,
+            categoryId: i.categoryId,
+            categoryName: i.categoryName,
+            author: i.author || '',
+            quantity: i.quantity,
+            cost: i.cost,
+            sellingPrice: i.sellingPrice ?? 0,
+          })),
+          // The stored discount is an amount, so edits continue from that amount.
+          discountType: 'amount',
+          discountValue: editingPurchase.discountAmount || 0,
+          paymentMethod: editingPurchase.paymentMethod === 'N/A' ? 'Due' : editingPurchase.paymentMethod,
+          amountPaid: editingPurchase.amountPaid || 0,
+          splitPaymentMethod: editingPurchase.splitPaymentMethod || 'Cash',
+          dueDate: new Date(editingPurchase.dueDate),
+        });
+      } else {
+        form.reset(getEmptyFormValues());
+      }
     }
-  }, [isOpen, form]);
+  }, [isOpen, editingPurchase, form]);
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
@@ -107,13 +125,19 @@ export function RecordPurchaseDialog({
         // @ts-ignore
         delete purchaseData.discountValue;
 
-        const result = await addPurchase(userId, purchaseData);
+        const result = editingPurchase
+          ? await updatePurchase(userId, editingPurchase.id, purchaseData)
+          : await addPurchase(userId, purchaseData);
         if (result?.success) {
-          toast({ title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' });
+          toast(
+            editingPurchase
+              ? { title: 'Purchase Updated', description: `${editingPurchase.purchaseId} has been updated; stock, expenses, and payables were adjusted.` }
+              : { title: 'Purchase Recorded', description: 'The new purchase has been added and stock updated.' }
+          );
           onSuccess();
           onOpenChange(false);
         } else {
-          toast({ variant: 'destructive', title: 'Error', description: result?.error || 'Failed to record purchase.' });
+          toast({ variant: 'destructive', title: 'Error', description: result?.error || 'Failed to save the purchase.' });
         }
       } catch (err) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to save the purchase.' });
@@ -125,8 +149,14 @@ export function RecordPurchaseDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="font-headline">Record New Purchase</DialogTitle>
-          <DialogDescription>Enter supplier details and the items purchased. New items will be created automatically.</DialogDescription>
+          <DialogTitle className="font-headline">
+            {editingPurchase ? `Edit Purchase ${editingPurchase.purchaseId}` : 'Record New Purchase'}
+          </DialogTitle>
+          <DialogDescription>
+            {editingPurchase
+              ? 'Update the purchase. Stock, expenses, and payables will be adjusted to match.'
+              : 'Enter supplier details and the items purchased. New items will be created automatically.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
@@ -199,7 +229,7 @@ export function RecordPurchaseDialog({
               <PurchaseSummarySection />
               <DialogFooter>
                 <Button type="submit" disabled={isPending || !form.formState.isValid}>
-                  {isPending ? "Saving..." : "Confirm Purchase"}
+                  {isPending ? "Saving..." : editingPurchase ? "Save Changes" : "Confirm Purchase"}
                 </Button>
               </DialogFooter>
             </div>

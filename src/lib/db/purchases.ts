@@ -3,6 +3,10 @@
 
 import {
   Timestamp,
+  type CollectionReference,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type Transaction,
   collection,
   doc,
   getDoc,
@@ -18,6 +22,179 @@ import { revalidatePath } from 'next/cache';
 import { db } from '../firebase';
 import type { Item, Metadata, Purchase } from '../types';
 import { docToPurchase } from './utils';
+
+// --- Shared purchase helpers ---
+
+const normalizeTitle = (value: unknown) =>
+    String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * Resolves every purchase row against the catalog (matching categoryId +
+ * normalized title, creating the item when missing) and applies the stock
+ * increase with a weighted-average production price. Returns the rows with
+ * their linked itemId attached.
+ *
+ * Item docs are re-read through the transaction after resolution so that
+ * writes made earlier in the same transaction (e.g. reversing the previous
+ * version of a purchase, or a second row feeding the same item) are visible.
+ */
+async function resolveAndApplyPurchaseItems(
+    transaction: Transaction,
+    itemsCollection: CollectionReference<DocumentData>,
+    items: { itemId?: string; itemName: string; categoryId: string; categoryName: string; author?: string; quantity: number; cost: number; sellingPrice?: number }[],
+    purchaseDate: Date,
+) {
+    const itemsWithLinks: typeof items = [];
+    for (const item of items) {
+        const categorySnapshot = await getDocs(
+            query(itemsCollection, where('categoryId', '==', item.categoryId))
+        );
+        const existingDoc = categorySnapshot.docs.find(
+            d => normalizeTitle(d.data().title) === normalizeTitle(item.itemName)
+        );
+
+        let linkedItemId: string;
+        if (existingDoc) {
+            linkedItemId = existingDoc.id;
+            const freshDoc = await transaction.get(existingDoc.ref);
+            const bookData = freshDoc.exists() ? freshDoc.data() : existingDoc.data();
+            const currentStock = Number(bookData.stock) || 0;
+            const currentTotalValue = currentStock * (Number(bookData.productionPrice) || 0);
+            const newTotalValue = Number(item.cost) * Number(item.quantity);
+            const newStock = currentStock + Number(item.quantity);
+            const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
+
+            // Optionally keep the higher selling price or recalculate standard markup
+            const newSellingPrice = item.sellingPrice && item.sellingPrice > 0
+                                    ? item.sellingPrice
+                                    : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
+
+            const updateData: any = {
+                stock: newStock,
+                productionPrice: newProductionPrice,
+                sellingPrice: newSellingPrice
+            };
+            if (item.author) updateData.author = item.author;
+
+            transaction.update(existingDoc.ref, updateData);
+        } else {
+            const newItemRef = doc(itemsCollection);
+            linkedItemId = newItemRef.id;
+            const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
+
+            const newItemData: Omit<Item, 'id'> = {
+                title: item.itemName,
+                categoryId: item.categoryId,
+                categoryName: item.categoryName,
+                author: item.author || 'Unknown',
+                stock: item.quantity,
+                productionPrice: item.cost,
+                sellingPrice: sellingPrice,
+                createdAt: Timestamp.fromDate(purchaseDate),
+            };
+            transaction.set(newItemRef, newItemData);
+        }
+        itemsWithLinks.push({ ...item, itemId: linkedItemId });
+    }
+    return itemsWithLinks;
+}
+
+/**
+ * Syncs the payment artifacts a purchase implies: the expense record for the
+ * paid portion and the pending payable for the due portion. When reusable
+ * snapshots are supplied (edit path), existing documents are updated in
+ * place so expense numbers and doc ids stay stable; a reusable document the
+ * edited purchase no longer needs is deleted. Without snapshots (add path)
+ * this purely creates, exactly like the original addPurchase behavior.
+ * Returns the lastExpenseNumber to persist, or null when unchanged.
+ */
+function writePurchasePaymentArtifacts(
+    transaction: Transaction,
+    opts: {
+        expensesCollection: CollectionReference<DocumentData>;
+        transactionsCollection: CollectionReference<DocumentData>;
+        purchaseId: string;
+        supplier: string;
+        finalAmount: number;
+        paymentMethod: string;
+        amountPaid?: number;
+        splitPaymentMethod?: string;
+        purchaseDate: Date;
+        dueDate: Date;
+        startExpenseNumber: number;
+        reusableExpenseSnap?: QueryDocumentSnapshot<DocumentData>;
+        reusablePayableSnap?: QueryDocumentSnapshot<DocumentData>;
+    },
+): number | null {
+    const { expensesCollection, transactionsCollection, purchaseId, supplier, finalAmount } = opts;
+    let lastExpenseNumber = opts.startExpenseNumber;
+    let expenseReused = false;
+    let payableReused = false;
+
+    const writePaidExpense = (description: string, amount: number, paymentMethod: string) => {
+        const reuseData = opts.reusableExpenseSnap ? opts.reusableExpenseSnap.data() : undefined;
+        if (opts.reusableExpenseSnap && reuseData?.expenseId) {
+            expenseReused = true;
+            transaction.update(opts.reusableExpenseSnap.ref, {
+                expenseId: String(reuseData.expenseId),
+                description,
+                amount,
+                date: Timestamp.fromDate(opts.purchaseDate),
+                paymentMethod,
+            });
+        } else {
+            lastExpenseNumber += 1;
+            const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
+            transaction.set(doc(expensesCollection), {
+                expenseId,
+                description,
+                amount,
+                date: Timestamp.fromDate(opts.purchaseDate),
+                paymentMethod,
+            });
+        }
+    };
+
+    const writePayable = (description: string, amount: number) => {
+        const data = {
+            description,
+            amount,
+            dueDate: Timestamp.fromDate(opts.dueDate),
+            status: 'Pending' as const,
+            type: 'Payable' as const,
+        };
+        if (opts.reusablePayableSnap) {
+            payableReused = true;
+            transaction.update(opts.reusablePayableSnap.ref, data);
+        } else {
+            transaction.set(doc(transactionsCollection), data);
+        }
+    };
+
+    if (finalAmount > 0) {
+        if (opts.paymentMethod === 'Cash' || opts.paymentMethod === 'Bank') {
+            writePaidExpense(`Payment for Purchase ${purchaseId}`, finalAmount, opts.paymentMethod);
+        } else if (opts.paymentMethod === 'Split') {
+            const amountPaid = opts.amountPaid || 0;
+            const payableAmount = finalAmount - amountPaid;
+
+            if (amountPaid > 0) {
+                writePaidExpense(`Partial payment for Purchase ${purchaseId}`, amountPaid, opts.splitPaymentMethod || 'Cash');
+            }
+            if (payableAmount > 0) {
+                writePayable(`Balance for Purchase ${purchaseId} from ${supplier}`, payableAmount);
+            }
+        } else if (opts.paymentMethod === 'Due') {
+            writePayable(`Purchase ${purchaseId} from ${supplier}`, finalAmount);
+        }
+    }
+
+    // A payment artifact the edited purchase no longer has simply stops existing.
+    if (opts.reusableExpenseSnap && !expenseReused) transaction.delete(opts.reusableExpenseSnap.ref);
+    if (opts.reusablePayableSnap && !payableReused) transaction.delete(opts.reusablePayableSnap.ref);
+
+    return lastExpenseNumber > opts.startExpenseNumber ? lastExpenseNumber : null;
+}
 
 // --- Purchases Actions ---
 export async function getPurchases(userId: string): Promise<Purchase[]> {
@@ -81,9 +258,6 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           const newPurchaseNumber = lastPurchaseNumber + 1;
           const purchaseId = `PUR-${String(newPurchaseNumber).padStart(4, '0')}`;
 
-          const normalizeTitle = (value: unknown) =>
-              String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-
           let totalAmount = 0;
           for (const item of data.items) {
               totalAmount += item.cost * item.quantity;
@@ -92,57 +266,7 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
 
           // Resolve every row against the catalog so the purchase remembers which
           // item it fed; rows without a match create a new item.
-          const itemsWithLinks: (typeof data.items)[number][] = [];
-          for (const item of data.items) {
-              const categorySnapshot = await getDocs(
-                  query(itemsCollection, where('categoryId', '==', item.categoryId))
-              );
-              const existingDoc = categorySnapshot.docs.find(
-                  d => normalizeTitle(d.data().title) === normalizeTitle(item.itemName)
-              );
-
-              let linkedItemId: string;
-              if (existingDoc) {
-                  linkedItemId = existingDoc.id;
-                  const bookData = existingDoc.data();
-                  const currentStock = Number(bookData.stock) || 0;
-                  const currentTotalValue = currentStock * (Number(bookData.productionPrice) || 0);
-                  const newTotalValue = Number(item.cost) * Number(item.quantity);
-                  const newStock = currentStock + Number(item.quantity);
-                  const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
-
-                  // Optionally keep the higher selling price or recalculate standard markup
-                  const newSellingPrice = item.sellingPrice && item.sellingPrice > 0
-                                            ? item.sellingPrice
-                                            : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
-
-                  const updateData: any = {
-                      stock: newStock,
-                      productionPrice: newProductionPrice,
-                      sellingPrice: newSellingPrice
-                  };
-                  if (item.author) updateData.author = item.author;
-
-                  transaction.update(existingDoc.ref, updateData);
-              } else {
-                  const newItemRef = doc(itemsCollection);
-                  linkedItemId = newItemRef.id;
-                  const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
-
-                  const newItemData: Omit<Item, 'id'> = {
-                      title: item.itemName,
-                      categoryId: item.categoryId,
-                      categoryName: item.categoryName,
-                      author: item.author || 'Unknown',
-                      stock: item.quantity,
-                      productionPrice: item.cost,
-                      sellingPrice: sellingPrice,
-                      createdAt: Timestamp.fromDate(purchaseDate),
-                  };
-                  transaction.set(newItemRef, newItemData);
-              }
-              itemsWithLinks.push({ ...item, itemId: linkedItemId });
-          }
+          const itemsWithLinks = await resolveAndApplyPurchaseItems(transaction, itemsCollection, data.items, purchaseDate);
 
           const newPurchaseRef = doc(purchasesCollection);
           const purchaseData = {
@@ -157,65 +281,23 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           transaction.set(newPurchaseRef, purchaseData);
           transaction.set(metadataRef, { lastPurchaseNumber: newPurchaseNumber }, { merge: true });
 
-          // Get expense counter for generating expense IDs
-          let lastExpenseNumber = (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0;
-
           const finalAmount = totalAmount - discountAmount;
+          const newExpenseNumber = writePurchasePaymentArtifacts(transaction, {
+              expensesCollection,
+              transactionsCollection,
+              purchaseId,
+              supplier: data.supplier,
+              finalAmount,
+              paymentMethod: data.paymentMethod,
+              amountPaid: data.amountPaid,
+              splitPaymentMethod: data.splitPaymentMethod,
+              purchaseDate,
+              dueDate: new Date(data.dueDate),
+              startExpenseNumber: (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0,
+          });
 
-          if (finalAmount > 0) {
-              if (data.paymentMethod === 'Cash' || data.paymentMethod === 'Bank') {
-                  lastExpenseNumber += 1;
-                  const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
-                      const expenseData = {
-                          expenseId,
-                          description: `Payment for Purchase ${purchaseId}`,
-                          amount: finalAmount,
-                          date: Timestamp.fromDate(purchaseDate),
-                          paymentMethod: data.paymentMethod,
-                      };
-                  transaction.set(doc(expensesCollection), expenseData);
-              } else if (data.paymentMethod === 'Split') {
-                  const amountPaid = data.amountPaid || 0;
-                  const payableAmount = finalAmount - amountPaid;
-
-                  if (amountPaid > 0) {
-                      lastExpenseNumber += 1;
-                      const expenseId = `EXP-${String(lastExpenseNumber).padStart(4, '0')}`;
-                      const expenseData = {
-                          expenseId,
-                          description: `Partial payment for Purchase ${purchaseId}`,
-                          amount: amountPaid,
-                          date: Timestamp.fromDate(purchaseDate),
-                          paymentMethod: data.splitPaymentMethod,
-                      };
-                      transaction.set(doc(expensesCollection), expenseData);
-                  }
-
-                  if (payableAmount > 0) {
-                      const payableData = {
-                          description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
-                          amount: payableAmount,
-                          dueDate: Timestamp.fromDate(new Date(data.dueDate)),
-                          status: 'Pending' as const,
-                          type: 'Payable' as const,
-                      };
-                      transaction.set(doc(transactionsCollection), payableData);
-                  }
-              } else if (data.paymentMethod === 'Due') {
-                  const payableData = {
-                      description: `Purchase ${purchaseId} from ${data.supplier}`,
-                      amount: finalAmount,
-                      dueDate: Timestamp.fromDate(new Date(data.dueDate)),
-                      status: 'Pending' as const,
-                      type: 'Payable' as const,
-                  };
-                  transaction.set(doc(transactionsCollection), payableData);
-              }
-          }
-          
-          // Update metadata with new expense counter if it changed
-          if (lastExpenseNumber > ((metadataDoc.data() as Metadata)?.lastExpenseNumber || 0)) {
-              transaction.set(metadataRef, { lastExpenseNumber }, { merge: true });
+          if (newExpenseNumber !== null) {
+              transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
           }
 
           return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate } };
@@ -229,6 +311,179 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
       return result;
   } catch (e) {
       console.error("Purchase creation failed: ", e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Edits an existing purchase in one transaction by fully reversing the old
+ * purchase's effects (stock, weighted-average cost, linked expenses and
+ * pending payables) and re-applying them from the submitted form values.
+ * The purchase keeps its document id and PUR-xxxx number.
+ */
+export async function updatePurchase(
+  userId: string,
+  purchaseDocId: string,
+  data: Omit<Purchase, 'id' | 'date' | 'totalAmount' | 'purchaseId'> & { dueDate: string; date?: string }
+): Promise<{ success: boolean; error?: string; purchase?: Purchase }> {
+  if (!db || !userId) return { success: false, error: 'Database not connected' };
+
+  try {
+      const result = await runTransaction(db, async (transaction) => {
+          const userRef = doc(db!, 'users', userId);
+          const metadataRef = doc(userRef, 'metadata', 'counters');
+          const purchasesCollection = collection(userRef, 'purchases');
+          const itemsCollection = collection(userRef, 'items');
+          const expensesCollection = collection(userRef, 'expenses');
+          const transactionsCollection = collection(userRef, 'transactions');
+
+          const purchaseRef = doc(purchasesCollection, purchaseDocId);
+          const purchaseDoc = await transaction.get(purchaseRef);
+          if (!purchaseDoc.exists()) throw new Error('Purchase not found.');
+          const existing = purchaseDoc.data() as Omit<Purchase, 'date' | 'dueDate'> & { date: Timestamp; dueDate: Timestamp };
+          const purchaseId = existing.purchaseId;
+
+          if (purchaseId.startsWith('PUR-A-') || existing.supplier === 'Asset Purchase' || existing.supplier === 'Existing Asset') {
+              throw new Error('Asset purchases cannot be edited from the purchases list.');
+          }
+
+          const purchaseDate = data.date ? new Date(data.date) : new Date();
+          if (Number.isNaN(purchaseDate.getTime())) throw new Error('Invalid purchase date.');
+          const dueDate = new Date(data.dueDate);
+          if (Number.isNaN(dueDate.getTime())) throw new Error('Invalid due date.');
+
+          const metadataDoc = await transaction.get(metadataRef);
+
+          // --- READ PHASE: locate every artifact this purchase created ---
+
+          // Payables this purchase opened. payPayable either reduces the amount
+          // of a Pending payable or flips it to Paid (with isHiddenFromHistory)
+          // and emits a "Payment for: ..." trace plus an expense. Any of those
+          // settlement artifacts means the books already reference this
+          // payable, so the purchase can no longer be edited safely.
+          const payablesSnapshot = await getDocs(query(transactionsCollection, where('type', '==', 'Payable')));
+          const isOriginalPayable = (desc: string) =>
+              desc.startsWith(`Purchase ${purchaseId} `) || desc.startsWith(`Balance for Purchase ${purchaseId} `);
+          const isSettlementTrace = (desc: string) =>
+              desc.startsWith(`Payment for: Purchase ${purchaseId} `) || desc.startsWith(`Payment for: Balance for Purchase ${purchaseId} `);
+
+          const linkedPayables = payablesSnapshot.docs.filter(d => isOriginalPayable(String(d.data().description || '')));
+          const hasSettlement = payablesSnapshot.docs.some(d => isSettlementTrace(String(d.data().description || '')))
+              || linkedPayables.some(d => d.data().status === 'Paid');
+          if (hasSettlement) {
+              throw new Error('This purchase has a payable that was already fully or partially paid, so it can no longer be edited. Record a correcting purchase or expense instead.');
+          }
+
+          // Expenses this purchase wrote (matching the descriptions addPurchase uses).
+          const [paidExpenses, partialExpenses] = await Promise.all([
+              getDocs(query(expensesCollection, where('description', '==', `Payment for Purchase ${purchaseId}`))),
+              getDocs(query(expensesCollection, where('description', '==', `Partial payment for Purchase ${purchaseId}`))),
+          ]);
+
+          // --- WRITE PHASE: reverse the old purchase ---
+
+          // 1. Give the old stock back. The weighted-average cost basis cannot
+          //    be perfectly reversed once other purchases/sales happened in
+          //    between, so the old rows' contribution is removed at its own
+          //    recorded cost and the price is only adjusted while it stays
+          //    non-negative.
+          for (const row of existing.items) {
+              let itemSnap: any = null;
+              if (row.itemId) {
+                  itemSnap = await transaction.get(doc(itemsCollection, row.itemId));
+              }
+              if (!itemSnap || !itemSnap.exists()) {
+                  const categorySnapshot = await getDocs(query(itemsCollection, where('categoryId', '==', row.categoryId)));
+                  const match = categorySnapshot.docs.find(d => normalizeTitle(d.data().title) === normalizeTitle(row.itemName));
+                  itemSnap = match || null;
+              }
+              if (!itemSnap) continue;
+
+              const itemData = itemSnap.data();
+              const currentStock = Number(itemData.stock) || 0;
+              const currentPP = Number(itemData.productionPrice) || 0;
+              const newStock = Math.max(0, currentStock - Number(row.quantity));
+              let newPP = currentPP;
+              if (newStock > 0) {
+                  const reversedValue = currentStock * currentPP - Number(row.quantity) * Number(row.cost);
+                  if (reversedValue > 0) newPP = reversedValue / newStock;
+              }
+              transaction.update(itemSnap.ref, { stock: newStock, productionPrice: newPP });
+          }
+
+          // 2. Hand the old payment artifacts to the re-apply step so they are
+          //    updated in place (keeping their EXP numbers and doc ids) while
+          //    the purchase still needs them, and deleted only when it no
+          //    longer does. addPurchase never creates more than one payment
+          //    expense / one payable per purchase, so anything beyond the
+          //    first of each is defensive cleanup.
+          const oldExpenseSnaps = [...paidExpenses.docs, ...partialExpenses.docs];
+          const oldPayableSnaps = linkedPayables;
+          oldExpenseSnaps.slice(1).forEach(d => transaction.delete(d.ref));
+          oldPayableSnaps.slice(1).forEach(d => transaction.delete(d.ref));
+
+          // --- Re-apply from the submitted values (same path as addPurchase) ---
+
+          const itemsWithLinks = await resolveAndApplyPurchaseItems(transaction, itemsCollection, data.items, purchaseDate);
+
+          let totalAmount = 0;
+          for (const item of data.items) {
+              totalAmount += item.cost * item.quantity;
+          }
+          const discountAmount = data.discountAmount || 0;
+
+          const purchaseData: Record<string, unknown> = {
+              supplier: data.supplier,
+              items: itemsWithLinks,
+              date: Timestamp.fromDate(purchaseDate),
+              dueDate: Timestamp.fromDate(dueDate),
+              totalAmount,
+              discountAmount,
+              paymentMethod: data.paymentMethod,
+              amountPaid: data.amountPaid || 0,
+          };
+          if (data.splitPaymentMethod) purchaseData.splitPaymentMethod = data.splitPaymentMethod;
+          transaction.update(purchaseRef, purchaseData);
+
+          const newExpenseNumber = writePurchasePaymentArtifacts(transaction, {
+              expensesCollection,
+              transactionsCollection,
+              purchaseId,
+              supplier: data.supplier,
+              finalAmount: totalAmount - discountAmount,
+              paymentMethod: data.paymentMethod,
+              amountPaid: data.amountPaid,
+              splitPaymentMethod: data.splitPaymentMethod,
+              purchaseDate,
+              dueDate,
+              startExpenseNumber: (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0,
+              reusableExpenseSnap: oldExpenseSnaps[0],
+              reusablePayableSnap: oldPayableSnaps[0],
+          });
+          if (newExpenseNumber !== null) {
+              transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
+          }
+
+          return {
+              success: true,
+              purchase: {
+                  id: purchaseDocId,
+                  ...purchaseData,
+                  purchaseId,
+                  date: purchaseDate.toISOString(),
+                  dueDate: dueDate.toISOString(),
+              } as unknown as Purchase,
+          };
+      });
+
+      revalidatePath('/purchases');
+      revalidatePath('/items');
+      revalidatePath('/payables');
+      revalidatePath('/expenses');
+      revalidatePath('/dashboard');
+      return result;
+  } catch (e) {
+      console.error('Purchase update failed: ', e);
       return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

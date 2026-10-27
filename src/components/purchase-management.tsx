@@ -33,6 +33,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const [items, setItems] = React.useState<Item[]>([]);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -79,6 +80,16 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
     [filteredPurchases, visibleCount]
   );
   const hasMore = visibleCount < filteredPurchases.length;
+
+  const handleEditPurchase = (purchase: Purchase) => {
+    setEditingPurchase(purchase);
+    setIsDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) setEditingPurchase(null);
+  };
 
   const handleDownloadPdf = async () => {
     try {
@@ -186,6 +197,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
           <PurchasesTable
             purchases={visiblePurchases}
             isInitialLoading={isInitialLoading}
+            onEdit={handleEditPurchase}
           />
           {hasMore && (
             <div className="flex justify-center mt-4">
@@ -200,11 +212,12 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
       <RecordPurchaseDialog
         userId={userId}
         isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={handleDialogOpenChange}
         categories={categories}
         items={items}
         onSuccess={loadInitialData}
         onAddCategoryClick={() => setIsCategoryDialogOpen(true)}
+        editingPurchase={editingPurchase}
       />
 
       <AddCategoryDialog
