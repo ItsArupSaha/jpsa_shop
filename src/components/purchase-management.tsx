@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getCategories, getPurchases, getItems } from '@/lib/actions';
+import { getCategories, getPurchaseSettlementSummaries, getPurchases, getItems } from '@/lib/actions';
 import type { Category, Purchase, Item } from '@/lib/types';
+import type { PurchaseSettlementSummary } from '@/lib/db/purchases';
 import { AddOfficeAssetDialog } from './add-office-asset-dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { PurchasesTable } from './purchases/purchases-table';
@@ -29,6 +30,7 @@ const PAGE_SIZE = 10;
 export default function PurchaseManagement({ userId }: PurchaseManagementProps) {
   const { authUser } = useAuth();
   const [allPurchases, setAllPurchases] = React.useState<Purchase[]>([]);
+  const [settlementSummaries, setSettlementSummaries] = React.useState<Record<string, PurchaseSettlementSummary>>({});
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [items, setItems] = React.useState<Item[]>([]);
   const [isInitialLoading, setIsInitialLoading] = React.useState(true);
@@ -44,14 +46,16 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
   const loadInitialData = React.useCallback(async () => {
     setIsInitialLoading(true);
     try {
-      const [purchasesData, categoriesData, itemsData] = await Promise.all([
+      const [purchasesData, categoriesData, itemsData, settlementData] = await Promise.all([
         getPurchases(userId),
         getCategories(userId),
         getItems(userId),
+        getPurchaseSettlementSummaries(userId),
       ]);
       setAllPurchases(purchasesData);
       setCategories(categoriesData);
       setItems(itemsData);
+      setSettlementSummaries(settlementData);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to load purchases." });
     } finally {
@@ -197,6 +201,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
           <PurchasesTable
             purchases={visiblePurchases}
             isInitialLoading={isInitialLoading}
+            settlements={settlementSummaries}
             onEdit={handleEditPurchase}
           />
           {hasMore && (

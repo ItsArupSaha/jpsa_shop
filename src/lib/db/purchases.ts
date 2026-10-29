@@ -29,6 +29,79 @@ const normalizeTitle = (value: unknown) =>
     String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /**
+ * Classifies a Payable-type transaction against a purchase. Purchases open
+ * payables as "Purchase PUR-x from ..." (Due) or "Balance for Purchase
+ * PUR-x from ..." (Split); payments against them (payPayable) log
+ * "Payment for: <original>" traces. Descriptions that match none of these
+ * (e.g. customer refund logs) are not purchase-related.
+ */
+function classifyPurchasePayable(description: string): { purchaseId: string; isTrace: boolean } | null {
+    // Purchase numbers are "PUR-" + digits; asset purchases (PUR-A-...) never
+    // open payables, so they are excluded from the pattern outright.
+    const match = description.match(/^(?:Payment for: )?(?:Balance for )?Purchase (PUR-\d+)/);
+    if (!match) return null;
+    return { purchaseId: match[1], isTrace: description.startsWith('Payment for: ') };
+}
+
+export type PurchaseSettlementSummary = { dueAmount: number; hasSettlement: boolean };
+
+/**
+ * Live settlement state per purchase, keyed by purchaseId.
+ *
+ * dueAmount is the current outstanding balance read straight off the pending
+ * payable documents — the same documents the payables page lists — so it
+ * always agrees with them regardless of how many partial payments happened.
+ *
+ * hasSettlement is true once any money has moved against the payable (a
+ * settlement trace, a Paid-status payable) or the pending balance no longer
+ * matches what the purchase opened with (payments outside the normal flow).
+ * That permanently locks the purchase from editing; updatePurchase enforces
+ * the same predicate server-side.
+ */
+export async function getPurchaseSettlementSummaries(userId: string): Promise<Record<string, PurchaseSettlementSummary>> {
+    if (!db || !userId) return {};
+    const userRef = doc(db, 'users', userId);
+    const transactionsCollection = collection(userRef, 'transactions');
+    const purchasesCollection = collection(userRef, 'purchases');
+
+    const [payablesSnapshot, purchasesSnapshot] = await Promise.all([
+        getDocs(query(transactionsCollection, where('type', '==', 'Payable'))),
+        getDocs(purchasesCollection),
+    ]);
+
+    const summaries: Record<string, PurchaseSettlementSummary> = {};
+    for (const d of payablesSnapshot.docs) {
+        const classified = classifyPurchasePayable(String(d.data().description || ''));
+        if (!classified) continue;
+        const entry = summaries[classified.purchaseId]
+            || (summaries[classified.purchaseId] = { dueAmount: 0, hasSettlement: false });
+        if (classified.isTrace || d.data().status === 'Paid') {
+            entry.hasSettlement = true;
+        } else {
+            entry.dueAmount += Number(d.data().amount) || 0;
+        }
+    }
+
+    // Lock the edit when a pending payable no longer matches the balance the
+    // purchase opened with. Both sides use the exact arithmetic addPurchase
+    // used to create the payable, so they are bit-identical until something
+    // outside the normal flow changed the payable.
+    purchasesSnapshot.docs.forEach(pd => {
+        const data = pd.data();
+        const entry = summaries[String(data.purchaseId || '')];
+        if (!entry || entry.hasSettlement) return;
+        const expectedBalance = (Number(data.totalAmount) || 0)
+            - (Number(data.discountAmount) || 0)
+            - (data.paymentMethod === 'Split' ? (Number(data.amountPaid) || 0) : 0);
+        if (Math.abs(entry.dueAmount - expectedBalance) > 0.005) {
+            entry.hasSettlement = true;
+        }
+    });
+
+    return summaries;
+}
+
+/**
  * Resolves every purchase row against the catalog (matching categoryId +
  * normalized title, creating the item when missing) and applies the stock
  * increase with a weighted-average production price. Returns the rows with
@@ -359,17 +432,29 @@ export async function updatePurchase(
           // Payables this purchase opened. payPayable either reduces the amount
           // of a Pending payable or flips it to Paid (with isHiddenFromHistory)
           // and emits a "Payment for: ..." trace plus an expense. Any of those
-          // settlement artifacts means the books already reference this
-          // payable, so the purchase can no longer be edited safely.
+          // settlement artifacts — or a pending balance that no longer matches
+          // what the purchase opened with — means the books already reference
+          // this payable, so the purchase can no longer be edited safely.
+          // getPurchaseSettlementSummaries applies the same predicate to lock
+          // the edit button client-side.
           const payablesSnapshot = await getDocs(query(transactionsCollection, where('type', '==', 'Payable')));
-          const isOriginalPayable = (desc: string) =>
-              desc.startsWith(`Purchase ${purchaseId} `) || desc.startsWith(`Balance for Purchase ${purchaseId} `);
-          const isSettlementTrace = (desc: string) =>
-              desc.startsWith(`Payment for: Purchase ${purchaseId} `) || desc.startsWith(`Payment for: Balance for Purchase ${purchaseId} `);
-
-          const linkedPayables = payablesSnapshot.docs.filter(d => isOriginalPayable(String(d.data().description || '')));
-          const hasSettlement = payablesSnapshot.docs.some(d => isSettlementTrace(String(d.data().description || '')))
-              || linkedPayables.some(d => d.data().status === 'Paid');
+          const linkedPayables: QueryDocumentSnapshot<DocumentData>[] = [];
+          let hasSettlement = false;
+          payablesSnapshot.docs.forEach(d => {
+              const classified = classifyPurchasePayable(String(d.data().description || ''));
+              if (!classified || classified.purchaseId !== purchaseId) return;
+              if (classified.isTrace || d.data().status === 'Paid') {
+                  hasSettlement = true;
+              } else {
+                  linkedPayables.push(d);
+              }
+          });
+          if (!hasSettlement && linkedPayables.length > 0) {
+              const expectedBalance = existing.totalAmount - (existing.discountAmount || 0)
+                  - (existing.paymentMethod === 'Split' ? (existing.amountPaid || 0) : 0);
+              const pendingSum = linkedPayables.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
+              if (Math.abs(pendingSum - expectedBalance) > 0.005) hasSettlement = true;
+          }
           if (hasSettlement) {
               throw new Error('This purchase has a payable that was already fully or partially paid, so it can no longer be edited. Record a correcting purchase or expense instead.');
           }
