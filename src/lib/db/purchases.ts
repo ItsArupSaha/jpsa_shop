@@ -43,7 +43,14 @@ function classifyPurchasePayable(description: string): { purchaseId: string; isT
     return { purchaseId: match[1], isTrace: description.startsWith('Payment for: ') };
 }
 
-export type PurchaseSettlementSummary = { dueAmount: number; hasSettlement: boolean };
+export type PurchaseSettlementSummary = {
+    dueAmount: number;
+    hasSettlement: boolean;
+    /** Paid at purchase time per the purchase record (Split: amountPaid; Cash/Bank: net; Due: 0). */
+    initialPaidAmount: number;
+    /** Paid afterwards against the payable (sum of settlement traces). */
+    laterPaidAmount: number;
+};
 
 /**
  * Live settlement state per purchase, keyed by purchaseId.
@@ -55,8 +62,9 @@ export type PurchaseSettlementSummary = { dueAmount: number; hasSettlement: bool
  * hasSettlement is true once any money has moved against the payable (a
  * settlement trace, a Paid-status payable) or the pending balance no longer
  * matches what the purchase opened with (payments outside the normal flow).
- * That permanently locks the purchase from editing; updatePurchase enforces
- * the same predicate server-side.
+ * updatePurchase enforces the same predicate and then restricts the edit to
+ * non-payment fields: the recorded payments stay untouched and only the
+ * outstanding balance is recalculated.
  */
 export async function getPurchaseSettlementSummaries(userId: string): Promise<Record<string, PurchaseSettlementSummary>> {
     if (!db || !userId) return {};
@@ -74,25 +82,34 @@ export async function getPurchaseSettlementSummaries(userId: string): Promise<Re
         const classified = classifyPurchasePayable(String(d.data().description || ''));
         if (!classified) continue;
         const entry = summaries[classified.purchaseId]
-            || (summaries[classified.purchaseId] = { dueAmount: 0, hasSettlement: false });
-        if (classified.isTrace || d.data().status === 'Paid') {
+            || (summaries[classified.purchaseId] = { dueAmount: 0, hasSettlement: false, initialPaidAmount: 0, laterPaidAmount: 0 });
+        if (classified.isTrace) {
+            entry.hasSettlement = true;
+            entry.laterPaidAmount += Number(d.data().amount) || 0;
+        } else if (d.data().status === 'Paid') {
             entry.hasSettlement = true;
         } else {
             entry.dueAmount += Number(d.data().amount) || 0;
         }
     }
 
-    // Lock the edit when a pending payable no longer matches the balance the
-    // purchase opened with. Both sides use the exact arithmetic addPurchase
+    // Flag the edit as restricted when a pending payable no longer matches the
+    // balance the purchase opened with, and record what the purchase itself
+    // says was paid up front. Both sides use the exact arithmetic addPurchase
     // used to create the payable, so they are bit-identical until something
     // outside the normal flow changed the payable.
     purchasesSnapshot.docs.forEach(pd => {
         const data = pd.data();
-        const entry = summaries[String(data.purchaseId || '')];
-        if (!entry || entry.hasSettlement) return;
-        const expectedBalance = (Number(data.totalAmount) || 0)
-            - (Number(data.discountAmount) || 0)
-            - (data.paymentMethod === 'Split' ? (Number(data.amountPaid) || 0) : 0);
+        const purchaseId = String(data.purchaseId || '');
+        const entry = summaries[purchaseId];
+        const net = (Number(data.totalAmount) || 0) - (Number(data.discountAmount) || 0);
+        const initialPaid = data.paymentMethod === 'Split'
+            ? (Number(data.amountPaid) || 0)
+            : (data.paymentMethod === 'Due' ? 0 : net);
+        if (!entry) return;
+        entry.initialPaidAmount = initialPaid;
+        if (entry.hasSettlement) return;
+        const expectedBalance = net - initialPaid;
         if (Math.abs(entry.dueAmount - expectedBalance) > 0.005) {
             entry.hasSettlement = true;
         }
@@ -433,17 +450,21 @@ export async function updatePurchase(
           // of a Pending payable or flips it to Paid (with isHiddenFromHistory)
           // and emits a "Payment for: ..." trace plus an expense. Any of those
           // settlement artifacts — or a pending balance that no longer matches
-          // what the purchase opened with — means the books already reference
-          // this payable, so the purchase can no longer be edited safely.
+          // what the purchase opened with — means money has already moved, so
+          // the edit is restricted to non-payment fields below.
           // getPurchaseSettlementSummaries applies the same predicate to lock
-          // the edit button client-side.
+          // the payment fields in the edit dialog.
           const payablesSnapshot = await getDocs(query(transactionsCollection, where('type', '==', 'Payable')));
           const linkedPayables: QueryDocumentSnapshot<DocumentData>[] = [];
           let hasSettlement = false;
+          let traceSum = 0;
           payablesSnapshot.docs.forEach(d => {
               const classified = classifyPurchasePayable(String(d.data().description || ''));
               if (!classified || classified.purchaseId !== purchaseId) return;
-              if (classified.isTrace || d.data().status === 'Paid') {
+              if (classified.isTrace) {
+                  hasSettlement = true;
+                  traceSum += Number(d.data().amount) || 0;
+              } else if (d.data().status === 'Paid') {
                   hasSettlement = true;
               } else {
                   linkedPayables.push(d);
@@ -455,23 +476,12 @@ export async function updatePurchase(
               const pendingSum = linkedPayables.reduce((acc, d) => acc + (Number(d.data().amount) || 0), 0);
               if (Math.abs(pendingSum - expectedBalance) > 0.005) hasSettlement = true;
           }
-          if (hasSettlement) {
-              throw new Error('This purchase has a payable that was already fully or partially paid, so it can no longer be edited. Record a correcting purchase or expense instead.');
-          }
 
-          // Expenses this purchase wrote (matching the descriptions addPurchase uses).
-          const [paidExpenses, partialExpenses] = await Promise.all([
-              getDocs(query(expensesCollection, where('description', '==', `Payment for Purchase ${purchaseId}`))),
-              getDocs(query(expensesCollection, where('description', '==', `Partial payment for Purchase ${purchaseId}`))),
-          ]);
-
-          // --- WRITE PHASE: reverse the old purchase ---
-
-          // 1. Give the old stock back. The weighted-average cost basis cannot
-          //    be perfectly reversed once other purchases/sales happened in
-          //    between, so the old rows' contribution is removed at its own
-          //    recorded cost and the price is only adjusted while it stays
-          //    non-negative.
+          // Give the old stock back. The weighted-average cost basis cannot
+          // be perfectly reversed once other purchases/sales happened in
+          // between, so the old rows' contribution is removed at its own
+          // recorded cost and the price is only adjusted while it stays
+          // non-negative.
           for (const row of existing.items) {
               let itemSnap: any = null;
               if (row.itemId) {
@@ -496,18 +506,7 @@ export async function updatePurchase(
               transaction.update(itemSnap.ref, { stock: newStock, productionPrice: newPP });
           }
 
-          // 2. Hand the old payment artifacts to the re-apply step so they are
-          //    updated in place (keeping their EXP numbers and doc ids) while
-          //    the purchase still needs them, and deleted only when it no
-          //    longer does. addPurchase never creates more than one payment
-          //    expense / one payable per purchase, so anything beyond the
-          //    first of each is defensive cleanup.
-          const oldExpenseSnaps = [...paidExpenses.docs, ...partialExpenses.docs];
-          const oldPayableSnaps = linkedPayables;
-          oldExpenseSnaps.slice(1).forEach(d => transaction.delete(d.ref));
-          oldPayableSnaps.slice(1).forEach(d => transaction.delete(d.ref));
-
-          // --- Re-apply from the submitted values (same path as addPurchase) ---
+          // --- Re-apply from the submitted values ---
 
           const itemsWithLinks = await resolveAndApplyPurchaseItems(transaction, itemsCollection, data.items, purchaseDate);
 
@@ -524,30 +523,90 @@ export async function updatePurchase(
               dueDate: Timestamp.fromDate(dueDate),
               totalAmount,
               discountAmount,
-              paymentMethod: data.paymentMethod,
-              amountPaid: data.amountPaid || 0,
           };
-          if (data.splitPaymentMethod) purchaseData.splitPaymentMethod = data.splitPaymentMethod;
-          transaction.update(purchaseRef, purchaseData);
 
-          const newExpenseNumber = writePurchasePaymentArtifacts(transaction, {
-              expensesCollection,
-              transactionsCollection,
-              purchaseId,
-              supplier: data.supplier,
-              finalAmount: totalAmount - discountAmount,
-              paymentMethod: data.paymentMethod,
-              amountPaid: data.amountPaid,
-              splitPaymentMethod: data.splitPaymentMethod,
-              purchaseDate,
-              dueDate,
-              startExpenseNumber: (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0,
-              reusableExpenseSnap: oldExpenseSnaps[0],
-              reusablePayableSnap: oldPayableSnaps[0],
-          });
-          if (newExpenseNumber !== null) {
-              transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
+          if (hasSettlement) {
+              // Restricted edit: the money that already moved — the initial
+              // payment expense and every later payable payment — is recorded
+              // fact and stays untouched. Only the outstanding balance is
+              // recalculated: new net total minus everything actually paid.
+              const oldNet = existing.totalAmount - (existing.discountAmount || 0);
+              const initialPaid = existing.paymentMethod === 'Split'
+                  ? (existing.amountPaid || 0)
+                  : (existing.paymentMethod === 'Due' ? 0 : oldNet);
+              const alreadyPaid = initialPaid + traceSum;
+              const newNet = totalAmount - discountAmount;
+              const remainder = newNet - alreadyPaid;
+              if (remainder < -0.005) {
+                  throw new Error(`The new net total (৳${newNet.toFixed(2)}) is less than the ৳${alreadyPaid.toFixed(2)} already paid against this purchase (৳${initialPaid.toFixed(2)} at purchase plus ৳${traceSum.toFixed(2)} in later payments). Raise the total or record the difference separately.`);
+              }
+              if (linkedPayables.length > 0) {
+                  if (remainder > 0.005) {
+                      transaction.update(linkedPayables[0].ref, {
+                          amount: remainder,
+                          dueDate: Timestamp.fromDate(dueDate),
+                      });
+                      linkedPayables.slice(1).forEach(d => transaction.delete(d.ref));
+                  } else {
+                      // The corrected total is fully covered by payments
+                      // already made — nothing is owed anymore.
+                      linkedPayables.forEach(d => transaction.delete(d.ref));
+                  }
+              } else if (remainder > 0.005) {
+                  // The payable was fully settled but the corrected total leaves
+                  // a new outstanding balance — open it as a fresh payable.
+                  transaction.set(doc(transactionsCollection), {
+                      description: `Balance for Purchase ${purchaseId} from ${data.supplier}`,
+                      amount: remainder,
+                      dueDate: Timestamp.fromDate(dueDate),
+                      status: 'Pending' as const,
+                      type: 'Payable' as const,
+                  });
+              }
+              // Payment facts on the purchase record stay exactly as they were.
+              purchaseData.paymentMethod = existing.paymentMethod;
+              purchaseData.amountPaid = existing.amountPaid || 0;
+              if (existing.splitPaymentMethod) purchaseData.splitPaymentMethod = existing.splitPaymentMethod;
+          } else {
+              // Full edit: the old payment artifacts are handed to the re-apply
+              // step so they are updated in place (EXP numbers and doc ids stay
+              // stable) while the purchase still needs them, and deleted when it
+              // no longer does. addPurchase never creates more than one payment
+              // expense / one payable per purchase, so anything beyond the
+              // first of each is defensive cleanup.
+              const [paidExpenses, partialExpenses] = await Promise.all([
+                  getDocs(query(expensesCollection, where('description', '==', `Payment for Purchase ${purchaseId}`))),
+                  getDocs(query(expensesCollection, where('description', '==', `Partial payment for Purchase ${purchaseId}`))),
+              ]);
+              const oldExpenseSnaps = [...paidExpenses.docs, ...partialExpenses.docs];
+              const oldPayableSnaps = linkedPayables;
+              oldExpenseSnaps.slice(1).forEach(d => transaction.delete(d.ref));
+              oldPayableSnaps.slice(1).forEach(d => transaction.delete(d.ref));
+
+              purchaseData.paymentMethod = data.paymentMethod;
+              purchaseData.amountPaid = data.amountPaid || 0;
+              if (data.splitPaymentMethod) purchaseData.splitPaymentMethod = data.splitPaymentMethod;
+
+              const newExpenseNumber = writePurchasePaymentArtifacts(transaction, {
+                  expensesCollection,
+                  transactionsCollection,
+                  purchaseId,
+                  supplier: data.supplier,
+                  finalAmount: totalAmount - discountAmount,
+                  paymentMethod: data.paymentMethod,
+                  amountPaid: data.amountPaid,
+                  splitPaymentMethod: data.splitPaymentMethod,
+                  purchaseDate,
+                  dueDate,
+                  startExpenseNumber: (metadataDoc.data() as Metadata)?.lastExpenseNumber || 0,
+                  reusableExpenseSnap: oldExpenseSnaps[0],
+                  reusablePayableSnap: oldPayableSnaps[0],
+              });
+              if (newExpenseNumber !== null) {
+                  transaction.set(metadataRef, { lastExpenseNumber: newExpenseNumber }, { merge: true });
+              }
           }
+          transaction.update(purchaseRef, purchaseData);
 
           return {
               success: true,

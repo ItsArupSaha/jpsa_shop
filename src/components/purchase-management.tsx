@@ -223,6 +223,7 @@ export default function PurchaseManagement({ userId }: PurchaseManagementProps) 
         onSuccess={loadInitialData}
         onAddCategoryClick={() => setIsCategoryDialogOpen(true)}
         editingPurchase={editingPurchase}
+        settlement={editingPurchase ? settlementSummaries[editingPurchase.purchaseId] : undefined}
       />
 
       <AddCategoryDialog

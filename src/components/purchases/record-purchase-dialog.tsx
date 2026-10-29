@@ -21,6 +21,8 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { addPurchase, updatePurchase } from '@/lib/actions';
 import type { Category, Item, Purchase } from '@/lib/types';
+import type { PurchaseSettlementSummary } from '@/lib/db/purchases';
+import { formatTaka } from '@/lib/format';
 
 import { purchaseFormSchema, type PurchaseFormValues } from './schema';
 import { PurchaseItemRow } from './purchase-item-row';
@@ -36,6 +38,7 @@ interface RecordPurchaseDialogProps {
   onSuccess: () => void;
   onAddCategoryClick: () => void;
   editingPurchase?: Purchase | null;
+  settlement?: PurchaseSettlementSummary | null;
 }
 
 const emptyItemRow = { itemId: undefined, itemName: '', categoryId: '', categoryName: '', author: '', quantity: 1, cost: 0, sellingPrice: 0 };
@@ -61,9 +64,14 @@ export function RecordPurchaseDialog({
   onSuccess,
   onAddCategoryClick,
   editingPurchase,
+  settlement,
 }: RecordPurchaseDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = React.useTransition();
+  // Once money has moved against this purchase's payable, the payment facts
+  // are locked; updatePurchase enforces the same restriction server-side and
+  // recalculates the outstanding balance from the new total.
+  const paymentLocked = !!editingPurchase && !!settlement?.hasSettlement;
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
@@ -158,6 +166,17 @@ export function RecordPurchaseDialog({
               : 'Enter supplier details and the items purchased. New items will be created automatically.'}
           </DialogDescription>
         </DialogHeader>
+        {paymentLocked && settlement && (
+          <div className="mx-6 rounded-md border border-amber-600/50 bg-amber-500/10 px-4 py-3 text-sm">
+            <p className="font-medium">
+              {formatTaka((settlement.initialPaidAmount + settlement.laterPaidAmount).toFixed(2))} has already been paid for this purchase
+              ({formatTaka(settlement.initialPaidAmount.toFixed(2))} at purchase + {formatTaka(settlement.laterPaidAmount.toFixed(2))} in later payments).
+            </p>
+            <p className="text-muted-foreground">
+              Payment fields are locked. Items, discount, and total stay editable — saving recalculates the outstanding balance from the new total.
+            </p>
+          </div>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto pr-4 pl-1 -mr-4 -ml-1 py-4">
@@ -221,7 +240,7 @@ export function RecordPurchaseDialog({
                 </Button>
 
                 <Separator />
-                <PurchasePaymentSection />
+                <PurchasePaymentSection locked={paymentLocked} />
               </div>
             </div>
 

@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function PurchasePaymentSection() {
+export function PurchasePaymentSection({ locked = false }: { locked?: boolean }) {
   const { control, watch } = useFormContext();
   const watchPaymentMethod = watch('paymentMethod');
   const watchDiscountType = watch('discountType');
@@ -68,21 +68,22 @@ export function PurchasePaymentSection() {
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   className="flex flex-wrap gap-4 pt-2"
+                  aria-disabled={locked}
                 >
                   <FormItem className="flex items-center space-x-2">
-                    <FormControl><RadioGroupItem value="Cash" id="cash-pur" /></FormControl>
+                    <FormControl><RadioGroupItem value="Cash" id="cash-pur" disabled={locked} /></FormControl>
                     <FormLabel htmlFor="cash-pur" className="font-normal">Cash</FormLabel>
                   </FormItem>
                   <FormItem className="flex items-center space-x-2">
-                    <FormControl><RadioGroupItem value="Bank" id="bank-pur" /></FormControl>
+                    <FormControl><RadioGroupItem value="Bank" id="bank-pur" disabled={locked} /></FormControl>
                     <FormLabel htmlFor="bank-pur" className="font-normal">Bank</FormLabel>
                   </FormItem>
                   <FormItem className="flex items-center space-x-2">
-                    <FormControl><RadioGroupItem value="Due" id="due-pur" /></FormControl>
+                    <FormControl><RadioGroupItem value="Due" id="due-pur" disabled={locked} /></FormControl>
                     <FormLabel htmlFor="due-pur" className="font-normal">Due</FormLabel>
                   </FormItem>
                   <FormItem className="flex items-center space-x-2">
-                    <FormControl><RadioGroupItem value="Split" id="split-pur" /></FormControl>
+                    <FormControl><RadioGroupItem value="Split" id="split-pur" disabled={locked} /></FormControl>
                     <FormLabel htmlFor="split-pur" className="font-normal">Split</FormLabel>
                   </FormItem>
                 </RadioGroup>
@@ -93,35 +94,35 @@ export function PurchasePaymentSection() {
         />
         {watchPaymentMethod === 'Split' && (
           <div className='space-y-2'>
-            <FormField
-              control={control}
-              name="amountPaid"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Amount Paid Now</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="Enter amount paid" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name="splitPaymentMethod"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel className="text-sm">Paid Via</FormLabel>
-                  <FormControl>
-                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
-                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
-                      <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" /></FormControl><FormLabel className="font-normal">Bank</FormLabel></FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={control}
+                name="amountPaid"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount Paid Now</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Enter amount paid" disabled={locked} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name="splitPaymentMethod"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="text-sm">Paid Via</FormLabel>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4" aria-disabled={locked}>
+                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Cash" disabled={locked} /></FormControl><FormLabel className="font-normal">Cash</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="Bank" disabled={locked} /></FormControl><FormLabel className="font-normal">Bank</FormLabel></FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
           </div>
         )}
         <FormField

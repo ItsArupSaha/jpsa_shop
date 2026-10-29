@@ -45,7 +45,6 @@ export function PurchasesTable({
             <TableHead>Items</TableHead>
             <TableHead>Payment</TableHead>
             <TableHead className="text-right">Total</TableHead>
-            <TableHead className="text-right">Discount</TableHead>
             <TableHead className="text-right">Net</TableHead>
             <TableHead className="text-right">Paid / Due</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -64,7 +63,6 @@ export function PurchasesTable({
                 <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
                 <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-1/4 ml-auto" /></TableCell>
               </TableRow>
             ))
           ) : purchases.length > 0 ? purchases.map((purchase) => {
@@ -74,7 +72,6 @@ export function PurchasesTable({
             // never reconstructed from the purchase record.
             const due = round2(settlements[purchase.purchaseId]?.dueAmount || 0);
             const paid = round2(net - due);
-            const isLocked = settlements[purchase.purchaseId]?.hasSettlement === true;
             return (
               <TableRow key={purchase.id}>
                 <TableCell>{format(new Date(purchase.date), 'PPP')}</TableCell>
@@ -85,7 +82,6 @@ export function PurchasesTable({
                 </TableCell>
                 <TableCell>{purchase.paymentMethod}</TableCell>
                 <TableCell className="text-right font-medium">{formatTaka(purchase.totalAmount.toFixed(2))}</TableCell>
-                <TableCell className="text-right text-muted-foreground">{purchase.discountAmount ? `৳${purchase.discountAmount.toFixed(2)}` : '-'}</TableCell>
                 <TableCell className="text-right font-bold">{formatTaka(net.toFixed(2))}</TableCell>
                 <TableCell className="text-right">
                   {isAssetPurchase(purchase) ? (
@@ -107,9 +103,8 @@ export function PurchasesTable({
                       variant="ghost"
                       size="icon"
                       aria-label={`Edit ${purchase.purchaseId}`}
-                      title={isLocked ? 'This purchase has payments recorded against its payable, so it can no longer be edited.' : `Edit ${purchase.purchaseId}`}
+                      title={`Edit ${purchase.purchaseId}`}
                       onClick={() => onEdit(purchase)}
-                      disabled={isLocked}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -119,7 +114,7 @@ export function PurchasesTable({
             );
           }) : (
             <TableRow>
-              <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
+              <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">No purchases recorded yet.</TableCell>
             </TableRow>
           )}
         </TableBody>
