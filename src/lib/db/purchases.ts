@@ -119,74 +119,136 @@ export async function getPurchaseSettlementSummaries(userId: string): Promise<Re
 }
 
 /**
- * Resolves every purchase row against the catalog (matching categoryId +
- * normalized title, creating the item when missing) and applies the stock
- * increase with a weighted-average production price. Returns the rows with
- * their linked itemId attached.
- *
- * Item docs are re-read through the transaction after resolution so that
- * writes made earlier in the same transaction (e.g. reversing the previous
- * version of a purchase, or a second row feeding the same item) are visible.
+ * Resolves the item documents a purchase touches using non-transactional
+ * reads (committed state). Firestore transactions forbid any read after the
+ * first write, so every read for a purchase flow happens up front and the
+ * net stock/cost effect per item document is computed from a single
+ * committed snapshot, then applied with one update per document.
  */
-async function resolveAndApplyPurchaseItems(
+type PurchaseRowPlan = {
+    row: { itemId?: string; itemName: string; categoryId: string; categoryName: string; author?: string; quantity: number; cost: number; sellingPrice?: number };
+    itemId: string | null;
+    newItemRef?: ReturnType<typeof doc>;
+};
+
+type PurchaseItemEffect = {
+    ref: ReturnType<typeof doc>;
+    committed: DocumentData;
+    reverseQty: number;
+    reverseCost: number;
+    applyRows: { quantity: number; cost: number; sellingPrice?: number; author?: string }[];
+};
+
+async function planPurchaseItemEffects(
+    itemsCollection: CollectionReference<DocumentData>,
+    oldRows: { itemId?: string; itemName: string; categoryId: string; quantity: number; cost: number }[],
+    newRows: PurchaseRowPlan['row'][],
+): Promise<{ effects: Map<string, PurchaseItemEffect>; links: PurchaseRowPlan[] }> {
+    const effects = new Map<string, PurchaseItemEffect>();
+    const effectFor = (snap: { id: string; ref: ReturnType<typeof doc>; data: () => DocumentData }): PurchaseItemEffect => {
+        let e = effects.get(snap.id);
+        if (!e) {
+            e = { ref: snap.ref, committed: snap.data(), reverseQty: 0, reverseCost: 0, applyRows: [] };
+            effects.set(snap.id, e);
+        }
+        return e;
+    };
+    const findByTitle = async (categoryId: string, title: string) => {
+        const catSnap = await getDocs(query(itemsCollection, where('categoryId', '==', categoryId)));
+        return catSnap.docs.find(d => normalizeTitle(d.data().title) === normalizeTitle(title)) || null;
+    };
+
+    for (const row of oldRows) {
+        let snap: { id: string; ref: ReturnType<typeof doc>; data: () => DocumentData } | null = null;
+        if (row.itemId) {
+            const d = await getDoc(doc(itemsCollection, row.itemId));
+            if (d.exists()) snap = d;
+        }
+        if (!snap) snap = await findByTitle(row.categoryId, row.itemName);
+        if (!snap) continue;
+        const e = effectFor(snap);
+        e.reverseQty += Number(row.quantity) || 0;
+        e.reverseCost += (Number(row.quantity) || 0) * (Number(row.cost) || 0);
+    }
+
+    const links: PurchaseRowPlan[] = [];
+    for (const row of newRows) {
+        const snap = await findByTitle(row.categoryId, row.itemName);
+        if (snap) {
+            effectFor(snap).applyRows.push({ quantity: row.quantity, cost: row.cost, sellingPrice: row.sellingPrice, author: row.author });
+            links.push({ row, itemId: snap.id });
+        } else {
+            links.push({ row, itemId: null, newItemRef: doc(itemsCollection) });
+        }
+    }
+    return { effects, links };
+}
+
+/**
+ * Applies the planned net stock/cost effects and creates catalog entries for
+ * unmatched rows. Write-only — every read happened in
+ * planPurchaseItemEffects, before the first write of the transaction.
+ *
+ * The net effect is computed as a delta against the committed snapshot:
+ * newStock = committedStock + (newQty - oldQty), and the stock value adjusts
+ * by the new rows' cost minus the old rows' cost. An edit that leaves the
+ * rows untouched (e.g. only a discount change) therefore leaves stock and
+ * production price exactly where they were, even if sales happened in
+ * between — clamping the reversal first and re-adding would silently
+ * inflate stock for partially sold items.
+ */
+function applyPurchaseItemEffects(
     transaction: Transaction,
     itemsCollection: CollectionReference<DocumentData>,
-    items: { itemId?: string; itemName: string; categoryId: string; categoryName: string; author?: string; quantity: number; cost: number; sellingPrice?: number }[],
+    plan: Awaited<ReturnType<typeof planPurchaseItemEffects>>,
     purchaseDate: Date,
 ) {
-    const itemsWithLinks: typeof items = [];
-    for (const item of items) {
-        const categorySnapshot = await getDocs(
-            query(itemsCollection, where('categoryId', '==', item.categoryId))
-        );
-        const existingDoc = categorySnapshot.docs.find(
-            d => normalizeTitle(d.data().title) === normalizeTitle(item.itemName)
-        );
+    for (const e of plan.effects.values()) {
+        const committedStock = Number(e.committed.stock) || 0;
+        const committedPP = Number(e.committed.productionPrice) || 0;
 
-        let linkedItemId: string;
-        if (existingDoc) {
-            linkedItemId = existingDoc.id;
-            const freshDoc = await transaction.get(existingDoc.ref);
-            const bookData = freshDoc.exists() ? freshDoc.data() : existingDoc.data();
-            const currentStock = Number(bookData.stock) || 0;
-            const currentTotalValue = currentStock * (Number(bookData.productionPrice) || 0);
-            const newTotalValue = Number(item.cost) * Number(item.quantity);
-            const newStock = currentStock + Number(item.quantity);
-            const newProductionPrice = newStock > 0 ? (currentTotalValue + newTotalValue) / newStock : 0;
-
-            // Optionally keep the higher selling price or recalculate standard markup
-            const newSellingPrice = item.sellingPrice && item.sellingPrice > 0
-                                    ? item.sellingPrice
-                                    : Math.max(bookData.sellingPrice || 0, newProductionPrice * 1.5);
-
-            const updateData: any = {
-                stock: newStock,
-                productionPrice: newProductionPrice,
-                sellingPrice: newSellingPrice
-            };
-            if (item.author) updateData.author = item.author;
-
-            transaction.update(existingDoc.ref, updateData);
-        } else {
-            const newItemRef = doc(itemsCollection);
-            linkedItemId = newItemRef.id;
-            const sellingPrice = item.sellingPrice && item.sellingPrice > 0 ? item.sellingPrice : item.cost * 1.5;
-
-            const newItemData: Omit<Item, 'id'> = {
-                title: item.itemName,
-                categoryId: item.categoryId,
-                categoryName: item.categoryName,
-                author: item.author || 'Unknown',
-                stock: item.quantity,
-                productionPrice: item.cost,
-                sellingPrice: sellingPrice,
-                createdAt: Timestamp.fromDate(purchaseDate),
-            };
-            transaction.set(newItemRef, newItemData);
+        let applyQty = 0;
+        let applyValue = 0;
+        let lastRow: { quantity: number; cost: number; sellingPrice?: number; author?: string } | null = null;
+        for (const r of e.applyRows) {
+            applyQty += Number(r.quantity) || 0;
+            applyValue += (Number(r.quantity) || 0) * (Number(r.cost) || 0);
+            lastRow = r;
         }
-        itemsWithLinks.push({ ...item, itemId: linkedItemId });
+
+        const newStock = Math.max(0, committedStock - e.reverseQty + applyQty);
+        let newPP = committedPP;
+        if (newStock > 0) {
+            const newValue = committedStock * committedPP - e.reverseCost + applyValue;
+            if (newValue > 0) newPP = newValue / newStock;
+        }
+
+        const updateData: any = { stock: newStock, productionPrice: newPP };
+        if (lastRow) {
+            updateData.sellingPrice = lastRow.sellingPrice && lastRow.sellingPrice > 0
+                ? lastRow.sellingPrice
+                : Math.max(Number(e.committed.sellingPrice) || 0, newPP * 1.5);
+            if (lastRow.author) updateData.author = lastRow.author;
+        }
+        transaction.update(e.ref, updateData);
     }
-    return itemsWithLinks;
+
+    for (const link of plan.links) {
+        if (link.itemId || !link.newItemRef) continue;
+        const row = link.row;
+        const sellingPrice = row.sellingPrice && row.sellingPrice > 0 ? row.sellingPrice : row.cost * 1.5;
+        const newItemData: Omit<Item, 'id'> = {
+            title: row.itemName,
+            categoryId: row.categoryId,
+            categoryName: row.categoryName,
+            author: row.author || 'Unknown',
+            stock: row.quantity,
+            productionPrice: row.cost,
+            sellingPrice,
+            createdAt: Timestamp.fromDate(purchaseDate),
+        };
+        transaction.set(link.newItemRef, newItemData);
+    }
 }
 
 /**
@@ -354,9 +416,13 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           }
           const discountAmount = data.discountAmount || 0;
 
-          // Resolve every row against the catalog so the purchase remembers which
-          // item it fed; rows without a match create a new item.
-          const itemsWithLinks = await resolveAndApplyPurchaseItems(transaction, itemsCollection, data.items, purchaseDate);
+          // Resolve every row against the catalog so the purchase remembers
+          // which item it fed; rows without a match create a new item. All
+          // reads happen here, before the first write — Firestore transactions
+          // forbid reads after writes.
+          const plan = await planPurchaseItemEffects(itemsCollection, [], data.items);
+          const itemsWithLinks = plan.links.map(l => ({ ...l.row, itemId: l.itemId ?? l.newItemRef!.id }));
+          applyPurchaseItemEffects(transaction, itemsCollection, plan, purchaseDate);
 
           const newPurchaseRef = doc(purchasesCollection);
           const purchaseData = {
@@ -477,44 +543,30 @@ export async function updatePurchase(
               if (Math.abs(pendingSum - expectedBalance) > 0.005) hasSettlement = true;
           }
 
-          // Give the old stock back. The weighted-average cost basis cannot
-          // be perfectly reversed once other purchases/sales happened in
-          // between, so the old rows' contribution is removed at its own
-          // recorded cost and the price is only adjusted while it stays
-          // non-negative.
-          for (const row of existing.items) {
-              let itemSnap: any = null;
-              if (row.itemId) {
-                  itemSnap = await transaction.get(doc(itemsCollection, row.itemId));
-              }
-              if (!itemSnap || !itemSnap.exists()) {
-                  const categorySnapshot = await getDocs(query(itemsCollection, where('categoryId', '==', row.categoryId)));
-                  const match = categorySnapshot.docs.find(d => normalizeTitle(d.data().title) === normalizeTitle(row.itemName));
-                  itemSnap = match || null;
-              }
-              if (!itemSnap) continue;
-
-              const itemData = itemSnap.data();
-              const currentStock = Number(itemData.stock) || 0;
-              const currentPP = Number(itemData.productionPrice) || 0;
-              const newStock = Math.max(0, currentStock - Number(row.quantity));
-              let newPP = currentPP;
-              if (newStock > 0) {
-                  const reversedValue = currentStock * currentPP - Number(row.quantity) * Number(row.cost);
-                  if (reversedValue > 0) newPP = reversedValue / newStock;
-              }
-              transaction.update(itemSnap.ref, { stock: newStock, productionPrice: newPP });
+          // Read everything else the edit needs before the first write —
+          // Firestore transactions forbid reads after writes. The item plan
+          // combines the old rows' stock reversal and the new rows' additions
+          // into one net effect per catalog item, computed from the committed
+          // snapshot, so no document ever needs to be re-read mid-transaction.
+          let oldExpenseSnaps: QueryDocumentSnapshot<DocumentData>[] = [];
+          if (!hasSettlement) {
+              const [paidExpenses, partialExpenses] = await Promise.all([
+                  getDocs(query(expensesCollection, where('description', '==', `Payment for Purchase ${purchaseId}`))),
+                  getDocs(query(expensesCollection, where('description', '==', `Partial payment for Purchase ${purchaseId}`))),
+              ]);
+              oldExpenseSnaps = [...paidExpenses.docs, ...partialExpenses.docs];
           }
-
-          // --- Re-apply from the submitted values ---
-
-          const itemsWithLinks = await resolveAndApplyPurchaseItems(transaction, itemsCollection, data.items, purchaseDate);
+          const plan = await planPurchaseItemEffects(itemsCollection, existing.items, data.items);
+          const itemsWithLinks = plan.links.map(l => ({ ...l.row, itemId: l.itemId ?? l.newItemRef!.id }));
 
           let totalAmount = 0;
           for (const item of data.items) {
               totalAmount += item.cost * item.quantity;
           }
           const discountAmount = data.discountAmount || 0;
+
+          // --- WRITE PHASE (no transactional reads beyond this point) ---
+          applyPurchaseItemEffects(transaction, itemsCollection, plan, purchaseDate);
 
           const purchaseData: Record<string, unknown> = {
               supplier: data.supplier,
@@ -574,11 +626,6 @@ export async function updatePurchase(
               // no longer does. addPurchase never creates more than one payment
               // expense / one payable per purchase, so anything beyond the
               // first of each is defensive cleanup.
-              const [paidExpenses, partialExpenses] = await Promise.all([
-                  getDocs(query(expensesCollection, where('description', '==', `Payment for Purchase ${purchaseId}`))),
-                  getDocs(query(expensesCollection, where('description', '==', `Partial payment for Purchase ${purchaseId}`))),
-              ]);
-              const oldExpenseSnaps = [...paidExpenses.docs, ...partialExpenses.docs];
               const oldPayableSnaps = linkedPayables;
               oldExpenseSnaps.slice(1).forEach(d => transaction.delete(d.ref));
               oldPayableSnaps.slice(1).forEach(d => transaction.delete(d.ref));
