@@ -82,6 +82,12 @@ export function generatePendingPayablesXlsx(data: Transaction[], date: Date) {
   XLSX.writeFile(workbook, `pending-payables-${format(validDate, 'yyyy-MM-dd')}.xlsx`);
 }
 
+/** File-name tag for the picked period: `2026-10-01_to_2026-10-31` or a single day. */
+function paidPayablesRangeTag(fromDate: Date, toDate?: Date): string {
+  const fromTag = format(fromDate, 'yyyy-MM-dd');
+  return toDate ? `${fromTag}_to_${format(toDate, 'yyyy-MM-dd')}` : fromTag;
+}
+
 export function generatePaidPayablesPdf(data: Transaction[], fromDate: Date, toDate: Date | undefined, authUser: AuthUserProps) {
   const doc = new jsPDF();
   const totalAmount = data.reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -114,7 +120,7 @@ export function generatePaidPayablesPdf(data: Transaction[], fromDate: Date, toD
     ]],
     footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
   });
-  doc.save(`paid-payables-${format(fromDate, 'yyyy-MM-dd')}.pdf`);
+  doc.save(`paid-payables-${paidPayablesRangeTag(fromDate, toDate)}.pdf`);
 }
 
 export function generatePaidPayablesXlsx(data: Transaction[], fromDate: Date, toDate?: Date) {
@@ -127,5 +133,5 @@ export function generatePaidPayablesXlsx(data: Transaction[], fromDate: Date, to
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Paid Payables');
-  XLSX.writeFile(workbook, `paid-payables-${format(fromDate, 'yyyy-MM-dd')}.xlsx`);
+  XLSX.writeFile(workbook, `paid-payables-${paidPayablesRangeTag(fromDate, toDate)}.xlsx`);
 }
