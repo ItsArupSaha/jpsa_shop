@@ -77,6 +77,16 @@ export function generateXlsx(data: CustomerWithDue[], date?: Date) {
   XLSX.writeFile(workbook, `pending-receivables-${format(validDate, 'yyyy-MM-dd')}.xlsx`);
 }
 
+/** File-name tag for the picked range: `2026-10-01_to_2026-10-31`, a single day, or today as fallback. */
+function receivedPaymentsRangeTag(dateRange: DateRange | undefined): string {
+  const from = dateRange?.from;
+  if (!from || isNaN(from.getTime())) return format(new Date(), 'yyyy-MM-dd');
+  const fromTag = format(from, 'yyyy-MM-dd');
+  return dateRange?.to && !isNaN(dateRange.to.getTime())
+    ? `${fromTag}_to_${format(dateRange.to, 'yyyy-MM-dd')}`
+    : fromTag;
+}
+
 export function generateReceivedPaymentsPdf(data: Transaction[], dateRange: DateRange | undefined, authUser: AuthUserProps) {
   const doc = new jsPDF();
   const dateString = dateRange
@@ -104,10 +114,10 @@ export function generateReceivedPaymentsPdf(data: Transaction[], dateRange: Date
       `${formatTakaPlain(t.amount)}`
     ])
   });
-  doc.save(`received-payments-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  doc.save(`received-payments-${receivedPaymentsRangeTag(dateRange)}.pdf`);
 }
 
-export function generateReceivedPaymentsXlsx(data: Transaction[]) {
+export function generateReceivedPaymentsXlsx(data: Transaction[], dateRange?: DateRange) {
   const dataToExport = data.map(t => ({
     'Date': format(new Date(t.dueDate), 'yyyy-MM-dd'),
     'Customer': t.customerName,
@@ -117,5 +127,5 @@ export function generateReceivedPaymentsXlsx(data: Transaction[]) {
   const worksheet = XLSX.utils.json_to_sheet(dataToExport);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Received Payments');
-  XLSX.writeFile(workbook, `received-payments-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  XLSX.writeFile(workbook, `received-payments-${receivedPaymentsRangeTag(dateRange)}.xlsx`);
 }

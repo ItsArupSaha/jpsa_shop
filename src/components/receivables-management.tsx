@@ -168,7 +168,7 @@ export default function ReceivablesManagement({ userId }: ReceivablesManagementP
     if (formatType === 'pdf') {
       generateReceivedPaymentsPdf(received, dateRange, authUser!);
     } else {
-      generateReceivedPaymentsXlsx(received);
+      generateReceivedPaymentsXlsx(received, dateRange);
     }
   };
 
