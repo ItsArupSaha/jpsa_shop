@@ -117,7 +117,16 @@ export function SalesTable({
             return (
               <TableRow key={sale.id}>
                 <TableCell className="whitespace-nowrap">{format(new Date(sale.date), 'dd MMM yyyy')}</TableCell>
-                <TableCell className="font-mono">{sale.saleId}</TableCell>
+                <TableCell className="font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span>{sale.saleId}</span>
+                    {sale.orderSource === 'online' && (
+                      <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] py-0 px-1 font-semibold">
+                        Online
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="font-medium">{customer?.name || 'Unknown Customer'}</TableCell>
                 <TableCell className="max-w-[300px] hidden lg:table-cell">
                   {sale.items.length > 0 && (

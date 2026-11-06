@@ -10,11 +10,23 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Alegreya', 'serif'],
-        headline: ['Belleza', 'sans-serif'],
+        body: ['"Hind Siliguri"', 'Alegreya', 'serif'],
+        headline: ['"Noto Serif Bengali"', 'Belleza', 'serif'],
         code: ['monospace'],
+        bengali: ['"Hind Siliguri"', 'sans-serif'],
+        serifBengali: ['"Noto Serif Bengali"', 'serif'],
       },
       colors: {
+        devotional: {
+          cream: '#FFF8F0',
+          parchment: '#FAF6EF',
+          gold: '#D4AF37',
+          goldLight: '#FFD86F',
+          saffron: '#FF6B35',
+          saffronDark: '#D9531E',
+          brown: '#2C1810',
+          brownMuted: '#5C3826',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
@@ -70,28 +82,6 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
-      },
-      keyframes: {
-        'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-        },
-        'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
-        },
-      },
-      animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
       },
     },
   },

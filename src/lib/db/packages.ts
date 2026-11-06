@@ -50,7 +50,7 @@ export async function addPackage(userId: string, data: Omit<PackageTemplate, 'id
         };
         
         await addDoc(packagesCollection, packageData);
-        revalidatePath('/packages');
+        revalidatePath('/management/packages');
         return { success: true };
     } catch (e) {
         console.error("Failed to add package:", e);
@@ -64,7 +64,7 @@ export async function updatePackage(userId: string, packageId: string, data: Par
     try {
         const packageRef = doc(db, 'users', userId, 'packages', packageId);
         await updateDoc(packageRef, data);
-        revalidatePath('/packages');
+        revalidatePath('/management/packages');
         return { success: true };
     } catch (e) {
         console.error("Failed to update package:", e);
@@ -78,7 +78,7 @@ export async function deletePackage(userId: string, packageId: string): Promise<
     try {
         const packageRef = doc(db, 'users', userId, 'packages', packageId);
         await deleteDoc(packageRef);
-        revalidatePath('/packages');
+        revalidatePath('/management/packages');
         return { success: true };
     } catch (e) {
         console.error("Failed to delete package:", e);

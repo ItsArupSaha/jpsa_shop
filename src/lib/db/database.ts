@@ -90,7 +90,7 @@ export async function completeOnboarding(userId: string, data: any) {
   }
   
   // Revalidate paths to ensure data is fresh across the app
-  revalidatePath('/dashboard', 'layout');
+  revalidatePath('/management/dashboard', 'layout');
 }
 
 
@@ -111,7 +111,7 @@ export async function updateCompanyDetails(userId: string, data: Partial<AuthUse
     if (data.secretKey) updateData.secretKey = data.secretKey;
 
     await updateDoc(userDocRef, updateData);
-    revalidatePath('/dashboard', 'layout');
+    revalidatePath('/management/dashboard', 'layout');
 }
 
 
@@ -140,7 +140,7 @@ export async function resetDatabase(userId: string) {
   console.log(`Database reset and re-initialized for user: ${userId}`);
 
   // Revalidate all paths
-  const paths = ['/dashboard', '/books', '/customers', '/sales', '/sales-returns', '/expenses', '/donations', '/receivables', '/payables', '/purchases'];
+  const paths = ['/management/dashboard', '/management/items', '/management/customers', '/management/sales', '/management/sales-returns', '/management/expenses', '/management/donations', '/management/receivables', '/management/payables', '/management/purchases'];
   paths.forEach(path => revalidatePath(path));
 }
 
@@ -192,6 +192,6 @@ export async function adjustInitialCapital(userId: string, adjustments: { cash: 
     }
 
     if (adjustments.cash !== 0 || adjustments.bank !== 0) {
-        revalidatePath('/dashboard');
+        revalidatePath('/management/dashboard');
     }
 }

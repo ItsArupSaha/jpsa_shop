@@ -239,12 +239,13 @@ export async function addSale(
       return { success: true, sale: saleForClient };
     });
 
-    revalidatePath('/sales');
-    revalidatePath('/dashboard');
-    revalidatePath('/items');
-    revalidatePath('/receivables');
+    revalidatePath('/management/sales');
+    revalidatePath('/');
+    revalidatePath('/management/dashboard');
+    revalidatePath('/management/items');
+    revalidatePath('/management/receivables');
     if (data.customerId) {
-      revalidatePath(`/customers/${data.customerId}`);
+      revalidatePath(`/management/customers/${data.customerId}`);
     }
     return result;
 
@@ -322,11 +323,11 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
       transaction.delete(saleRef);
     });
 
-    revalidatePath('/sales');
-    revalidatePath('/items');
-    revalidatePath('/dashboard');
-    revalidatePath('/receivables');
-    revalidatePath('/customers'); // Revalidate all customers for simplicity
+    revalidatePath('/management/sales');
+    revalidatePath('/management/items');
+    revalidatePath('/management/dashboard');
+    revalidatePath('/management/receivables');
+    revalidatePath('/management/customers'); // Revalidate all customers for simplicity
 
     return { success: true };
   } catch (e) {

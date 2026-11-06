@@ -42,7 +42,7 @@ export function PendingReceivablesTable({ customers, isLoading }: PendingReceiva
             customers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                  <Link href={`/management/customers/${customer.id}`} className="hover:underline text-primary">
                     {customer.name}
                   </Link>
                 </TableCell>
@@ -105,7 +105,7 @@ export function ReceivedPaymentsTable({ receivedPayments, isLoading }: ReceivedP
               <TableRow key={payment.id}>
                 <TableCell>{format(new Date(payment.dueDate), 'PPP')}</TableCell>
                 <TableCell className="font-medium">
-                  <Link href={`/customers/${payment.customerId}`} className="hover:underline text-primary">
+                  <Link href={`/management/customers/${payment.customerId}`} className="hover:underline text-primary">
                     {payment.customerName || 'Unknown'}
                   </Link>
                 </TableCell>

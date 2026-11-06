@@ -106,7 +106,7 @@ export async function addDonation(userId: string, data: Omit<Donation, 'id' | 'd
           return { id: newDocRef.id, donationId, ...data, date: data.date.toISOString() };
       });
       
-      revalidatePath('/donations');
+      revalidatePath('/management/donations');
       return result;
   } catch (e) {
       console.error("Donation creation failed: ", e);

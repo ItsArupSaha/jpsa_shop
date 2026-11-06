@@ -88,7 +88,7 @@ export default function OnboardingPage() {
         description: 'Your bookstore is now ready to use.',
       });
       // Force a reload to ensure the auth state is updated with onboarding status
-      window.location.href = '/dashboard';
+      window.location.href = '/management/dashboard';
     } catch (error) {
       console.error(error);
       toast({

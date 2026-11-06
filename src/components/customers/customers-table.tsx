@@ -62,7 +62,7 @@ export function CustomersTable({
             customers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/customers/${customer.id}`} className="hover:underline text-primary">
+                  <Link href={`/management/customers/${customer.id}`} className="hover:underline text-primary">
                     {customer.name}
                   </Link>
                 </TableCell>

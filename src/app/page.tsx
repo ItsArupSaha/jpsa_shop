@@ -1,28 +1,59 @@
+import { getCategories, getItems, getPackages } from '@/lib/actions';
+import { STORE_CONFIG } from '@/lib/store-config';
+import { getStoreHighlights } from '@/lib/store-highlights';
+import { CartProvider } from '@/components/storefront/cart-context';
+import { StoreHeader } from '@/components/storefront/store-header';
+import { HeroSection } from '@/components/storefront/hero-section';
+import { HighlightsSection } from '@/components/storefront/highlights-section';
+import { BookCatalog } from '@/components/storefront/book-catalog';
+import { CartDrawer } from '@/components/storefront/cart-drawer';
+import { StoreFooter } from '@/components/storefront/store-footer';
+import { AnalyticsTracker } from '@/components/storefront/analytics-tracker';
 
-'use client';
+export const revalidate = 60;
 
-import { useRouter } from 'next/navigation';
-import React from 'react';
-import { Book } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
+export default async function StorefrontPage() {
+  const ownerUid = STORE_CONFIG.ownerUid;
 
-export default function Home() {
-    const router = useRouter();
-    const { user, loading } = useAuth();
+  // Parallel data fetching
+  const [items, categories, packages, highlightsConfig] = await Promise.all([
+    getItems(ownerUid).catch(() => []),
+    getCategories(ownerUid).catch(() => []),
+    getPackages(ownerUid).catch(() => []),
+    getStoreHighlights(ownerUid).catch(() => null),
+  ]);
 
-    React.useEffect(() => {
-      if (!loading) {
-        if (user) {
-          router.replace('/dashboard');
-        } else {
-          router.replace('/login');
-        }
-      }
-    }, [router, user, loading]);
+  return (
+    <CartProvider>
+      <AnalyticsTracker />
+      <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E2229] selection:bg-[#FCE8EF] selection:text-[#8B0032]">
+        
+        {/* Victory Flag Plum-Navy Navbar */}
+        <StoreHeader />
 
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <Book className="h-8 w-8 animate-spin text-primary" />
-        </div>
-    );
+        <main className="flex-1">
+          {/* Hero Section with Picture Frame */}
+          <HeroSection />
+
+          {/* 100% Flexible Highlight Section (After Hero) */}
+          {highlightsConfig && (
+            <HighlightsSection
+              config={highlightsConfig}
+              allItems={items}
+              packages={packages}
+            />
+          )}
+
+          {/* Complete Bengali Book Catalog with Mobile Friendly Grid */}
+          <BookCatalog initialItems={items} categories={categories} />
+        </main>
+
+        {/* Sliding Shopping Cart & Free Shipping Checkout Drawer */}
+        <CartDrawer />
+
+        {/* Victory Flag Dark Slate Footer */}
+        <StoreFooter />
+      </div>
+    </CartProvider>
+  );
 }

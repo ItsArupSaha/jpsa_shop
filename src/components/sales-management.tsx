@@ -94,7 +94,7 @@ export default function SalesManagement({ userId, autoOpenNew = false }: SalesMa
   React.useEffect(() => {
     if (autoOpenNew && !isInitialLoading && items.length >= 0 && customers.length > 0) {
       setIsDialogOpen(true);
-      window.history.replaceState({}, '', '/sales');
+      window.history.replaceState({}, '', '/management/sales');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenNew, isInitialLoading, customers.length]);

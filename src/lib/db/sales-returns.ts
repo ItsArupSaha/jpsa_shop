@@ -131,12 +131,12 @@ export async function addSalesReturn(
         return { success: true, salesReturn: salesReturnForClient };
       });
 
-      revalidatePath('/sales-returns');
-      revalidatePath('/dashboard');
-      revalidatePath('/items');
-      revalidatePath('/receivables');
+      revalidatePath('/management/sales-returns');
+      revalidatePath('/management/dashboard');
+      revalidatePath('/management/items');
+      revalidatePath('/management/receivables');
       if (data.customerId) {
-          revalidatePath(`/customers/${data.customerId}`);
+          revalidatePath(`/management/customers/${data.customerId}`);
       }
       return result;
 

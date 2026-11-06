@@ -56,6 +56,11 @@ export type Item = {
   sellingPrice: number;
   stock: number;
   createdAt?: any; // Firestore Timestamp; used to rebuild historical stock
+  coverImageUrl?: string;
+  description?: string;
+  isFeatured?: boolean;
+  isNewArrival?: boolean;
+  discountPrice?: number;
 };
 
 export type ClosingStock = Item & {
@@ -86,6 +91,14 @@ export type Sale = {
   packageName?: string;
   gifts?: string[];
   productionCost?: number; // Total production cost at the time of sale
+  orderSource?: 'online' | 'pos' | 'manual';
+  orderStatus?: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  customerPhone?: string;
+  customerName?: string;
+  shippingAddress?: string;
+  deliveryCharge?: number;
+  transactionId?: string;
+  orderNote?: string;
 };
 
 export type SalesReturnItem = {
@@ -216,3 +229,47 @@ export type PackageTemplate = {
     createdAt: string; // ISO string
 };
 
+
+
+export type AnalyticsDailySummary = {
+  id: string; // YYYY-MM-DD
+  date: string;
+  totalVisitors: number;
+  totalPageViews: number;
+  totalBookViews: number;
+  totalAddToCart: number;
+  totalOrders: number;
+  totalOrderValue: number;
+  bookClicks: Record<string, number>; // itemId -> count
+  packageClicks?: Record<string, number>;
+  hourlyVisitors?: Record<string, number>;
+  devices?: { mobile: number; desktop: number };
+};
+
+
+export type VisitorEventPayload = {
+  eventType: 'page_view' | 'book_view' | 'book_click' | 'package_click' | 'add_to_cart' | 'checkout_start' | 'purchase';
+  bookId?: string;
+  packageName?: string;
+  orderValue?: number;
+  isNewVisitor?: boolean;
+  isMobile?: boolean;
+};
+
+export type OnlineOrderInput = {
+  customerName: string;
+  customerPhone: string;
+  shippingAddress: string;
+  district?: string;
+  deliveryCharge: number;
+  paymentMethod: 'Cash' | 'Bank';
+  paymentChannel?: 'cod' | 'bkash' | 'nagad' | 'bank';
+  transactionId?: string;
+  orderNote?: string;
+  packageName?: string;
+  gifts?: string[];
+  items: {
+    itemId: string;
+    quantity: number;
+  }[];
+};

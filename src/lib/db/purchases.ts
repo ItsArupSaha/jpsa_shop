@@ -459,11 +459,11 @@ export async function addPurchase(userId: string, data: Omit<Purchase, 'id' | 'd
           return { success: true, purchase: { id: newPurchaseRef.id, ...purchaseData, date: purchaseDate.toISOString(), dueDate: data.dueDate } };
       });
 
-      revalidatePath('/purchases');
-      revalidatePath('/items');
-      revalidatePath('/payables');
-      revalidatePath('/expenses');
-      revalidatePath('/dashboard');
+      revalidatePath('/management/purchases');
+      revalidatePath('/management/items');
+      revalidatePath('/management/payables');
+      revalidatePath('/management/expenses');
+      revalidatePath('/management/dashboard');
       return result;
   } catch (e) {
       console.error("Purchase creation failed: ", e);
@@ -667,11 +667,11 @@ export async function updatePurchase(
           };
       });
 
-      revalidatePath('/purchases');
-      revalidatePath('/items');
-      revalidatePath('/payables');
-      revalidatePath('/expenses');
-      revalidatePath('/dashboard');
+      revalidatePath('/management/purchases');
+      revalidatePath('/management/items');
+      revalidatePath('/management/payables');
+      revalidatePath('/management/expenses');
+      revalidatePath('/management/dashboard');
       return result;
   } catch (e) {
       console.error('Purchase update failed: ', e);
@@ -744,8 +744,8 @@ export async function addOfficeAsset(
         return { success: true };
       });
   
-      revalidatePath('/purchases');
-      revalidatePath('/expenses');
+      revalidatePath('/management/purchases');
+      revalidatePath('/management/expenses');
       return result;
     } catch (e) {
       console.error("Office asset creation failed: ", e);
@@ -811,7 +811,7 @@ export async function addExistingAsset(
         transaction.set(doc(capitalCollection), capitalData);
       });
   
-      revalidatePath('/items');
+      revalidatePath('/management/items');
       return { success: true };
     } catch (e) {
       console.error("Existing asset creation failed: ", e);

@@ -111,8 +111,8 @@ export async function addExpense(userId: string, data: Omit<Expense, 'id' | 'exp
             return { id: newDocRef.id, expenseId, ...data, date: data.date.toISOString() };
         });
         
-        revalidatePath('/expenses');
-        revalidatePath('/dashboard');
+        revalidatePath('/management/expenses');
+        revalidatePath('/management/dashboard');
         return result;
     } catch (e) {
         console.error("Expense creation failed: ", e);
@@ -137,8 +137,8 @@ export async function updateExpense(userId: string, id: string, data: Omit<Expen
         date: Timestamp.fromDate(data.date),
     };
     await updateDoc(expenseRef, expenseData);
-    revalidatePath('/expenses');
-    revalidatePath('/dashboard');
+    revalidatePath('/management/expenses');
+    revalidatePath('/management/dashboard');
     return { ...data, id, expenseId: existingData.expenseId, date: data.date.toISOString() };
 }
 
@@ -146,6 +146,6 @@ export async function deleteExpense(userId: string, id: string) {
     if (!db || !userId) return;
     const expenseRef = doc(db, 'users', userId, 'expenses', id);
     await deleteDoc(expenseRef);
-    revalidatePath('/expenses');
-    revalidatePath('/dashboard');
+    revalidatePath('/management/expenses');
+    revalidatePath('/management/dashboard');
 }

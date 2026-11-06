@@ -93,7 +93,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           <h1 className="text-2xl font-bold text-destructive">Customer Not Found</h1>
           <p className="text-muted-foreground mt-2">The customer you're looking for doesn't exist.</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/customers"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Customers</Link>
+            <Link href="/management/customers"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Customers</Link>
           </Button>
         </div>
       </div>
@@ -111,7 +111,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Button asChild variant="ghost" size="icon" aria-label="Back to customers" className="-ml-2">
-                  <Link href="/customers"><ArrowLeft className="h-5 w-5" /></Link>
+                  <Link href="/management/customers"><ArrowLeft className="h-5 w-5" /></Link>
                 </Button>
                 <User className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="font-headline text-3xl">{customer.name}</CardTitle>

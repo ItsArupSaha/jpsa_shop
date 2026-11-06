@@ -181,9 +181,9 @@ export async function addTransaction(userId: string, data: Omit<Transaction, 'id
   };
   const newDocRef = await addDoc(transactionsCollection, transactionData);
   revalidatePath(`/${data.type.toLowerCase()}s`);
-  revalidatePath('/dashboard');
+  revalidatePath('/management/dashboard');
   if (data.customerId) {
-    revalidatePath(`/customers/${data.customerId}`);
+    revalidatePath(`/management/customers/${data.customerId}`);
   }
   return { ...transactionData, id: newDocRef.id, dueDate: data.dueDate.toISOString() };
 }
@@ -275,11 +275,11 @@ export async function addPayment(userId: string, data: { customerId: string, amo
       return { success: true };
     });
 
-    revalidatePath('/receivables');
-    revalidatePath('/dashboard');
-    revalidatePath('/reports');
+    revalidatePath('/management/receivables');
+    revalidatePath('/management/dashboard');
+    revalidatePath('/management/reports');
     if (data.customerId) {
-      revalidatePath(`/customers/${data.customerId}`);
+      revalidatePath(`/management/customers/${data.customerId}`);
     }
     return result;
 
@@ -368,10 +368,10 @@ export async function payPayable(userId: string, data: { transactionId: string, 
       return { success: true };
     });
 
-    revalidatePath('/payables');
-    revalidatePath('/dashboard');
-    revalidatePath('/expenses');
-    revalidatePath('/reports');
+    revalidatePath('/management/payables');
+    revalidatePath('/management/dashboard');
+    revalidatePath('/management/expenses');
+    revalidatePath('/management/reports');
     return result;
 
   } catch (e) {
@@ -453,11 +453,11 @@ export async function refundCustomerOverpayment(userId: string, data: { customer
       return { success: true };
     });
 
-    revalidatePath('/payables');
-    revalidatePath('/dashboard');
-    revalidatePath('/expenses');
-    revalidatePath('/reports');
-    revalidatePath(`/customers/${data.customerId}`);
+    revalidatePath('/management/payables');
+    revalidatePath('/management/dashboard');
+    revalidatePath('/management/expenses');
+    revalidatePath('/management/reports');
+    revalidatePath(`/management/customers/${data.customerId}`);
 
     return result;
 
@@ -525,7 +525,7 @@ export async function recordTransfer(
 
   await addDoc(transfersCollection, transferData);
 
-  revalidatePath('/dashboard');
+  revalidatePath('/management/dashboard');
 }
 
 
@@ -537,12 +537,12 @@ export async function updateTransactionStatus(userId: string, id: string, status
   await updateDoc(transRef, { status });
 
   revalidatePath(`/${type.toLowerCase()}s`);
-  revalidatePath('/dashboard');
+  revalidatePath('/management/dashboard');
   if (transDoc.exists()) {
     const customerId = transDoc.data().customerId;
     if (customerId) {
-      revalidatePath(`/customers/${customerId}`);
-      revalidatePath('/receivables');
+      revalidatePath(`/management/customers/${customerId}`);
+      revalidatePath('/management/receivables');
     }
   }
 }
@@ -552,7 +552,7 @@ export async function deleteTransaction(userId: string, id: string, type: 'Recei
   const transRef = doc(db, 'users', userId, 'transactions', id);
   await deleteDoc(transRef);
   revalidatePath(`/${type.toLowerCase()}s`);
-  revalidatePath('/dashboard');
+  revalidatePath('/management/dashboard');
 }
 
 export async function getTransactionsForMonth(userId: string, year: number, month: number): Promise<Transaction[]> {

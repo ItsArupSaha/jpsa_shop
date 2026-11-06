@@ -1,10 +1,11 @@
-
 'use client';
 
 import {
   ArrowLeftRight,
+  BarChart3,
   Book,
   CreditCard,
+  ExternalLink,
   FileText,
   Gift,
   HandCoins,
@@ -18,6 +19,7 @@ import {
   Scale,
   ShoppingBag,
   ShoppingCart,
+  Sparkles,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -46,46 +48,48 @@ const navGroups = [
   {
     label: 'Overview',
     items: [
-      { href: '/dashboard', icon: Home, label: 'Dashboard' },
+      { href: '/management/dashboard', icon: Home, label: 'Dashboard' },
+      { href: '/management/analytics', icon: BarChart3, label: 'Website Analytics' },
+      { href: '/management/storefront-settings', icon: Sparkles, label: 'Storefront Settings' },
     ],
   },
   {
     label: 'Selling',
     items: [
-      { href: '/sales', icon: ShoppingCart, label: 'Sales' },
-      { href: '/sales-returns', icon: RotateCcw, label: 'Sales Returns' },
-      { href: '/packages', icon: Package, label: 'Packages' },
-      { href: '/customers', icon: Users, label: 'Customers' },
-      { href: '/receivables', icon: HandCoins, label: 'Receivables' },
+      { href: '/management/sales', icon: ShoppingCart, label: 'Sales' },
+      { href: '/management/sales-returns', icon: RotateCcw, label: 'Sales Returns' },
+      { href: '/management/packages', icon: Package, label: 'Packages' },
+      { href: '/management/customers', icon: Users, label: 'Customers' },
+      { href: '/management/receivables', icon: HandCoins, label: 'Receivables' },
     ],
   },
   {
     label: 'Buying',
     items: [
-      { href: '/purchases', icon: ShoppingBag, label: 'Purchases' },
-      { href: '/payables', icon: ReceiptText, label: 'Payables' },
+      { href: '/management/purchases', icon: ShoppingBag, label: 'Purchases' },
+      { href: '/management/payables', icon: ReceiptText, label: 'Payables' },
     ],
   },
   {
     label: 'Inventory',
     items: [
-      { href: '/items', icon: Book, label: 'Items' },
+      { href: '/management/items', icon: Book, label: 'Items' },
     ],
   },
   {
     label: 'Money',
     items: [
-      { href: '/expenses', icon: CreditCard, label: 'Expenses' },
-      { href: '/donations', icon: Gift, label: 'Donations' },
-      { href: '/transfer', icon: ArrowLeftRight, label: 'Transfer' },
-      { href: '/balance-sheet', icon: Scale, label: 'Balance Sheet' },
+      { href: '/management/expenses', icon: CreditCard, label: 'Expenses' },
+      { href: '/management/donations', icon: Gift, label: 'Donations' },
+      { href: '/management/transfer', icon: ArrowLeftRight, label: 'Transfer' },
+      { href: '/management/balance-sheet', icon: Scale, label: 'Balance Sheet' },
     ],
   },
   {
     label: 'Reports',
     items: [
-      { href: '/reports', icon: FileText, label: 'Monthly Report' },
-      { href: '/authority-presentation', icon: Presentation, label: 'Authority Presentation' },
+      { href: '/management/reports', icon: FileText, label: 'Monthly Report' },
+      { href: '/management/authority-presentation', icon: Presentation, label: 'Authority Presentation' },
     ],
   },
 ];
@@ -127,14 +131,12 @@ function ProfileButton() {
     <Button onClick={handleSignIn} className="w-full">
       <LogIn className="mr-2 h-4 w-4" /> Sign In
     </Button>
-  )
+  );
 }
-
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { authUser } = useAuth();
-  // Exact match first so /sales-returns is not titled "Sales".
   const pageTitle =
     allNavItems.find((item) => pathname === item.href)?.label ||
     allNavItems.find((item) => pathname.startsWith(item.href + '/'))?.label ||
@@ -153,6 +155,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <h1 className="font-headline text-xl font-semibold text-primary truncate">{authUser?.companyName || 'Store'}</h1>
                 {authUser?.subtitle && <p className="text-xs text-muted-foreground truncate">{authUser.subtitle}</p>}
               </div>
+            </div>
+            <div className="mt-3">
+              <Button asChild variant="outline" size="sm" className="w-full text-xs flex items-center justify-center gap-1.5 border-dashed">
+                <Link href="/" target="_blank">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>ওয়েবসাইট দেখুন (Storefront)</span>
+                </Link>
+              </Button>
             </div>
           </SidebarHeader>
           <SidebarContent className="p-2">

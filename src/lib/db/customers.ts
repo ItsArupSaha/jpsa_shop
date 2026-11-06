@@ -133,7 +133,7 @@ export async function addCustomer(userId: string, data: Omit<Customer, 'id' | 'd
 
     const dataWithDue = { ...data, dueBalance: data.openingBalance || 0 };
     const newDocRef = await addDoc(customersCollection, dataWithDue);
-    revalidatePath('/customers');
+    revalidatePath('/management/customers');
     return { id: newDocRef.id, ...dataWithDue };
 }
 
@@ -141,15 +141,15 @@ export async function updateCustomer(userId: string, id: string, data: Omit<Cust
     if (!db || !userId) return;
     const customerRef = doc(db, 'users', userId, 'customers', id);
     await updateDoc(customerRef, data);
-    revalidatePath('/customers');
-    revalidatePath('/receivables');
-    revalidatePath(`/customers/${id}`);
+    revalidatePath('/management/customers');
+    revalidatePath('/management/receivables');
+    revalidatePath(`/management/customers/${id}`);
 }
 
 export async function deleteCustomer(userId: string, id: string) {
     if (!db || !userId) return;
     const customerRef = doc(db, 'users', userId, 'customers', id);
     await deleteDoc(customerRef);
-    revalidatePath('/customers');
-    revalidatePath('/receivables');
+    revalidatePath('/management/customers');
+    revalidatePath('/management/receivables');
 }

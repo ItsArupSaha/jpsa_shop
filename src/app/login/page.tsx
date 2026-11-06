@@ -46,7 +46,7 @@ export default function LoginPage() {
   React.useEffect(() => {
     if (!loading && authUser) {
       if (authUser.onboardingComplete) {
-        router.replace('/dashboard');
+        router.replace('/management/dashboard');
       } else {
         router.replace('/onboarding');
       }

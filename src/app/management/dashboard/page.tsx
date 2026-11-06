@@ -128,22 +128,22 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="lg" className="h-11 px-6 text-base">
-            <Link href="/sales?new=1">
+            <Link href="/management/sales?new=1">
               <ShoppingCart className="mr-2 h-5 w-5" /> New Sale
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="h-11">
-            <Link href="/purchases">
+            <Link href="/management/purchases">
               <ShoppingBag className="mr-2 h-4 w-4" /> Record Purchase
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="h-11">
-            <Link href="/receivables">
+            <Link href="/management/receivables">
               <Coins className="mr-2 h-4 w-4" /> Receive Payment
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="h-11">
-            <Link href="/items">
+            <Link href="/management/items">
               <CalendarClock className="mr-2 h-4 w-4" /> Stock on a Date
             </Link>
           </Button>
@@ -275,7 +275,7 @@ export default function DashboardPage() {
                 <CardDescription>The last 5 sales recorded.</CardDescription>
               </div>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/sales">View all</Link>
+                <Link href="/management/sales">View all</Link>
               </Button>
             </div>
           </CardHeader>
