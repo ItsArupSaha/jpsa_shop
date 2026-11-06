@@ -29,8 +29,7 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 58%;
     --chart-5: 27 80% 58%;
-    /* Sidebar tokens used by ui/sidebar.tsx — they were previously missing and
-       the sidebar only looked right by sitting on --background. */
+    /* Sidebar tokens used by ui/sidebar.tsx */
     --sidebar: 38 24% 95%;
     --sidebar-foreground: 20 14% 15%;
     --sidebar-primary: 160 34% 26%;
@@ -79,4 +78,21 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Clean, tasteful headline text shimmer */
+@keyframes textShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-text-shimmer {
+  animation: textShimmer 4s ease-in-out infinite;
 }

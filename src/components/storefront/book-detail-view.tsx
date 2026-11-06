@@ -101,7 +101,7 @@ export function BookDetailView({ book, meta, relatedBooks }: BookDetailViewProps
   const handleCheckDelivery = (e: React.FormEvent) => {
     e.preventDefault();
     if (!deliveryCode.trim()) return;
-    setDeliveryStatus('সারা বাংলাদেশে হোম ডেলিভারি সম্পূর্ণ ফ্রি! (২-৩ কার্যদিবসের মধ্যে পৌঁছাবে)');
+    setDeliveryStatus('সারা বাংলাদেশে হোম ডেলিভারি সম্পূর্ণ ফ্রি! (৩-৫ কার্যদিবসের মধ্যে পৌঁছাবে)');
   };
 
   const handleCopyLink = () => {

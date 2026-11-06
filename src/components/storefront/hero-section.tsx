@@ -31,15 +31,19 @@ export function HeroSection({ customHeroImage }: HeroSectionProps) {
               <span>Victory Flag Publications • JPS Archives</span>
             </div>
 
-            <h1 className="font-headline font-bold text-3xl sm:text-4xl md:text-5xl text-[#1E2229] leading-tight">
-              Spiritual Books Collection{' '}
-              <span className="block mt-1 text-[#8B0032] font-serifBengali text-2xl sm:text-3xl md:text-4xl">
-                শ্রীল জয়পতাকা স্বামী অপ্রাকৃত গ্রন্থাবলী
+            <h1 className="font-headline tracking-tight">
+              <span className="block font-bold text-2xl sm:text-3xl md:text-4xl lg:text-[42px] text-[#1E2229] leading-tight">
+                শ্রীল জয়পতাকা স্বামী মহারাজের
               </span>
+              <span className="inline-block font-serifBengali font-bold text-3xl sm:text-4xl md:text-5xl lg:text-[50px] text-[#8B0032] mt-1 sm:mt-2 leading-snug pr-4 pb-1">
+                অপ্রাকৃত গ্রন্থাবলী
+              </span>
+              {/* Clean noticeable accent line */}
+              <span className="block h-1 sm:h-1.5 w-24 sm:w-32 rounded-full bg-gradient-to-r from-[#8B0032] via-[#F5B041] to-[#8B0032] animate-pulse mx-auto lg:mx-0 mt-1.5" />
             </h1>
 
             <p className="font-bengali text-stone-600 text-sm md:text-base leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              আন্তর্জাতিক কৃষ্ণভাবনামৃত সংঘ (ইস্কন)-এর প্রবীণ দীক্ষাগুরু শ্রীল জয়পতাকা স্বামী গুরুমহারাজের
+              আন্তর্জাতিক কৃষ্ণভাবনামৃত সংঘ (ইস্‌কন)-এর দীক্ষাগুরু এবং GBC শ্রীল জয়পতাকা স্বামী মহারাজের
               মুখনিঃসৃত অমৃতবাণী, অপ্রাকৃত গ্রন্থ ও শ্রীল প্রভুপাদের অমূল্য শিক্ষামৃত এখন সরাসরি ঘরে বসেই সংগ্রহ করুন।
             </p>
 
