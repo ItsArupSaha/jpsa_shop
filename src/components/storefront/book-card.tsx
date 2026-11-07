@@ -47,12 +47,8 @@ export function BookCard({ book }: BookCardProps) {
   return (
     <div className="group rounded-2xl bg-white border border-[#EFEAE2] hover:border-[#8B0032]/40 shadow-xs hover:shadow-[0_12px_28px_rgba(59,20,66,0.1)] hover:-translate-y-1 transition-all duration-300 ease-out p-2.5 sm:p-4 flex flex-col justify-between relative overflow-hidden">
       
-      {/* Top Floating Badges */}
-      <div className="flex items-center justify-between gap-1 mb-2">
-        <span className="text-[10px] font-sans font-bold bg-[#FCE8EF] text-[#8B0032] px-2 py-0.5 rounded-full flex items-center gap-1">
-          <Truck className="h-2.5 w-2.5" /> ফ্রি ডেলিভারি
-        </span>
-
+      {/* Top Floating Badges (Stock on Top Right) */}
+      <div className="flex items-center justify-end mb-2">
         {/* Stock Badge (5-preservation safety rule) */}
         <span className={`text-[10px] font-bengali px-2 py-0.5 rounded-full border ${stockInfo.badgeClass}`}>
           {stockInfo.text}
@@ -115,12 +111,12 @@ export function BookCard({ book }: BookCardProps) {
 
       {/* Price & Action Buttons */}
       <div className="pt-2.5 border-t border-[#EFEAE2] flex flex-col gap-2">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <span className="font-headline font-bold text-base sm:text-lg text-[#8B0032]">
             {formatTakaPrice(book.sellingPrice)}
           </span>
-          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
-            Free Shipping
+          <span className="text-[10px] font-bengali font-bold bg-[#FCE8EF] text-[#8B0032] px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Truck className="h-2.5 w-2.5" /> ফ্রি ডেলিভারি
           </span>
         </div>
 

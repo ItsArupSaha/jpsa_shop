@@ -49,13 +49,13 @@ export function HeroSection({ customHeroImage, showPackages = false }: HeroSecti
             </p>
 
             {/* Value Propositions Badges */}
-            <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-2 max-w-lg mx-auto lg:mx-0 font-bengali">
-              <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4 pt-2 max-w-xs sm:max-w-sm lg:max-w-md mx-auto lg:mx-0 font-bengali">
+              <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs text-center lg:text-left">
                 <ShieldCheck className="h-5 w-5 text-[#3B1442] mb-1" />
                 <span className="text-xs font-bold text-[#1E2229]">প্রামাণ্য সংস্করণ</span>
                 <span className="text-[10px] text-stone-500">মূল অনুবাদ ও ভাষ্য</span>
               </div>
-              <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs">
+              <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs text-center lg:text-left">
                 <Gift className="h-5 w-5 text-[#D97706] mb-1" />
                 <span className="text-xs font-bold text-[#1E2229]">মহাপ্রসাদী উপহার</span>
                 <span className="text-[10px] text-stone-500">প্যাকেজের সাথে</span>

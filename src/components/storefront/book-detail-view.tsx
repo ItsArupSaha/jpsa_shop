@@ -446,14 +446,14 @@ export function BookDetailView({ book, meta, relatedBooks }: BookDetailViewProps
       <div className="mt-12 pt-8 border-t border-[#EFEAE2]">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-headline font-bold text-2xl text-[#1E2229]">
-            Customer Reviews (পাঠক ও ভক্তদের মতামত)
+            পাঠকের মতামত
           </h2>
           <Button
             onClick={() => setReviewDialogOpen(true)}
             variant="outline"
             className="border-[#4A154B] text-[#4A154B] hover:bg-[#4A154B] hover:text-white rounded-xl text-xs font-sans font-bold"
           >
-            একটি রিভিউ বা মন্তব্য লিখুন
+            গ্রন্থটি সম্পর্কে আপনার মন্তব্য লিখুন
           </Button>
         </div>
 

@@ -93,7 +93,7 @@ export function getStockStatus(actualStock: number): {
   return {
     available,
     isAvailable: true,
-    text: 'মজুদ আছে',
+    text: 'Stock Available',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200 font-medium',
   };
 }
