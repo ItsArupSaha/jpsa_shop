@@ -33,14 +33,14 @@ export function StoreFooter() {
           
           {/* Col 1: Brand & Socials */}
           <div className="space-y-3 lg:col-span-1">
-            <div className="flex items-center gap-2">
-              <div className="relative h-10 w-10 rounded-full overflow-hidden border border-[#F5B041]/80 shadow-md bg-white/10 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="relative h-11 w-11 rounded-lg overflow-hidden border border-[#F5B041]/80 shadow-md bg-white/10 flex items-center justify-center shrink-0">
                 <Image
-                  src="/logo.png"
-                  alt="Logo"
+                  src="/vfp_logo.png"
+                  alt="Victory Flag Publications Logo"
                   fill
-                  sizes="40px"
-                  className="object-contain p-0.5"
+                  sizes="44px"
+                  className="object-contain p-1"
                 />
               </div>
               <div>
