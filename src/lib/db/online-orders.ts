@@ -16,6 +16,8 @@ import { db } from '../firebase';
 import { STORE_CONFIG, getPublicAvailableStock } from '../store-config';
 import type { Customer, Item, Metadata, OnlineOrderInput, Sale, SaleItem } from '../types';
 import { trackVisitorEvent } from './analytics';
+import { sendTelegramOrderAlert, type TelegramOrderItem } from '../telegram';
+import { getBookMetadata } from '../book-catalog-data';
 
 export async function placeOnlineOrder(
   data: OnlineOrderInput
@@ -79,6 +81,7 @@ export async function placeOnlineOrder(
       let calculatedSubtotal = 0;
       let totalProductionCost = 0;
       const itemsWithPrices: SaleItem[] = [];
+      const notificationItems: TelegramOrderItem[] = [];
 
       for (let i = 0; i < data.items.length; i++) {
         const itemDoc = itemDocs[i];
@@ -103,11 +106,19 @@ export async function placeOnlineOrder(
         calculatedSubtotal += unitPrice * Number(orderItem.quantity);
         totalProductionCost += unitCost * Number(orderItem.quantity);
 
+        const bengaliTitle = getBookMetadata(orderItem.itemId, itemData.title).bengaliTitle || itemData.title;
+
         itemsWithPrices.push({
           itemId: orderItem.itemId,
           quantity: orderItem.quantity,
           price: unitPrice,
           cost: unitCost,
+        });
+
+        notificationItems.push({
+          title: bengaliTitle,
+          quantity: Number(orderItem.quantity),
+          price: unitPrice,
         });
 
         // Decrement warehouse stock
@@ -172,6 +183,7 @@ export async function placeOnlineOrder(
       return {
         saleId,
         total: grandTotal,
+        notificationItems,
       };
     });
 
@@ -187,6 +199,21 @@ export async function placeOnlineOrder(
       orderValue: result.total,
       packageName: data.packageName,
     }).catch(console.error);
+
+    // Send instant Telegram notification to shop administrators (non-blocking)
+    sendTelegramOrderAlert({
+      saleId: result.saleId,
+      customerName: data.customerName.trim(),
+      customerPhone: phoneClean,
+      shippingAddress: data.shippingAddress.trim(),
+      district: data.district,
+      items: result.notificationItems,
+      total: result.total,
+      paymentMethod: data.paymentMethod,
+      transactionId: data.transactionId,
+      orderNote: data.orderNote,
+      packageName: data.packageName,
+    }).catch((err) => console.error('Telegram order alert failed:', err));
 
     return {
       success: true,
