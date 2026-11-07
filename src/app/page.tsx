@@ -32,8 +32,10 @@ export default async function StorefrontPage() {
         <StoreHeader />
 
         <main className="flex-1">
-          {/* Hero Section with Picture Frame */}
-          <HeroSection />
+          {/* Hero Section with Picture Frame & Conditional Package CTA */}
+          <HeroSection
+            showPackages={Boolean(highlightsConfig?.showPackages && packages && packages.length > 0)}
+          />
 
           {/* 100% Flexible Highlight Section (After Hero) */}
           {highlightsConfig && (

@@ -27,7 +27,7 @@ export function PackagesSection({ packages, allItems }: PackagesSectionProps) {
   };
 
   return (
-    <div id="packages" className="space-y-6">
+    <div id="packages" className="space-y-6 scroll-mt-20">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FCE8EF] border border-[#8B0032]/20 text-[#8B0032] text-xs font-bold font-bengali mb-1.5">

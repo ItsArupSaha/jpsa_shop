@@ -109,15 +109,6 @@ export function StoreFooter() {
                   Contact
                 </a>
               </li>
-              <li className="pt-1">
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-[#8B0032] text-white font-medium text-xs transition-colors border border-stone-700"
-                >
-                  <Lock className="h-3.5 w-3.5 text-[#F5B041]" />
-                  <span>Staff Login</span>
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -223,7 +214,7 @@ export function StoreFooter() {
 
         {/* Bottom Credits & Floating Scroll to Top */}
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-stone-500">
-          <p>© {new Date().getFullYear()} Victory Flag Publications. All rights reserved. | Designed & Develop with <Heart className="inline h-3 w-3 text-red-500 fill-red-500 mx-0.5" /> by JPS Archives.</p>
+          <p>© {new Date().getFullYear()} JPS Archives Bangladesh. All rights reserved.</p>
           
           <div className="flex items-center gap-4">
             <Link

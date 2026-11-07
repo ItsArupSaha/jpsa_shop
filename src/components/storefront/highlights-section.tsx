@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Sparkles, Truck, Flame } from 'lucide-react';
+import { Sparkles, Truck } from 'lucide-react';
 import type { Item, PackageTemplate } from '@/lib/types';
 import type { StoreHighlightsConfig } from '@/lib/store-highlights-types';
 import { BookCard } from './book-card';
@@ -27,11 +27,6 @@ export function HighlightsSection({ config, allItems, packages }: HighlightsSect
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto space-y-2 mb-10">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#FCE8EF] border border-[#8B0032]/20 text-[#8B0032] text-xs font-bold font-bengali shadow-xs">
-            <Flame className="h-3.5 w-3.5 text-[#F5B041] fill-[#F5B041]" />
-            <span>{config.highlightTag || 'বিশেষ আকর্ষণ • Spotlight'}</span>
-          </div>
-
           <h2 className="font-headline font-bold text-2xl md:text-3xl lg:text-4xl text-[#1E2229]">
             {config.highlightTitle}
           </h2>

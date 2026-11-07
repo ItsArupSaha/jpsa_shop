@@ -59,7 +59,7 @@ export function BookCatalog({
   }, [initialItems, query, selectedCategory, sortBy]);
 
   return (
-    <section id="books" className="py-10 md:py-14 bg-[#FAF7F2]">
+    <section id="books" className="py-10 md:py-14 bg-[#FAF7F2] scroll-mt-16 md:scroll-mt-20">
       <div className="container mx-auto px-4">
         
         {/* Section Header */}

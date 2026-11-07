@@ -7,9 +7,19 @@ import { Button } from '@/components/ui/button';
 
 interface HeroSectionProps {
   customHeroImage?: string;
+  showPackages?: boolean;
 }
 
-export function HeroSection({ customHeroImage }: HeroSectionProps) {
+export function HeroSection({ customHeroImage, showPackages = false }: HeroSectionProps) {
+  const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.pushState(null, '', `#${targetId}`);
+    }
+  };
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F2] via-[#FFFDF9] to-[#FAF7F2] pt-3 sm:pt-4 md:pt-6 pb-8 md:pb-12 border-b border-[#EFEAE2]">
       <div className="container mx-auto px-4 relative z-10">
@@ -41,11 +51,6 @@ export function HeroSection({ customHeroImage }: HeroSectionProps) {
             {/* Value Propositions Badges */}
             <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-2 max-w-lg mx-auto lg:mx-0 font-bengali">
               <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs">
-                <Truck className="h-5 w-5 text-[#8B0032] mb-1" />
-                <span className="text-xs font-bold text-[#1E2229]">১০০% ফ্রি ডেলিভারি</span>
-                <span className="text-[10px] text-stone-500">সারা বাংলাদেশে</span>
-              </div>
-              <div className="flex flex-col items-center lg:items-start p-3 rounded-xl bg-white border border-[#EFEAE2] shadow-xs">
                 <ShieldCheck className="h-5 w-5 text-[#3B1442] mb-1" />
                 <span className="text-xs font-bold text-[#1E2229]">প্রামাণ্য সংস্করণ</span>
                 <span className="text-[10px] text-stone-500">মূল অনুবাদ ও ভাষ্য</span>
@@ -64,22 +69,46 @@ export function HeroSection({ customHeroImage }: HeroSectionProps) {
                 size="lg"
                 className="bg-[#8B0032] hover:bg-[#6E0028] text-white rounded-xl px-7 py-5 text-sm md:text-base font-bold shadow-md transition-all active:scale-95"
               >
-                <a href="#books" className="flex items-center gap-2">
+                <a
+                  href="#books"
+                  onClick={(e) => handleScrollTo(e, 'books')}
+                  className="flex items-center gap-2"
+                >
                   <BookOpen className="h-5 w-5" />
                   <span>সকল বই দেখুন</span>
                 </a>
               </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="lg"
-                className="border-2 border-[#3B1442] text-[#3B1442] hover:bg-[#3B1442] hover:text-white rounded-xl px-6 py-5 text-sm md:text-base font-bold shadow-xs transition-all active:scale-95"
-              >
-                <a href="#packages" className="flex items-center gap-2">
-                  <Gift className="h-5 w-5" />
-                  <span>বিশেষ প্যাকেজসমূহ</span>
-                </a>
-              </Button>
+              {showPackages ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="border-2 border-[#3B1442] text-[#3B1442] hover:bg-[#3B1442] hover:text-white rounded-xl px-6 py-5 text-sm md:text-base font-bold shadow-xs transition-all active:scale-95"
+                >
+                  <a
+                    href="#packages"
+                    onClick={(e) => handleScrollTo(e, 'packages')}
+                    className="flex items-center gap-2"
+                  >
+                    <Gift className="h-5 w-5" />
+                    <span>বিশেষ প্যাকেজসমূহ</span>
+                  </a>
+                </Button>
+              ) : (
+                <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300/80 text-emerald-950 font-bengali shadow-xs">
+                  <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Truck className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xs sm:text-sm font-bold text-emerald-950 leading-tight">
+                      হোম ডেলিভারি সম্পূর্ণ ফ্রি!
+                    </span>
+                    <span className="text-[11px] font-medium text-emerald-700">
+                      সারা দেশে কোনো ডেলিভারি চার্জ নেই
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
