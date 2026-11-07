@@ -97,7 +97,9 @@ export type Sale = {
   customerName?: string;
   shippingAddress?: string;
   deliveryCharge?: number;
+  deliveryMethod?: string;
   transactionId?: string;
+  createdAt?: string;
   orderNote?: string;
 };
 

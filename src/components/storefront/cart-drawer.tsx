@@ -5,6 +5,7 @@ import Image from 'next/image';
 import {
   CheckCircle2,
   ChevronRight,
+  Download,
   Loader2,
   Minus,
   Plus,
@@ -36,6 +37,7 @@ import {
   formatTakaPrice,
 } from '@/lib/store-config';
 import { placeOnlineOrder } from '@/lib/db/online-orders';
+import { generateCustomerMemoPdf } from './customer-memo-pdf';
 
 export function CartDrawer() {
   const {
@@ -53,7 +55,18 @@ export function CartDrawer() {
 
   const [step, setStep] = React.useState<'cart' | 'checkout' | 'success'>('cart');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [completedOrder, setCompletedOrder] = React.useState<{ saleId: string; total: number } | null>(null);
+  const [completedOrder, setCompletedOrder] = React.useState<{
+    saleId: string;
+    total: number;
+    customerName: string;
+    customerPhone: string;
+    shippingAddress: string;
+    district?: string;
+    paymentMethod: string;
+    transactionId?: string;
+    orderNote?: string;
+    items: Array<{ title: string; quantity: number; price: number }>;
+  } | null>(null);
 
   // Form Fields
   const [name, setName] = React.useState('');
@@ -117,7 +130,18 @@ export function CartDrawer() {
 
       const res = await placeOnlineOrder(orderPayload);
       if (res.success && res.saleId) {
-        setCompletedOrder({ saleId: res.saleId, total: res.total || grandTotal });
+        setCompletedOrder({
+          saleId: res.saleId,
+          total: res.total || grandTotal,
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          shippingAddress: address.trim(),
+          district: district.trim(),
+          paymentMethod,
+          transactionId: transactionId.trim(),
+          orderNote: orderNote.trim(),
+          items: items.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price })),
+        });
         clearCart();
         setStep('success');
       } else {
@@ -472,15 +496,45 @@ export function CartDrawer() {
                 </div>
               </div>
 
-              <Button
-                onClick={() => {
-                  setIsCartOpen(false);
-                  setStep('cart');
-                }}
-                className="bg-[#4A154B] hover:bg-[#38103A] text-white rounded-xl px-5 py-2 text-xs font-bold"
-              >
-                আরও বই দেখুন
-              </Button>
+              {/* Action Buttons: Download Memo + Continue Shopping */}
+              <div className="space-y-2 max-w-sm mx-auto pt-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (completedOrder) {
+                      generateCustomerMemoPdf({
+                        saleId: completedOrder.saleId,
+                        date: new Date(),
+                        customerName: completedOrder.customerName,
+                        customerPhone: completedOrder.customerPhone,
+                        shippingAddress: completedOrder.shippingAddress,
+                        district: completedOrder.district,
+                        paymentMethod: completedOrder.paymentMethod,
+                        transactionId: completedOrder.transactionId,
+                        orderNote: completedOrder.orderNote,
+                        items: completedOrder.items,
+                        total: completedOrder.total,
+                      });
+                    }
+                  }}
+                  className="w-full bg-[#8B0032] hover:bg-[#6E0028] text-white rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 font-bengali"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>মেমো ডাউনলোড করুন (Download Memo)</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    setStep('cart');
+                  }}
+                  className="w-full border-[#4A154B] text-[#4A154B] hover:bg-[#4A154B] hover:text-white rounded-xl py-2 text-xs font-bold font-bengali"
+                >
+                  আরও বই দেখুন
+                </Button>
+              </div>
             </div>
           )}
 

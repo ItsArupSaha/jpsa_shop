@@ -129,6 +129,9 @@ export async function placeOnlineOrder(
 
       const deliveryCharge = Number(data.deliveryCharge) || 0;
       const grandTotal = calculatedSubtotal + deliveryCharge;
+      const isCod = data.paymentMethod === 'Cash';
+      const actualPaymentMethod = isCod ? 'Due' : 'Bank';
+      const totalSaleProfit = calculatedSubtotal - totalProductionCost;
 
       // Prepare sale record
       const newSaleRef = doc(salesCollection);
@@ -141,13 +144,15 @@ export async function placeOnlineOrder(
         discountType: 'none',
         discountValue: 0,
         total: grandTotal,
-        paymentMethod: data.paymentMethod,
+        paymentMethod: actualPaymentMethod,
+        amountPaid: isCod ? 0 : grandTotal,
         orderSource: 'online',
         orderStatus: 'pending',
         customerName: data.customerName.trim(),
         customerPhone: phoneClean,
         shippingAddress: data.shippingAddress.trim(),
         deliveryCharge,
+        deliveryMethod: isCod ? 'Cash on Delivery' : 'Prepaid (Bank)',
         transactionId: data.transactionId?.trim() || '',
         orderNote: data.orderNote?.trim() || '',
         packageName: data.packageName || '',
@@ -156,13 +161,27 @@ export async function placeOnlineOrder(
         createdAt: Timestamp.now(),
       };
 
-      if (data.paymentMethod === 'Cash') {
-        saleData.amountPaid = 0;
-      } else {
-        saleData.amountPaid = grandTotal;
-      }
-
       transaction.set(newSaleRef, saleData);
+
+      // If Cash on Delivery, record an open receivable and update customer's due balance
+      if (isCod) {
+        const currentDue = Number(customerDoc.data()?.dueBalance) || 0;
+        transaction.update(customerRef, { dueBalance: currentDue + grandTotal });
+
+        const receivableRef = doc(transactionsCollection);
+        transaction.set(receivableRef, {
+          description: `Due from online order ${saleId} (${data.customerName.trim()})`,
+          amount: grandTotal,
+          dueDate: Timestamp.now(),
+          status: 'Pending' as const,
+          type: 'Receivable' as const,
+          customerId,
+          saleId,
+          totalSaleProfit,
+          remainingProfit: totalSaleProfit,
+          createdAt: Timestamp.now(),
+        });
+      }
 
       // Record transaction ledger entry
       const newTransRef = doc(transactionsCollection);
@@ -173,8 +192,8 @@ export async function placeOnlineOrder(
         referenceNumber: saleId,
         customerId,
         amount: grandTotal,
-        description: `অনলাইন অর্ডার: ${saleId} (${data.customerName.trim()})`,
-        paymentMethod: data.paymentMethod,
+        description: `অনলাইন অর্ডার: ${saleId} (${data.customerName.trim()})${isCod ? ' - Cash on Delivery' : ''}`,
+        paymentMethod: actualPaymentMethod,
       });
 
       // Update counters
@@ -192,6 +211,8 @@ export async function placeOnlineOrder(
     revalidatePath('/management/sales');
     revalidatePath('/management/dashboard');
     revalidatePath('/management/items');
+    revalidatePath('/management/receivables');
+    revalidatePath('/management/customers');
 
     // Track purchase analytics event
     trackVisitorEvent({

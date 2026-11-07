@@ -305,6 +305,7 @@ export default function SalesManagement({ userId, autoOpenNew = false }: SalesMa
             isSearching={isSearching}
             isPending={isPending}
             onDelete={(sale) => setSalePendingDelete(sale)}
+            onRefresh={loadInitialData}
             authUser={authUser}
           />
           {hasMore && !searchTerm && (
