@@ -45,7 +45,7 @@ export function BookCard({ book }: BookCardProps) {
   };
 
   return (
-    <div className="group rounded-2xl bg-white border border-[#EFEAE2] hover:border-[#8B0032]/40 shadow-xs hover:shadow-lg transition-all duration-300 p-2.5 sm:p-4 flex flex-col justify-between relative overflow-hidden">
+    <div className="group rounded-2xl bg-white border border-[#EFEAE2] hover:border-[#8B0032]/40 shadow-xs hover:shadow-[0_12px_28px_rgba(59,20,66,0.1)] hover:-translate-y-1 transition-all duration-300 ease-out p-2.5 sm:p-4 flex flex-col justify-between relative overflow-hidden">
       
       {/* Top Floating Badges */}
       <div className="flex items-center justify-between gap-1 mb-2">
@@ -59,11 +59,11 @@ export function BookCard({ book }: BookCardProps) {
         </span>
       </div>
 
-      {/* Book Cover Image using Next.js <Image> with proper aspect ratio */}
+      {/* Book Cover Image Container (Unrounded, Edge-to-Edge, Zero Padding, Smooth Zoom) */}
       <Link
         href={`/book/${book.id}`}
         onClick={() => trackVisitorEvent({ eventType: 'book_view', bookId: book.id }).catch(console.error)}
-        className="block relative aspect-[3/4] w-full rounded-xl overflow-hidden bg-[#FAF7F2] border border-[#EFEAE2] mb-3 group-hover:scale-[1.02] transition-transform duration-300 shadow-inner"
+        className="block relative aspect-[2/3] w-full overflow-hidden bg-[#FAF7F2] border border-[#EFEAE2] group-hover:border-[#8B0032]/30 mb-3 group/cover shadow-xs transition-colors duration-300"
       >
         {coverImage ? (
           <Image
@@ -71,11 +71,11 @@ export function BookCard({ book }: BookCardProps) {
             alt={meta.bengaliTitle}
             fill
             sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 240px"
-            className="object-cover rounded-lg"
+            className="object-contain transition-transform duration-500 ease-out group-hover:scale-105"
             loading="lazy"
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-[#FAF7F2] to-[#F5EFE6] select-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-[#FAF7F2] to-[#F5EFE6] select-none transition-transform duration-500 ease-out group-hover:scale-105">
             <div className="w-10 h-10 rounded-full bg-stone-200/70 flex items-center justify-center mb-2 text-stone-400">
               <Book className="h-5 w-5 stroke-[1.5]" />
             </div>
@@ -85,10 +85,10 @@ export function BookCard({ book }: BookCardProps) {
           </div>
         )}
 
-        {/* Hover Quick Overlay */}
-        <div className="absolute inset-0 bg-[#3B1442]/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <span className="bg-white text-[#3B1442] font-bengali text-xs font-bold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1">
-            <Eye className="h-3.5 w-3.5" /> বিস্তারিত দেখুন
+        {/* Hover Quick Overlay (Smooth fade + slide-up pill, crisp image preserved) */}
+        <div className="absolute inset-0 bg-black/15 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out flex items-center justify-center z-10 pointer-events-none">
+          <span className="bg-white/95 text-[#3B1442] font-bengali text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 border border-stone-200 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300 ease-out">
+            <Eye className="h-3.5 w-3.5 text-[#8B0032]" /> বিস্তারিত দেখুন
           </span>
         </div>
       </Link>

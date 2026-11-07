@@ -160,7 +160,7 @@ export function BookDetailView({ book, meta, relatedBooks }: BookDetailViewProps
         <div className="lg:col-span-5 flex flex-col items-center">
           {/* Main Book Cover Card */}
           <div className="w-full max-w-[380px] rounded-2xl bg-white p-4 border border-[#EFEAE2] shadow-md relative">
-            <div className="relative aspect-[3/4] w-full rounded-xl overflow-hidden shadow-inner bg-[#FAF7F2] border border-[#EFEAE2] flex items-center justify-center">
+            <div className="relative aspect-[2/3] w-full overflow-hidden shadow-sm bg-[#FAF7F2] border border-[#EFEAE2] flex items-center justify-center">
               {coverImage ? (
                 <Image
                   src={coverImage}
@@ -168,7 +168,7 @@ export function BookDetailView({ book, meta, relatedBooks }: BookDetailViewProps
                   fill
                   priority
                   sizes="(max-width: 768px) 100vw, 380px"
-                  className="object-cover rounded-lg"
+                  className="object-contain"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center p-6 text-center select-none">

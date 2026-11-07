@@ -383,9 +383,9 @@ export function getBookMetadata(bookId: string, englishTitle = ''): BookMetadata
     const match = englishTitle.match(/6\.\d+/);
     title = `শ্রী গুরুপ্রসঙ্গ পত্রিকা (${match ? match[0] : 'মাসিক'})`;
   } else if (isPic) {
-    title = `শ্রীল গুরুমহারাজের বাঁধাই করা ছবি (${englishTitle})`;
+    title = `${englishTitle}`;
   } else if (englishTitle === 'Little Abhay') {
-    title = 'লিটল অভয় (Little Abhay)';
+    title = 'Little Abhay';
   } else if (englishTitle === 'Amar Putro') {
     title = 'আমার পুত্র';
   }
