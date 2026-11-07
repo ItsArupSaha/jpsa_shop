@@ -7,6 +7,15 @@ import { AppWithAuthProvider } from './auth-wrapper';
 export const metadata: Metadata = {
   title: 'Victory Flag Publications | শ্রীল জয়পতাকা স্বামী অপ্রাকৃত সাহিত্য সম্ভার',
   description: 'শ্রীল জয়পতাকা স্বামী গুরুমহারাজের পারমার্থিক গ্রন্থাবলী, ভগবদ-ভক্তি ও বেদান্ত সাহিত্য সম্ভার সরাসরি সংগ্রহ করুন। সারা বাংলাদেশে সম্পূর্ণ ফ্রি ডেলিভারি।',
+  icons: {
+    icon: [
+      { url: '/icon.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 };
 
 export default function RootLayout({
