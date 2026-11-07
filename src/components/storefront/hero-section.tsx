@@ -11,17 +11,8 @@ interface HeroSectionProps {
 
 export function HeroSection({ customHeroImage }: HeroSectionProps) {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F2] via-[#FFFDF9] to-[#FAF7F2] py-8 md:py-16 border-b border-[#EFEAE2]">
+    <section className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F2] via-[#FFFDF9] to-[#FAF7F2] pt-3 sm:pt-4 md:pt-6 pb-8 md:pb-12 border-b border-[#EFEAE2]">
       <div className="container mx-auto px-4 relative z-10">
-        
-        {/* Free Shipping Alert Pill Banner */}
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FCE8EF] border border-[#8B0032]/20 text-[#8B0032] font-bengali text-xs md:text-sm font-bold shadow-xs">
-            <Truck className="h-4 w-4 text-[#8B0032]" />
-            <span>সারা দেশে সকল বইয়ের অর্ডারে হোম ডেলিভারি সম্পূর্ণ ফ্রি! (Free Courier Shipping)</span>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           
           {/* Left Column: Headlines & Call to Actions */}
@@ -43,7 +34,7 @@ export function HeroSection({ customHeroImage }: HeroSectionProps) {
             </h1>
 
             <p className="font-bengali text-stone-600 text-sm md:text-base leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              আন্তর্জাতিক কৃষ্ণভাবনামৃত সংঘ (ইস্‌কন)-এর দীক্ষাগুরু এবং GBC শ্রীল জয়পতাকা স্বামী মহারাজের
+              আন্তর্জাতিক কৃষ্ণভাবনামৃত সংঘ (ইস্‌কন)-এর অন্যতম দীক্ষাগুরু এবং GBC শ্রীল জয়পতাকা স্বামী মহারাজের
               মুখনিঃসৃত অমৃতবাণী, অপ্রাকৃত গ্রন্থ ও শ্রীল প্রভুপাদের অমূল্য শিক্ষামৃত এখন সরাসরি ঘরে বসেই সংগ্রহ করুন।
             </p>
 
@@ -92,43 +83,61 @@ export function HeroSection({ customHeroImage }: HeroSectionProps) {
             </div>
           </div>
 
-          {/* Right Column: Custom Picture Ready Frame */}
+          {/* Right Column: Dedicated To Srila Prabhupada Picture Frame with Circling Animated Border */}
           <div className="lg:col-span-5 flex justify-center">
-            <div className="relative w-full max-w-[380px] aspect-[4/5] rounded-2xl p-2.5 bg-gradient-to-br from-[#631038] via-[#3B1442] to-[#0D2447] shadow-xl">
-              <div className="w-full h-full rounded-xl overflow-hidden bg-white relative flex flex-col items-center justify-center p-6 text-center shadow-inner">
-                {customHeroImage ? (
-                  <div className="relative w-full h-full">
-                    <Image
-                      src={customHeroImage}
-                      alt="শ্রীল জয়পতাকা স্বামী মহারাজ"
-                      fill
-                      sizes="(max-width: 768px) 100vw, 380px"
-                      className="object-cover rounded-lg"
-                      priority
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-between h-full py-4 text-[#1E2229]">
-                    <div className="h-14 w-14 rounded-full bg-[#FCE8EF] border border-[#8B0032]/30 flex items-center justify-center shadow-xs">
-                      <BookOpen className="h-7 w-7 text-[#8B0032]" />
-                    </div>
+            <div className="relative w-full max-w-[390px] rounded-3xl p-2 overflow-hidden shadow-xl transition-transform duration-300 hover:-translate-y-1">
+              
+              {/* Rotating Conic Gradient Beam (Circling Color Border) */}
+              <div
+                className="absolute -inset-[100%] animate-[spin_5s_linear_infinite]"
+                style={{
+                  background: 'conic-gradient(from 0deg, #F5B041 0deg, #8B0032 120deg, #3B1442 240deg, #F5B041 360deg)',
+                }}
+              />
 
-                    <div className="space-y-2 my-auto">
-                      <div className="w-12 h-0.5 bg-[#8B0032] mx-auto mb-2" />
-                      <h3 className="font-headline font-bold text-2xl text-[#1E2229]">
-                        Victory Flag Publications
-                      </h3>
-                      <p className="font-bengali text-xs text-stone-600 max-w-xs leading-relaxed">
-                        “চৈতন্য মহাপ্রভুর অপ্রাকৃত প্রেমধর্ম ও পারমার্থিক জ্ঞান বিতরণে নিবেদিত।”
-                      </p>
-                      <div className="w-12 h-0.5 bg-[#8B0032] mx-auto mt-2" />
-                    </div>
+              {/* Inner Ivory Card */}
+              <div className="relative w-full rounded-2xl bg-[#FFFDF9] border border-[#EFEAE2] p-4 sm:p-5 flex flex-col items-center text-center shadow-inner">
+                
+                {/* Dedication Header (Picture moved up) */}
+                <div className="space-y-0.5 mb-2.5">
+                  <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.25em] font-sans font-bold text-[#8B0032] flex items-center justify-center gap-2">
+                    <span className="w-5 h-[1px] bg-[#8B0032]/40" />
+                    Dedicated To
+                    <span className="w-5 h-[1px] bg-[#8B0032]/40" />
+                  </span>
+                  <p className="font-serif italic text-xs text-stone-600 font-medium">
+                    His Divine Grace
+                  </p>
+                </div>
 
-                    <div className="bg-[#FAF7F2] px-3.5 py-1.5 rounded-lg border border-[#EFEAE2] text-[11px] font-sans text-[#3B1442] font-semibold">
-                      JPS Archives Bangladesh
-                    </div>
+                {/* Srila Prabhupada Picture from public/SP.png */}
+                <div className="relative aspect-[4/3] w-full rounded-xl overflow-hidden border border-[#EFEAE2] shadow-md bg-[#FAF7F2] group">
+                  <Image
+                    src={customHeroImage || '/SP.png'}
+                    alt="His Divine Grace A.C. Bhaktivedanta Swami Prabhupada"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 380px"
+                    className="object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                    priority
+                  />
+                </div>
+
+                {/* Below picture texts */}
+                <div className="mt-3 text-center space-y-1">
+                  <h3 className="font-serif font-bold text-sm sm:text-base text-[#1E2229] leading-tight tracking-wide">
+                    A.C. Bhaktivedanta Swami Prabhupada
+                  </h3>
+                  
+                  <div className="pt-0.5 space-y-0.5 font-bengali">
+                    <p className="text-xs font-semibold text-[#8B0032] leading-snug">
+                      আন্তর্জাতিক কৃষ্ণভাবনামৃত সংঘ (ইস্কন)
+                    </p>
+                    <p className="text-[11px] sm:text-xs text-stone-600 leading-relaxed font-medium">
+                      প্রতিষ্ঠাতা-আচার্যঃ কৃষ্ণকৃপাশ্রীমূর্তি শ্রীল অভয়চরণারবিন্দ ভক্তিবেদান্ত স্বামী প্রভুপাদ।
+                    </p>
                   </div>
-                )}
+                </div>
+
               </div>
             </div>
           </div>

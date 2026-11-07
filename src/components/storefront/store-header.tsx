@@ -2,19 +2,15 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
-  BookOpen,
-  Phone,
   ShoppingBag,
-  Lock,
   Menu,
   X,
-  Truck,
   Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from './cart-context';
-import { STORE_CONFIG } from '@/lib/store-config';
 
 interface StoreHeaderProps {
   onSearchChange?: (q: string) => void;
@@ -27,37 +23,6 @@ export function StoreHeader({ onSearchChange, searchQuery }: StoreHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full shadow-md font-sans">
-      {/* Top Thin Bar: Contact + Free Delivery + Staff Login */}
-      <div className="bg-[#FAF7F2] text-[#4A154B] text-xs py-1 px-4 border-b border-[#EFEAE2]">
-        <div className="container mx-auto flex items-center justify-between gap-2">
-          {/* Phone Number in English */}
-          <a
-            href={`tel:${STORE_CONFIG.phone}`}
-            className="hover:text-[#8B0032] transition-colors flex items-center gap-1.5 font-medium text-stone-700"
-          >
-            <Phone className="h-3 w-3 text-[#8B0032]" />
-            <span>{STORE_CONFIG.phoneFormatted}</span>
-          </a>
-
-          {/* Strong Hook: Free Delivery across Bangladesh */}
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1 font-bold text-[#8B0032] bg-[#FCE8EF] px-2.5 py-0.5 rounded-full text-[11px]">
-              <Truck className="h-3 w-3 text-[#8B0032]" />
-              <span>সারা দেশে সম্পূর্ণ ফ্রি হোম ডেলিভারি!</span>
-            </span>
-
-            <Link
-              href="/login"
-              className="text-stone-500 hover:text-[#8B0032] transition-colors flex items-center gap-1 text-[11px] font-medium ml-2"
-              title="ম্যানেজমেন্ট লগইন"
-            >
-              <Lock className="h-3 w-3" />
-              <span>Staff Login</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Main Navbar - Exact Plum-to-Navy Gradient */}
       <div className="bg-gradient-to-r from-[#631038] via-[#3B1442] to-[#0D2447] text-white">
         <div className="container mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
@@ -68,8 +33,15 @@ export function StoreHeader({ onSearchChange, searchQuery }: StoreHeaderProps) {
             className="flex items-center gap-2.5 shrink-0 group transition-transform active:scale-95"
             title="JPS Archives BD Branch - Home"
           >
-            <div className="h-10 w-10 rounded-full bg-white/10 border border-[#F5B041]/70 flex items-center justify-center shadow-inner group-hover:border-[#F5B041] transition-colors">
-              <BookOpen className="h-5 w-5 text-[#F5B041]" />
+            <div className="relative h-11 w-11 overflow-hidden border border-[#F5B041]/80 shadow-md group-hover:border-[#F5B041] transition-all bg-white/10 flex items-center justify-center shrink-0">
+              <Image
+                src="/logo.png"
+                alt="JPS Archives BD Branch Logo"
+                fill
+                sizes="44px"
+                className="object-contain p-0.5"
+                priority
+              />
             </div>
             <div className="flex flex-col">
               <span className="font-headline font-bold text-lg sm:text-xl text-white tracking-wide leading-tight">
@@ -158,18 +130,10 @@ export function StoreHeader({ onSearchChange, searchQuery }: StoreHeaderProps) {
               <a
                 href="#contact"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-2 border-b border-white/10 text-white hover:text-[#F5B041]"
+                className="py-2 text-white hover:text-[#F5B041]"
               >
-                Contact & Bank Details
+                Contact
               </a>
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2 text-stone-300 hover:text-white flex items-center gap-1.5 text-xs"
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span>Staff Login</span>
-              </Link>
             </nav>
           </div>
         )}

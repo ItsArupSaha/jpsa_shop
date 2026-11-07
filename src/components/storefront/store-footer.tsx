@@ -2,9 +2,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowUp,
-  BookOpen,
   Facebook,
   Heart,
   Instagram,
@@ -34,8 +34,14 @@ export function StoreFooter() {
           {/* Col 1: Brand & Socials */}
           <div className="space-y-3 lg:col-span-1">
             <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-[#8B0032] text-white flex items-center justify-center font-bold">
-                <BookOpen className="h-5 w-5 text-[#F5B041]" />
+              <div className="relative h-10 w-10 rounded-full overflow-hidden border border-[#F5B041]/80 shadow-md bg-white/10 flex items-center justify-center shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt="Logo"
+                  fill
+                  sizes="40px"
+                  className="object-contain p-0.5"
+                />
               </div>
               <div>
                 <span className="font-headline font-bold text-base text-white block">
@@ -92,13 +98,26 @@ export function StoreFooter() {
             <h4 className="font-headline font-bold text-sm text-white">
               Quick Links
             </h4>
-            <ul className="space-y-1.5 text-[11px] text-stone-400">
-              <li><Link href="/" className="hover:text-[#F5B041] transition-colors">About Us</Link></li>
-              <li><a href="#books" className="hover:text-[#F5B041] transition-colors">Our Books</a></li>
-              <li><a href="#packages" className="hover:text-[#F5B041] transition-colors">Book Bundles</a></li>
-              <li><a href="#highlight" className="hover:text-[#F5B041] transition-colors">Biography</a></li>
-              <li><a href="#contact" className="hover:text-[#F5B041] transition-colors">Contact</a></li>
-              <li><Link href="/login" className="hover:text-[#F5B041] transition-colors">Staff Login</Link></li>
+            <ul className="space-y-2 text-[11px] text-stone-400">
+              <li>
+                <a href="#books" className="hover:text-[#F5B041] transition-colors">
+                  Our Books
+                </a>
+              </li>
+              <li>
+                <a href="#contact" className="hover:text-[#F5B041] transition-colors">
+                  Contact
+                </a>
+              </li>
+              <li className="pt-1">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-[#8B0032] text-white font-medium text-xs transition-colors border border-stone-700"
+                >
+                  <Lock className="h-3.5 w-3.5 text-[#F5B041]" />
+                  <span>Staff Login</span>
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -108,10 +127,56 @@ export function StoreFooter() {
               Others Links
             </h4>
             <ul className="space-y-1.5 text-[11px] text-stone-400">
-              <li><a href="https://jayapatakaswami.com" target="_blank" rel="noreferrer" className="hover:text-[#F5B041] transition-colors">jayapatakaswami.com</a></li>
-              <li><a href="https://jayapatakaswamioffice.com" target="_blank" rel="noreferrer" className="hover:text-[#F5B041] transition-colors">jayapatakaswamioffice.com</a></li>
-              <li><a href="https://vyasapuja.com" target="_blank" rel="noreferrer" className="hover:text-[#F5B041] transition-colors">vyasapuja.com</a></li>
-              <li><a href="https://jayapatakaswamibangla.com" target="_blank" rel="noreferrer" className="hover:text-[#F5B041] transition-colors">jayapatakaswamibangla.com</a></li>
+              <li>
+                <a
+                  href="https://victoryflag.press"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-[#F5B041] transition-colors"
+                >
+                  victoryflag.press
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://jayapatakaswamiarchives.net/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-[#F5B041] transition-colors"
+                >
+                  jayapatakaswamiarchives.net
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://jayapatakaswami.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-[#F5B041] transition-colors"
+                >
+                  jayapatakaswami.com
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://jayapatakaswamibangla.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-[#F5B041] transition-colors"
+                >
+                  jayapatakaswamibangla.com
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://vyasapuja.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-[#F5B041] transition-colors"
+                >
+                  vyasapuja.com
+                </a>
+              </li>
             </ul>
           </div>
 

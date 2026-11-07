@@ -52,23 +52,23 @@ export function HighlightsSection({ config, allItems, packages }: HighlightsSect
             {featuredBooks.map((book) => (
               <div key={book.id} className="relative group pt-3">
                 {/* Ribbon Badge on top */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-gradient-to-r from-[#8B0032] via-[#F5B041] to-[#8B0032] text-white text-[11px] font-bold px-3.5 py-0.5 rounded-full shadow-xs flex items-center gap-1 border border-white/30 tracking-tight whitespace-nowrap">
-                  <Sparkles className="h-3 w-3 text-white fill-white" />
-                  <span>Featured • বিশেষ আকর্ষণ</span>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 bg-gradient-to-r from-[#5B0E33] via-[#8B0032] to-[#3B1442] text-white text-[11px] font-bold px-4 py-1 rounded-full shadow-[0_4px_14px_rgba(99,16,56,0.4)] flex items-center gap-1.5 border border-[#F5B041] whitespace-nowrap">
+                  <Sparkles className="h-3.5 w-3.5 text-[#F5B041] fill-[#F5B041]" />
+                  <span className="font-bengali font-bold text-white">বিশেষ আকর্ষণ</span>
                 </div>
 
                 {/* Card with Circling Border Color */}
-                <div className="relative rounded-3xl p-[2px] overflow-hidden bg-stone-200 shadow-sm transition-transform duration-300 group-hover:-translate-y-1">
+                <div className="relative rounded-3xl p-1.5 sm:p-2 overflow-hidden shadow-md transition-transform duration-300 group-hover:-translate-y-1">
                   {/* Rotating Conic Gradient Beam */}
                   <div
-                    className="absolute -inset-[100%] animate-[spin_4s_linear_infinite]"
+                    className="absolute -inset-[100%] animate-[spin_5s_linear_infinite]"
                     style={{
                       background: 'conic-gradient(from 0deg, #F5B041 0deg, #8B0032 120deg, #3B1442 240deg, #F5B041 360deg)',
                     }}
                   />
 
                   {/* Inner Card Surface */}
-                  <div className="relative bg-white rounded-[22px] overflow-hidden h-full p-1">
+                  <div className="relative bg-white rounded-[18px] sm:rounded-2xl overflow-hidden h-full p-1">
                     <BookCard book={book} />
                   </div>
                 </div>
