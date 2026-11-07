@@ -242,6 +242,7 @@ export async function addSale(
     revalidatePath('/management/sales');
     revalidatePath('/');
     revalidatePath('/management/dashboard');
+    revalidatePath('/management/analytics');
     revalidatePath('/management/items');
     revalidatePath('/management/receivables');
     if (data.customerId) {
@@ -285,6 +286,20 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
       const relatedTransactionsQuery = query(transactionsCollection, where('saleId', '==', saleToDelete.saleId));
       const relatedTransactionDocs = await getDocs(relatedTransactionsQuery);
 
+      // Read analytics_daily document if this is an online order
+      let dailyDocRef: any = null;
+      let dailyDoc: any = null;
+      if (saleToDelete.orderSource === 'online') {
+        const saleDate = new Date(saleToDelete.date);
+        const dhakaTime = new Date(saleDate.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+        const yyyy = dhakaTime.getFullYear();
+        const mm = String(dhakaTime.getMonth() + 1).padStart(2, '0');
+        const dd = String(dhakaTime.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        dailyDocRef = doc(userRef, 'analytics_daily', dateStr);
+        dailyDoc = await transaction.get(dailyDocRef);
+      }
+
 
       // --- WRITE PHASE ---
 
@@ -321,6 +336,16 @@ export async function deleteSale(userId: string, saleId: string): Promise<{ succ
 
       // 4. Delete the sale document
       transaction.delete(saleRef);
+
+      // 5. Decrement daily analytics counters if online order
+      if (dailyDoc && dailyDoc.exists() && dailyDocRef) {
+        const curOrders = Number(dailyDoc.data().totalOrders) || 0;
+        const curOrderVal = Number(dailyDoc.data().totalOrderValue) || 0;
+        transaction.update(dailyDocRef, {
+          totalOrders: Math.max(0, curOrders - 1),
+          totalOrderValue: Math.max(0, curOrderVal - (saleToDelete.total || 0)),
+        });
+      }
     });
 
     revalidatePath('/management/sales');

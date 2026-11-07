@@ -103,12 +103,10 @@ export default function AnalyticsPage() {
       }
     }
 
-    // Also count online sales recorded in sales database
+    // Count online sales recorded in sales database
     const onlineSales = sales.filter((s) => s.orderSource === 'online');
-    const onlineOrdersCount = onlineSales.length > 0 ? onlineSales.length : totalOrders;
-    const onlineSalesAmount = onlineSales.length > 0
-      ? onlineSales.reduce((sum, s) => sum + (s.total || 0), 0)
-      : totalOrderValue;
+    const onlineOrdersCount = onlineSales.length;
+    const onlineSalesAmount = onlineSales.reduce((sum, s) => sum + (s.total || 0), 0);
 
     // Calculate individual book sales count from online sales
     const bookSalesMap: Record<string, number> = {};
